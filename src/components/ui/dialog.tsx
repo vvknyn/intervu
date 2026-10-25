@@ -2,12 +2,22 @@
 
 import * as React from "react"
 // dialog-primitive-exempt: this IS the dialog primitive
-import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { Dialog as DialogPrimitive } from "radix-ui"
 import { X } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { revealFocusedField } from "@/lib/ui/reveal-focused-field"
+
+/** The scrim and panel look, shared with ui/alert-dialog.tsx so the two modals cannot drift. */
+export const dialogOverlayClass =
+  // dialog-primitive-exempt: this IS the dialog primitive
+  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[var(--z-dialog-scrim)] bg-black/50"
+export const dialogContentClass =
+  // dialog-primitive-exempt: this IS the dialog primitive
+  "bg-background border border-border shadow-[var(--shadow-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-1/2 left-1/2 z-[var(--z-dialog)] flex flex-col w-full max-w-[calc(100%-2rem)] max-h-[var(--overlay-max-h)] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-6 rounded-panel p-6 duration-200 outline-none sm:max-w-lg"
+export const dialogTitleClass = "text-lg leading-7 font-semibold"
+export const dialogDescriptionClass = "text-muted-foreground text-sm"
 
 function Dialog({
   ...props
@@ -41,8 +51,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        // dialog-primitive-exempt: this IS the dialog primitive
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[var(--z-dialog-scrim)] bg-black/50",
+        dialogOverlayClass,
         className
       )}
       {...props}
@@ -65,9 +74,8 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          // dialog-primitive-exempt: this IS the dialog primitive
-          "bg-background border border-border shadow-[var(--shadow-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-1/2 left-1/2 z-[var(--z-dialog)] flex flex-col w-full max-w-[calc(100%-2rem)] max-h-[var(--overlay-max-h)] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-6 rounded-panel p-6 duration-200 outline-none sm:max-w-lg",
-          // Compact width: a full-width sheet on the bottom edge, clear of the home indicator (alerts stay centred).
+          dialogContentClass,
+          // Compact width: a full-width sheet on the bottom edge, clear of the home indicator. Only Dialog does this; AlertDialog shares dialogContentClass and stays centred.
           "max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom",
           className
         )}
@@ -149,7 +157,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-lg leading-7 font-semibold", className)}
+      className={cn(dialogTitleClass, className)}
       {...props}
     />
   )
@@ -162,7 +170,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn(dialogDescriptionClass, className)}
       {...props}
     />
   )

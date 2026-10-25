@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -9,7 +9,9 @@ import {
     retryDelayMs,
     RETRY_BASE_MS,
     RETRY_JITTER_MS,
+    settleAction,
     settleEnvelope,
+    ACTION_CEILING_MS,
     type LoadResult,
 } from "@/lib/load-result";
 import { createServerListCache } from "@/lib/server-list-cache";
@@ -138,4 +140,58 @@ test("gate detector: flags every collapse shape, leaves server code, comments an
     none(client(`// used to be .catch(() => [])`));
     none(client(`setRows(res.data ?? []); // ${EXEMPT_MARKER} res.error was checked on the line above`));
     assert.equal(lines(client(`setRows(res.data ?? []); // ${EXEMPT_MARKER} ok`)).length, 1, "a reason is required");
+});
+
+// ── settleAction: a throw or a hang becomes the `{ error }` an action already returns ──
+
+test("settleAction: a resolved result passes through untouched, error shape included", async () => {
+    assert.deepEqual(await settleAction(Promise.resolve({ data: 3 })), { data: 3 });
+    assert.deepEqual(await settleAction(Promise.resolve({ error: "nope", code: "X" })), { error: "nope", code: "X" });
+});
+
+test("settleAction: a thrown action (502 / network) becomes { error }", async () => {
+    const res = await settleAction(Promise.reject<{ error?: string }>(new Error("Bad gateway")));
+    assert.equal(res.error, "Bad gateway");
+});
+
+test("settleAction: a non-Error throw still becomes a string { error }", async () => {
+    const res = await settleAction(Promise.reject<{ error?: string }>("boom"));
+    assert.equal(res.error, "boom");
+});
+
+test("settleAction: a hang past the ceiling stops waiting and reports failure", async () => {
+    const never = new Promise<{ error?: string }>(() => {});
+    const res = await settleAction(never, 20);
+    assert.match(res.error ?? "", /too long/i);
+});
+
+test("settleAction: a slow answer inside the ceiling still wins", async () => {
+    const slow = new Promise<{ data: number }>((r) => setTimeout(() => r({ data: 1 }), 5));
+    assert.deepEqual(await settleAction(slow, 200), { data: 1 });
+});
+
+test("settleEnvelope: a hang past the ceiling is a failed load, not endless loading", async () => {
+    const res = await settleEnvelope(new Promise(() => {}), 20);
+    assert.equal(res.ok, false);
+});
+
+test("ceiling is longer than the patience line (8 s) and shorter than the 53 s stall seen on prod", () => {
+    assert.ok(ACTION_CEILING_MS > 8_000 && ACTION_CEILING_MS < 53_000);
+});
+
+// A client must never say "took too long" while the server is still inside its own deadline.
+test("settleAction: a call given a ceiling past ACTION_CEILING_MS is not a timeout when it answers after 30 s", async () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+        const answersAt = ACTION_CEILING_MS + 1_000;
+        const slowServer = () => new Promise<{ data: string }>((r) => setTimeout(() => r({ data: "done" }), answersAt));
+        const withDefault = settleAction(slowServer());
+        const withLonger = settleAction(slowServer(), answersAt + 1_000);
+        mock.timers.tick(ACTION_CEILING_MS);
+        assert.match(((await withDefault) as { error?: string }).error ?? "", /too long/i, "control: the default ceiling does report it");
+        mock.timers.tick(1_000);
+        assert.deepEqual(await withLonger, { data: "done" });
+    } finally {
+        mock.timers.reset();
+    }
 });

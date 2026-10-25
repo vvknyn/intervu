@@ -13,6 +13,9 @@ test("flags a hand-rolled role=dialog, aria-modal, <dialog> and a direct Radix d
   assert.deepEqual(rules(`<div aria-modal="true">`), ["aria-modal"]);
   assert.deepEqual(rules(`<dialog open>`), ["html-dialog"]);
   assert.deepEqual(rules(`import * as D from "@radix-ui/react-dialog"`), ["radix-dialog-import"]);
+  assert.deepEqual(rules(`import { Dialog as D } from "radix-ui"`), ["radix-dialog-import"]);
+  assert.deepEqual(rules(`import { Slot, Dialog } from "radix-ui"`), ["radix-dialog-import"]);
+  assert.deepEqual(rules(`import { AlertDialog, Switch } from "radix-ui"`), []);
 });
 
 test("flags a fixed full-viewport overlay and a fixed centered panel, whatever the other classes", () => {

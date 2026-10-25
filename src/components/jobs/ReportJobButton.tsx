@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useEffect, useState } from "react";
 import { FlagIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,8 @@ export function ReportJobButton({
 
     const submit = async () => {
         setPhase("submitting");
-        const result = await reportJobAction({ jobId, jobUrl, jobTitle, reason, notes });
+        const settled = await settleAction(reportJobAction({ jobId, jobUrl, jobTitle, reason, notes }));
+        const result = settled.kind ? settled : { kind: "error" as const, message: "Couldn't send your report. Try again." };
         switch (result.kind) {
             case "ok":
                 setPhase("done");

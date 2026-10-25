@@ -2,7 +2,7 @@
 
 import * as React from "react"
 // dialog-primitive-exempt: this IS the sheet primitive
-import * as SheetPrimitive from "@radix-ui/react-dialog"
+import { Dialog as SheetPrimitive } from "radix-ui"
 import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "@phosphor-icons/react"
 

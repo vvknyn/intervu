@@ -1,7 +1,8 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useEffect, useId, useState } from "react";
-import { Switch } from "@/components/settings/Switch";
+import { Switch } from "@/components/ui/switch";
 import { deleteSavedSearchAction, saveSavedSearchAction } from "@/actions/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { captureEvent } from "@/lib/analytics/events";
@@ -93,9 +94,9 @@ export function SearchAlertSwitch({
         setBusy(true);
         try {
             const res: { data?: SavedSearch; error?: string } = next
-                ? await saveSavedSearchAction({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState) })
+                ? await settleAction(saveSavedSearchAction({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState) }))
                 : match
-                  ? await deleteSavedSearchAction(match.id)
+                  ? await settleAction(deleteSavedSearchAction(match.id))
                   : {};
             if (res.error) {
                 setPending(null);
