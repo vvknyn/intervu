@@ -465,6 +465,7 @@
   --color-brand-foreground: rgb(var(--brand-foreground));
   --color-brand-muted: rgb(var(--brand-muted));
   --color-brand-hover: rgb(var(--brand-hover));
+  --color-brand-tint-bg: rgb(var(--brand-tint-bg));
   /* The calm secondary button's fill: a faint wash of the brand (8%), stronger
      on hover (14%). Tokens, not `bg-brand/8`, so the opacity-suffix ban holds. */
   --color-brand-wash: rgb(var(--brand) / 0.08);
