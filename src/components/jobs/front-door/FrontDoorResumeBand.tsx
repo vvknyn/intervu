@@ -1,6 +1,7 @@
 "use client";
 
 import { UploadSimple } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { AUTH_CTA_LABEL, RESUME_UPLOAD_CTA } from "@/lib/auth/auth-gate-copy";
 import {
     FRONT_DOOR_RESUME_CARD_SUBCOPY,
@@ -22,8 +23,8 @@ import {
  * default upload path is server-side).
  *
  * Requirement 5 (one filled action per screen at rest): "Upload resume" is
- * the ONLY button here — white fill, brand text (Fable design pass,
- * 2026-09-17: the band's second, outline "Sign in" button was cut; signing
+ * the ONLY button here — the Button primitive's `secondary` variant (brand text on a
+ * faint brand tint; Fable design pass, 2026-09-17: the band's second, outline "Sign in" button was cut; signing
  * in is now the `AUTH_CTA_LABEL` word inside `RESUME_UPLOAD_SIGNIN_LINE`
  * below, rendered as a link — same split-on-embedded-label convention
  * the retired detail pitch used for `FOOTER_PROVENANCE_LINE`). A signed-in
@@ -45,36 +46,30 @@ export function FrontDoorResumeBand({
             aria-label="Add your resume"
             // rounded-panel: it sits inside the page gutter, not edge to edge,
             // so its square corners were the one unrounded panel on the page.
-            className="mb-3 w-full rounded-panel bg-brand px-4 py-6 text-brand-foreground sm:px-8"
+            className="@container mb-3 w-full rounded-panel bg-surface px-4 py-6 text-foreground sm:px-8"
         >
-            <div className="mx-auto grid max-w-[960px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
+            <div className="mx-auto grid max-w-[960px] gap-3 @lg:grid-cols-[minmax(0,1fr)_auto] @lg:items-center @lg:gap-6">
                 <div>
-                    <h2 className="text-xl font-semibold text-brand-foreground">
-                        See which live jobs fit your experience.
+                    <h2 className="text-xl font-semibold text-foreground">
+                        See which live jobs fit you.
                     </h2>
-                    <p className="mt-1 text-sm text-brand-foreground">
+                    <p className="mt-1 text-sm text-muted-foreground">
                         {signedIn ? FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN : FRONT_DOOR_RESUME_CARD_SUBCOPY}
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={onUploadClick}
-                        className="ctl-md ctl-button inline-flex items-center justify-center gap-1.5 bg-brand-foreground px-5 text-brand transition-colors hover:opacity-90"
-                    >
-                        <UploadSimple size={16} weight="bold" aria-hidden />
-                        {RESUME_UPLOAD_CTA}
-                    </button>
-                </div>
+                <Button type="button" variant="secondary" onClick={onUploadClick} className="justify-self-start">
+                    <UploadSimple weight="bold" aria-hidden />
+                    {RESUME_UPLOAD_CTA}
+                </Button>
                 {!signedIn && (
-                    <p data-testid="front-door-band-signin" className="text-xs text-brand-foreground sm:col-span-2">
+                    <p data-testid="front-door-band-signin" className="text-xs text-muted-foreground @lg:col-span-2">
                         {RESUME_UPLOAD_SIGNIN_LINE.split(AUTH_CTA_LABEL).map((part, i) => (
                             <span key={i}>
                                 {i > 0 && (
                                     <button
                                         type="button"
                                         onClick={onSignInClick}
-                                        className="font-semibold underline underline-offset-2"
+                                        className="font-semibold text-foreground underline underline-offset-2"
                                     >
                                         {AUTH_CTA_LABEL}
                                     </button>

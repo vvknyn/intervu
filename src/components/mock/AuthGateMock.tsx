@@ -260,7 +260,7 @@ export function AuthGateMock() {
                         >
                             {INSTRUMENT_META}
                         </p>
-                        <p className="mt-2.5 max-w-[34ch] text-center text-xs leading-snug text-[#8b919a]">
+                        <p className="mt-2.5 max-w-[14rem] text-center text-xs leading-snug text-[#8b919a]">
                             {INSTRUMENT_SUPPORT}
                         </p>
                     </div>

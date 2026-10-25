@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
-import { CompanyVerdictBand } from "@/components/company/CompanyVerdictBand";
+import { CompanyCadenceStrip, cadenceStripHasContent } from "@/components/company/CompanyCadenceStrip";
+import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { SectionTitle } from "@/components/ui/heading";
 import type { CompanyFaqItem } from "@/lib/companies/company-faq";
@@ -10,6 +10,7 @@ import type { SectionId } from "@/lib/companies/company-sections";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { listedOnPostings, listedOnRoles, statedOfTotal } from "@/lib/companies/facts-copy";
 import { exhaustHiringRecord, trackingStartedInWindow } from "@/lib/companies/hiring-record";
+import { machineTokenLabel } from "@/lib/companies/machine-token";
 import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { formatCount } from "@/lib/format";
@@ -100,7 +101,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
               p?.hqCountry && `HQ ${p.hqCountry}`,
               p?.yearFounded != null && `Founded ${p.yearFounded}`,
               p?.employees && `≈${p.employees} people`,
-              p && p.industries.length > 0 && p.industries.join(", "),
+              p && p.industries.filter((x) => machineTokenLabel(x) !== i.sector).join(", "),
             ]}
           />
         </div>
@@ -121,7 +122,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
       <Section id="hiringNow" title="Hiring now">
         <p className="text-sm text-foreground">{`${formatCount(h.openCount)}${h.openCountIsLowerBound ? "+" : ""} open role${h.openCount === 1 ? "" : "s"}.`}</p>
         {lines.length > 0 && <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">{lines.map((l, k) => <li key={k}>{l as string}</li>)}</ul>}
-        {exhaust && <div className="mt-4"><CompanyCadenceStrip cadence={exhaust.cadence} /></div>}
+        {exhaust && cadenceStripHasContent(exhaust.cadence) && <div className="mt-4"><CompanyCadenceStrip cadence={exhaust.cadence} /></div>}
       </Section>
     );
   },
@@ -176,7 +177,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
   listingHealth: ({ exhaust, nowMs, staleShare }) => (
     <Section id="listingHealth" title="Listing health">
       {staleShare && <p className="text-sm text-muted-foreground">{staleShare}</p>}
-      {exhaust && <div className={staleShare ? "mt-4" : undefined}><CompanyVerdictBand health={exhaust.health} nowMs={nowMs} /></div>}
+      {exhaust && verdictBandHasContent(exhaust.health, nowMs) && <div className={staleShare ? "mt-4" : undefined}><CompanyVerdictBand health={exhaust.health} nowMs={nowMs} /></div>}
     </Section>
   ),
   filings: ({ facts }) => {

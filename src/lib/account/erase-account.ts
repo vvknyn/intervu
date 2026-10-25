@@ -251,8 +251,9 @@ export async function deleteStripeCustomer(
 /**
  * Deletes the PostHog person for this distinct id with their events and
  * session recordings (`delete_events=true&delete_recordings=true`, PostHog's
- * persons API). Needs a personal API key with person:write scope in
- * POSTHOG_PERSONAL_API_KEY and the project id in POSTHOG_PROJECT_ID; without
+ * persons API). Needs a personal API key in POSTHOG_PERSONAL_API_KEY with
+ * person:read (the distinct_id lookup, which runs first and throws on 403) and
+ * person:write (the DELETE), and the project id in POSTHOG_PROJECT_ID; without
  * them it does nothing and says so.
  *
  * Only a person whose own distinct_ids include this id is deleted, so a

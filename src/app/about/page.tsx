@@ -8,7 +8,7 @@ import { IS_VELAI_LEGIT } from "@/lib/blog/is-velai-legit";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { buildJobSearchFaqJsonLd, buildWebApplicationJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const TITLE = "About velai";
@@ -28,10 +28,10 @@ export default function AboutPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(aboutJsonLd) }} />
       <p className="text-xs font-semibold text-muted-foreground">About velai</p>
       <PageTitle className="mt-3">About velai</PageTitle>
-      <p className="mt-1.5 text-base text-muted-foreground">
+      <PageLead>
         An honest layer over the real job market: what&apos;s actually posted, flagged when it looks stale, out of
         the way otherwise.
-      </p>
+      </PageLead>
 
       <Prose className="mt-6">
         <SectionTitle>What velai is</SectionTitle>

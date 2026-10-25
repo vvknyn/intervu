@@ -216,7 +216,7 @@ function domainLabels(domain: string): { labels: string[]; brandTld: string | nu
 /** An all-capitals page title longer than this is a banner ("FIVE GUYS"), not a spelling; shorter is an acronym ("AAFF"). */
 const MAX_ACRONYM_LETTERS = 4;
 
-const siteKey = (value: string): string => alnum(value.replace(/&/g, " and "));
+export const siteKey = (value: string): string => alnum(value.replace(/&/g, " and "));
 
 /** The fold two spellings of one listed name share in any script: letters and digits only, accents and case folded ("Basic-Fit" and "Basic Fit"; "Яндекс" stays distinct from "トヨタ"). "&" is dropped, not read as "and": "Central & Northern" and "Central and Northern" are two spellings the listing has always kept apart. */
 export const nameKey = (value: string): string => fold(value).toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");

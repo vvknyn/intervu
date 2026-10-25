@@ -2,14 +2,19 @@ import { cn } from "@/lib/utils";
 
 // The ONE long-form article wrapper (About, legal, research, SEO hubs).
 // `prose-sm` is what the Typography plugin's list/heading spacing is tuned
-// against; globals.css binds its colours to tokens and lifts p/li to the
-// 16/22 body size. <SectionTitle> / <SubTitle> inside get their spacing here,
+// against; globals.css binds its colours to tokens and lifts p/li to
+// 16px / 1.625. <SectionTitle> / <SubTitle> inside get their spacing here,
 // so a page carries no per-page heading-margin constant.
+/** The ONE reading column: 28rem ~ 66 characters of 16px body text. A rem width,
+ *  not ch: ch resolves against the container's font (Prose is prose-sm, 14px),
+ *  so one ch token rendered two widths. */
+export const READING_MEASURE = "max-w-[28rem]";
+
 export function Prose({ className, ...props }: React.ComponentProps<"article">) {
   return (
     <article
       className={cn(
-        "prose prose-sm max-w-none dark:prose-invert [&_h2]:mb-3 [&_h2]:mt-8 [&_h3]:mb-3 [&_h3]:mt-8", // page-scale-allow: the Prose primitive itself
+        `prose prose-sm dark:prose-invert ${READING_MEASURE} [&_h2]:mb-3 [&_h2]:mt-12 [&_h3]:mb-3 [&_h3]:mt-8 [&_li]:my-2`, // page-scale-allow: the Prose primitive itself
         className,
       )}
       {...props}

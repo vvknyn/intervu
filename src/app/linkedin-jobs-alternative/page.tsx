@@ -5,7 +5,7 @@ import { LINKEDIN_JOBS_ALTERNATIVE, LINKEDIN_JOBS_ALTERNATIVE_FAQ } from "@/lib/
 import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = LINKEDIN_JOBS_ALTERNATIVE;
@@ -31,9 +31,9 @@ export default function LinkedinJobsAlternativePage() {
       <PageTitle className="mt-3">
         Easy Apply is a feeling. It isn&apos;t a reply.
       </PageTitle>
-      <p className="mt-1.5 text-base text-muted-foreground">
+      <PageLead>
         velai has no profile to polish and no badge that says you&apos;re a top applicant.
-      </p>
+      </PageLead>
 
       <Prose className="mt-6">
         <p>

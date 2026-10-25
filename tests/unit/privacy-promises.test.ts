@@ -20,12 +20,12 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
 
 test("every promise links to a section /privacy has", () => {
     const privacy = read("src/app/privacy/page.tsx");
-    assert.match(privacy, /<SectionTitle id=\{PRIVACY_RESUME_SECTION_ID\}>Your résumé<\/SectionTitle>/);
+    assert.match(privacy, /<DocHeading id=\{PRIVACY_RESUME_SECTION_ID\}>Your résumé<\/DocHeading>/);
     for (const promise of PRIVACY_PROMISES) {
         const anchor = promise.href.split("#")[1];
         assert.ok(anchor, `${promise.id} links to a section`);
         const declared =
-            anchor === PRIVACY_RESUME_SECTION_ID || new RegExp(`<SectionTitle id="${anchor}">`).test(privacy);
+            anchor === PRIVACY_RESUME_SECTION_ID || new RegExp(`<DocHeading id="${anchor}">`).test(privacy);
         assert.ok(declared, `/privacy has no section #${anchor} for "${promise.title}"`);
     }
 });

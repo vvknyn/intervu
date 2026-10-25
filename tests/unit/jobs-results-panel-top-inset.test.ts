@@ -6,8 +6,8 @@ import { join } from "node:path";
 const PAGE = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
 
 describe("results panel top inset", () => {
-    it("the bordered list panel owns the top padding, so whichever row renders first is inset", () => {
-        const panel = PAGE.match(/className="([^"]*rounded-panel border border-border bg-surface[^"]*xl:min-w-0)"/);
+    it("the tonal list panel owns the top padding, so whichever row renders first is inset", () => {
+        const panel = PAGE.match(/className="([^"]*rounded-panel bg-surface pt-3[^"]*xl:min-w-0)"/);
         assert.ok(panel, "list panel found");
         assert.match(panel[1], /(^| )pt-3( |$)/);
         const firstRow = PAGE.indexOf('data-testid="resume-read-strip"');

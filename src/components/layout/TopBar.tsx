@@ -82,7 +82,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-[var(--z-topbar)] shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)] transition-colors shadow-[var(--shadow-bevel-highlight)]"
+            className="sticky top-0 z-[var(--z-topbar)] shrink-0 material-bar pt-[env(safe-area-inset-top,0px)] transition-colors"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -142,7 +142,7 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="ctl-md hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill p-0.5 pl-0 border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="ctl-lg hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill p-0.5 pl-0 border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass className="shrink-0 self-center text-foreground" />
@@ -226,6 +226,8 @@ export function TopBar() {
                                 {AUTH_CTA_LABEL}
                             </Button>
                             <Button
+                                // control-type-allow: the bar's one primary button shares the docked search field's 44px lg step
+                                size="lg"
                                 type="button"
                                 data-testid="topbar-create-account"
                                 onClick={() => {
@@ -244,9 +246,9 @@ export function TopBar() {
 
             {/* Second row — active filters only. */}
             {docked && (
-                <div data-region="band" className="hidden bg-muted lg:block">
+                <div data-region="band" className="hidden lg:block">
                     {/* Wrap instead of horizontal scroll; chips never truncate. */}
-                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip border-t border-border">
+                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip">
                         {docked && (
                             <>
                                 <button
@@ -272,7 +274,6 @@ export function TopBar() {
                                 <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
                                 {docked.chips.length > 0 && (
                                     <>
-                                        <span aria-hidden className="jobs-instrument-rule" />
                                         <div data-testid="topbar-docked-active-filters" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                                             {docked.chips.map((chip) => (
                                                 <span

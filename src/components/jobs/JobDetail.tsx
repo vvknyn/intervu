@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { READING_MEASURE } from "@/components/ui/prose";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { ArrowSquareOut, Check, Minus, SignIn, Warning, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,6 @@ import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { useCompanyHiringRecord } from "@/components/jobs/use-company-hiring-record";
 import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, applyButtonLabel, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
-import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { cn } from "@/lib/utils";
@@ -151,8 +151,8 @@ export function PostingCheckHeader({
  */
 export function JobDetailSkeleton() {
     return (
-        <div className="overflow-hidden border border-border bg-surface" aria-hidden="true">
-            <div className="border-b border-border p-6">
+        <div className="overflow-hidden bg-surface" aria-hidden="true">
+            <div className="p-6">
                 <div className="flex items-start gap-4">
                     <WaitBar className="h-12 w-12 shrink-0" />
                     <div className="min-w-0 flex-1 space-y-2">
@@ -248,7 +248,7 @@ export function JobDetailActionBar({
     return (
         <div
             data-testid="job-detail-action-bar"
-            className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-surface px-4", className)}
+            className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 material-bar px-4", className)}
         >
             {job.apply_url && (
                 <Button size={jobActionSize} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand transition-colors" onClick={onOpenPosting}>
@@ -326,7 +326,7 @@ export function RelatedJobRow({ job, now, onClick, href, first = false }: { job:
     // remote/hybrid job's work mode can show up.
     const loc = placeWithWorkMode(locationText(job), job.work_type);
     const body = (
-        <span className={cn("flex min-w-0 flex-col gap-0.5 py-3", !first && "border-t border-border")}>
+        <span className={cn("flex min-w-0 flex-col gap-0.5 py-3", !first && "border-t border-border-subtle")}>
             <span data-testid="related-job-title" className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
                 {displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company"}
@@ -395,7 +395,7 @@ export function RelatedJobsSection({
 }) {
     if (jobs.length === 0) return null;
     return (
-        <div data-testid="job-detail-related" className="border-t border-border py-6">
+        <div data-testid="job-detail-related" className="py-4">
             <Heading className="mb-2 text-sm font-semibold text-foreground">{relatedJobsHeading(basis, companyBrand)}</Heading>
             {/* -mx-4 undoes the pane's and the page column's 16px inset so
                 each row's hover band runs edge to edge (RelatedJobRow). */}
@@ -883,7 +883,7 @@ export function JobDetail({
                                 pursuit={pursuit}
                                 onGoAfter={onGoAfter}
                                 successPulse={saveSuccessPulse}
-                                className="rounded-ctl border border-border bg-surface"
+                                className="rounded-ctl bg-surface-2"
                             />
                         )}
                         {/* ReportJobButton hardcodes its own trigger content
@@ -912,103 +912,59 @@ export function JobDetail({
                     collapseDescription && "min-h-0 flex-1 overflow-y-auto custom-scrollbar",
                 )}
             >
-                {/* Facts grid (cards pass, 2026-09-17) — one cell per fact
-                    buildFactChips already decided is present, replacing the
-                    old single dotted meta line. Icons reuse the same
-                    FACT_CHIP_ICON map the SERP row's own chips use, so a
-                    fact never gets a second, diverging glyph here. */}
-                <div className="grid grid-cols-1 gap-x-6 gap-y-2 pb-4 text-sm sm:grid-cols-2">
-                    {location && (
-                        <div className="flex items-start gap-2 text-foreground">
-                            <FACT_CHIP_ICON.location size={16} weight="bold" className="relative top-0.5 shrink-0 text-muted-foreground" aria-hidden />
-                            <span className="inline-flex flex-col">
-                                {locationClamped ? (
-                                    <>
-                                        {(locationExpanded
-                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
-                                            : locationDisclosure.visible
-                                        ).map((segment, i) => (
-                                            <span key={i} data-testid="job-location">{segment}</span>
-                                        ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => setLocationExpanded((v) => !v)}
-                                            className="mt-0.5 text-left text-xs text-brand hover:underline cursor-pointer"
-                                        >
-                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
-                                        </button>
-                                    </>
-                                ) : (
-                                    <span data-testid="job-location">{locationDisplay}</span>
-                                )}
-                                {/* Review fix: `variants` (page.tsx's
-                                    `detailVariants`, same clusters the SERP
-                                    row groups on) went unread once the old
-                                    dotted meta line was removed — restored
-                                    as its own line under location via the
-                                    shared MetaLine seam, rather than a raw
-                                    span, per reuse-before-write. */}
-                                {alsoIn && (
-                                    <span className="mt-0.5 text-xs text-muted-foreground">
-                                        <MetaLine items={[`also in ${alsoIn}`]} />
-                                    </span>
-                                )}
-                            </span>
-                        </div>
-                    )}
-                    {workTypeChip && (
-                        <div className="flex items-center gap-2 text-foreground">
-                            <FACT_CHIP_ICON.work_type size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
-                            <span>{workTypeChip.label}</span>
-                        </div>
-                    )}
-                    {(employmentTypeChip || experienceLevelChip) && (
-                        <div className="flex items-center gap-2 text-foreground">
-                            <FACT_CHIP_ICON.employment_type size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
-                            {/* One flex item: as the row's own items, the row's
-                                gap-2 landed after the "·" ("Part Time ·   Mid"). */}
-                            <span>
-                                <MetaLine
-                                    items={[
-                                        employmentTypeChip && <span>{employmentTypeChip.label}</span>,
-                                        experienceLevelChip && <span>{experienceLevelChip.label}</span>,
-                                    ]}
-                                />
-                            </span>
-                        </div>
-                    )}
-                    {(postedChip || firstSeenChip) && (
-                        <div className="flex items-center gap-2 text-foreground">
-                            <FACT_CHIP_ICON.posted size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
-                            <span>
-                                {postedChip && (
-                                    <span className={freshness.kind === "relisted" ? LISTING_STATE_TEXT.relisted : undefined}>{postedChip.label}</span>
-                                )}
-                                {firstSeenChip && (
-                                    <span className="text-xs text-muted-foreground">
-                                        {postedChip ? " · " : ""}{firstSeenChip.label}
-                                    </span>
-                                )}
-                            </span>
-                            {postedChip && firstSeenChip && (
-                                <ContextHelp
-                                    content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
-                                    className="self-center"
-                                />
-                            )}
-                        </div>
-                    )}
-                    {/* Review fix: report_count is a retrieved Meili
-                        attribute (meilisearch.ts's fetch fields), not a
-                        buildFactChips kind — rowExceptionMark doesn't cover
-                        it either. Same gate + wording as the pre-restyle
-                        line, reused verbatim rather than rephrased. */}
-                    {typeof job.report_count === "number" && job.report_count > 0 && (
-                        <div className="flex items-center gap-2 text-warn">
-                            <span>
-                                reported {job.report_count} {job.report_count === 1 ? "user" : "users"}
-                            </span>
-                        </div>
+                {/* Calm pass R8: every fact as one flowing middot line through the
+                    shared `MetaLine` seam, the same pattern JobDetailDocument.tsx
+                    uses — no per-fact icon or cell, and a long location wraps
+                    naturally. buildFactChips decides which facts exist. */}
+                <div className="flex flex-wrap items-baseline pb-4 text-sm text-foreground">
+                    <MetaLine
+                        items={[
+                            location && (
+                                <span>
+                                    {locationClamped ? (
+                                        <>
+                                            {(locationExpanded
+                                                ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
+                                                : locationDisclosure.visible
+                                            ).map((segment, i) => (
+                                                <span key={i}>
+                                                    {i > 0 && "; "}
+                                                    <span data-testid="job-location">{segment}</span>
+                                                </span>
+                                            ))}{" "}
+                                            <button
+                                                type="button"
+                                                onClick={() => setLocationExpanded((v) => !v)}
+                                                className="text-left text-xs text-brand hover:underline cursor-pointer"
+                                            >
+                                                {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <span data-testid="job-location">{locationDisplay}</span>
+                                    )}
+                                </span>
+                            ),
+                            location && alsoIn && <span className="text-xs text-muted-foreground">also in {alsoIn}</span>,
+                            workTypeChip && <span>{workTypeChip.label}</span>,
+                            employmentTypeChip && <span>{employmentTypeChip.label}</span>,
+                            experienceLevelChip && <span>{experienceLevelChip.label}</span>,
+                            postedChip && (
+                                <span className={freshness.kind === "relisted" ? LISTING_STATE_TEXT.relisted : undefined}>{postedChip.label}</span>
+                            ),
+                            firstSeenChip && <span className="text-xs text-muted-foreground">{firstSeenChip.label}</span>,
+                            typeof job.report_count === "number" && job.report_count > 0 && (
+                                <span className="text-warn">
+                                    reported {job.report_count} {job.report_count === 1 ? "user" : "users"}
+                                </span>
+                            ),
+                        ]}
+                    />
+                    {postedChip && firstSeenChip && (
+                        <ContextHelp
+                            content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
+                            className="ml-1 self-center"
+                        />
                     )}
                 </div>
 
@@ -1131,9 +1087,9 @@ export function JobDetail({
                 {/* The ghost-check ledger and description body render for
                     everyone — posting text is public; Apply stays gated. */}
                 {/* Rulebook item d: sections stack on page bg, separated by a
-                    hairline top border + 24px vertical padding — no card/panel
-                    per section. Body copy sits at a max-w-prose reading measure. */}
-                <div className="border-t border-border py-6">
+                    32px of space (no rule) — no card/panel
+                    per section. Body copy sits at the READING_MEASURE. */}
+                <div className="py-4">
                     <h3 className="mb-2 text-sm font-semibold text-foreground">About this role</h3>
                     {(() => {
                         // The employer's-site-is-slow note — shared by the "body" case
@@ -1142,7 +1098,7 @@ export function JobDetail({
                         // with a conditional lead sentence rather than two near-
                         // identical paragraphs.
                         const pendingNote = (previewLead: boolean) => (
-                            <p className="max-w-prose text-base leading-relaxed text-foreground">
+                            <p className={`${READING_MEASURE} text-base leading-relaxed text-foreground`}>
                                 {previewLead && "This is only a preview. "}
                                 The employer&apos;s site is taking a while to answer, so the full description isn&apos;t here yet.
                                 {job.apply_url ? " Open the posting to read it there, or " : " "}
@@ -1167,7 +1123,7 @@ export function JobDetail({
                                     <>
                                         <div
                                             data-testid="job-detail-description"
-                                            className={cn("relative max-w-prose", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
+                                            className={cn("relative", READING_MEASURE, collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                                         >
                                             <FormattedJobDescription description={job.description} headingLevel={4} />
                                             {collapsible && !descExpanded && (
@@ -1214,7 +1170,7 @@ export function JobDetail({
                             case "empty":
                             default:
                                 return (
-                                    <p className="max-w-prose text-base leading-relaxed text-foreground">
+                                    <p className={`${READING_MEASURE} text-base leading-relaxed text-foreground`}>
                                         No description was captured for this role.{" "}
                                         {job.apply_url ? (
                                             <>
@@ -1234,7 +1190,7 @@ export function JobDetail({
                 </div>
 
                 {visibleTags(job.tags, 16).length > 0 && (
-                    <div className="border-t border-border py-6">
+                    <div className="py-4">
                         {/* Rulebook item c: no bordered tag chips — a sentence-case
                             label plus one flowing secondary line joined by " · ". */}
                         <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
@@ -1248,7 +1204,7 @@ export function JobDetail({
                     content, render on page bg with a hairline top divider
                     instead of a bordered/bg panel. */}
                 {hasCompanyIntel && (
-                    <div className="border-t border-border py-6">
+                    <div className="py-4">
                         <h3 className="text-base font-semibold text-foreground">
                             {companyBrand || "This company"} · hiring record
                         </h3>
@@ -1328,7 +1284,7 @@ export function JobDetail({
                     fill, no border (rulebook item f) — from this call site
                     only, leaving the shared component and its other mount
                     (which isn't a "detail" region) alone. */}
-                <div className="border-t border-border py-6">
+                <div className="py-4">
                     <McpHandoffNote
                         className="border-0 bg-transparent p-0 [&_button.bg-brand]:!border-0 [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!px-0 [&_button.bg-brand]:!text-brand [&_button.bg-brand]:hover:!bg-transparent [&_button.bg-brand]:hover:!underline"
                         job={{

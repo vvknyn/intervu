@@ -5,7 +5,7 @@ import { WaitState } from "@/components/ui/wait-state";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 import { PageContainer } from "@/components/layout/PageContainer";
-import { PageTitle } from "@/components/ui/heading";
+import { PageTitle, PageLead } from "@/components/ui/heading";
 
 const TITLE = "Contact";
 const DESCRIPTION = "Reach the velai team — questions, feedback, or a listing to correct.";
@@ -20,9 +20,9 @@ export default function ContactPage() {
     <PageContainer measure="reading" data-testid="contact-page" className="py-10">
       <header>
         <PageTitle>Contact</PageTitle>
-        <p className="mt-1.5 text-base text-muted-foreground">
+        <PageLead>
           We read everything that comes through here, and we reply from {PUBLIC_SUPPORT_EMAIL} (Subspace, our job data partner).
-        </p>
+        </PageLead>
       </header>
 
       <Suspense fallback={<WaitState label="Loading contact form" fill className="bg-background" />}>

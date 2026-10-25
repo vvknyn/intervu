@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { READING_MEASURE } from "@/components/ui/prose";
 import { chipVariants } from "@/components/ui/chip";
 import { PageTitle } from "@/components/ui/heading";
 
@@ -139,7 +140,7 @@ function WidthBand({ option, viewport }: { option: WidthOption; viewport: number
                     {gutter === 0 ? "no gutter" : `${gutter}px gutter each side`}
                 </span>
             </header>
-            <p className="mb-3 max-w-[70ch] px-6 text-xs leading-relaxed text-muted-foreground">{option.note}</p>
+            <p className={`mb-3 ${READING_MEASURE} px-6 text-xs leading-relaxed text-muted-foreground`}>{option.note}</p>
             {/* The band is deliberately full-bleed: the tinted area IS the wasted
                 space being decided about, so it has to be shown at real size. */}
             <div className="w-full bg-brand/[0.05]" data-band={option.id}>
@@ -222,7 +223,7 @@ function GroundBand({ option }: { option: GroundOption }) {
                     --background: {option.bg} · --card: {option.card}
                 </code>
             </header>
-            <p className="mb-4 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">{option.note}</p>
+            <p className={`mb-4 ${READING_MEASURE} text-xs leading-relaxed text-muted-foreground`}>{option.note}</p>
             <div className="flex flex-wrap items-start gap-3">
                 {/* A card, a chip row and a block of body copy — the three things
                     actually sitting on this ground all day. */}
@@ -273,7 +274,7 @@ export function SurfaceMock() {
         <main className="min-h-screen bg-background pb-24 text-foreground">
             <div className="px-6 pt-8">
                 <PageTitle>Surface options — page width and page ground</PageTitle>
-                <p className="mt-1 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
+                <p className={`mt-1 ${READING_MEASURE} text-xs leading-relaxed text-muted-foreground`}>
                     Two separate calls. Everything below renders at true scale: the tinted area in each
                     width band is the actual gutter at this window size
                     {viewport > 0 && <> (currently <span className="mono-data">{viewport}px</span>)</>}, and each
