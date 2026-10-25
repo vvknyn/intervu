@@ -22,6 +22,22 @@ async function expectPickClosesAndRefocuses(page: Page, list: Locator) {
   expect(await chip.innerText(), "the pick was applied").not.toBe(before);
 }
 
+/** The listbox contract by keyboard: arrows browse without closing; Space commits, closes and returns focus to the chip. */
+async function expectKeyboardBrowseThenCommit(page: Page, list: Locator) {
+  const chip = page.getByTestId("facet-chip-posted");
+  await chip.focus();
+  await page.keyboard.press("Enter");
+  await expect(list).toBeVisible();
+  await settled(list);
+  for (let i = 0; i < 4 && !(await page.evaluate(() => document.activeElement?.getAttribute("type") === "radio")); i++) await page.keyboard.press("Tab");
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(300);
+  await expect(list, "an arrow key browses; it does not close the list").toBeVisible();
+  await page.keyboard.press("Space");
+  await expect(list, "Space commits and closes").toHaveCount(0);
+  await expect(chip, "focus returns to the chip").toBeFocused();
+}
+
 test("a facet chip opens a bottom sheet with 44px rows on a phone and a popover on desktop", { tag: ["@J-MODAL-07"] }, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/jobs");
@@ -38,6 +54,7 @@ test("a facet chip opens a bottom sheet with 44px rows on a phone and a popover 
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
   await expectPickClosesAndRefocuses(page, sheet);
+  await expectKeyboardBrowseThenCommit(page, sheet);
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByTestId("facet-chip-posted").click();
@@ -51,6 +68,7 @@ test("a facet chip opens a bottom sheet with 44px rows on a phone and a popover 
   await page.keyboard.press("Escape");
   await expect(popover).toHaveCount(0);
   await expectPickClosesAndRefocuses(page, popover);
+  await expectKeyboardBrowseThenCommit(page, popover);
 });
 
 test("a Dialog is a full-width bottom sheet on a phone and stays below y=0 when the keyboard shrinks the viewport", { tag: ["@J-MODAL-08"] }, async ({ page, baseURL }) => {
