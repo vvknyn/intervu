@@ -1,6 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { build } from "esbuild";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import postcss from "postcss";
+import tailwind from "@tailwindcss/postcss";
 
 /**
  * The search box against the WAI-ARIA APG editable-combobox keyboard model.
@@ -10,6 +13,7 @@ import { join } from "node:path";
 
 const ROOT = join(__dirname, "..", "..");
 let bundle = "";
+let css = "";
 
 test.beforeAll(async () => {
     const out = await build({
@@ -23,6 +27,9 @@ test.beforeAll(async () => {
         logLevel: "error",
     });
     bundle = out.outputFiles[0].text;
+    // The app's real stylesheet, so sizes and positions are measured, not assumed.
+    const from = join(ROOT, "src", "app", "globals.css");
+    css = (await postcss([tailwind()]).process(readFileSync(from, "utf8"), { from })).css;
 });
 
 const log = (page: Page) => page.evaluate(() => window.__log);
@@ -30,7 +37,7 @@ const log = (page: Page) => page.evaluate(() => window.__log);
 async function open(page: Page) {
     // A real origin (not about:blank, which denies localStorage, which the component reads).
     await page.route("http://harness.test/", (route) =>
-        route.fulfill({ contentType: "text/html", body: `<!doctype html><div id="root"></div><script>${bundle.replace(/<\/script/g, "<\\/script")}</script>` }),
+        route.fulfill({ contentType: "text/html", body: `<!doctype html><style>${css}</style><div id="root"></div><script>${bundle.replace(/<\/script/g, "<\\/script")}</script>` }),
     );
     await page.goto("http://harness.test/");
     return page.getByRole("combobox", { name: "Search jobs" });
@@ -128,5 +135,87 @@ test.describe("search combobox keyboard model (APG)", () => {
     test("the field carries its form name, so a form submits it before the page's code runs", async ({ page }) => {
         const input = await open(page);
         await expect(input).toHaveAttribute("name", "q");
+    });
+});
+
+// Compact widths (below lg, 1024px — the width the filters Sheet uses): focusing the
+// field turns it into the standard full-screen search view, built on the SAME input.
+test.describe("search combobox on a phone: full-screen search view", () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    const layer = (page: Page) => page.locator("[data-search-layer]");
+
+    test("tap opens a layer covering the viewport, input focused, suggestions inline", async ({ page }) => {
+        const input = await open(page);
+        await expect(layer(page)).toHaveCount(0);
+        await input.tap();
+        await expect(layer(page)).toBeVisible();
+        // Settled (the layer fades in): it spans the whole viewport.
+        await expect.poll(async () => {
+            const b = (await layer(page).boundingBox())!;
+            return [b.x, b.y, b.width, Math.round(b.height)];
+        }).toEqual([0, 0, 390, 844]);
+        await expect(input).toBeFocused();
+        await expect(page.getByRole("option")).toHaveText(["Nurse", "Engineer"]);
+        // The list is inside the layer, not a floating popover.
+        await expect(layer(page).getByRole("listbox", { name: "Search suggestions" })).toBeVisible();
+        await expect(page.locator("[data-slot=combobox-popover]")).toHaveCount(0);
+        const row = await page.getByRole("option").first().boundingBox();
+        expect(Math.round(row!.height)).toBeGreaterThanOrEqual(44);
+        expect(row!.width).toBeGreaterThanOrEqual(380);
+        expect(await input.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+        await expect(input).toHaveAttribute("enterkeyhint", "search");
+        expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toBe("hidden");
+    });
+
+    test("Escape closes the layer and focus stays on the trigger", async ({ page }) => {
+        const input = await open(page);
+        await input.tap();
+        await expect(layer(page)).toBeVisible();
+        await input.press("Escape");
+        await expect(layer(page)).toHaveCount(0);
+        await expect(input).toBeFocused();
+        expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).not.toBe("hidden");
+        await input.tap(); // and a second tap on the trigger reopens it
+        await expect(layer(page)).toBeVisible();
+    });
+
+    test("the back button closes the layer and focus is on the trigger", async ({ page }) => {
+        const input = await open(page);
+        await input.tap();
+        const back = page.getByRole("button", { name: "Close search" });
+        expect(Math.round((await back.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
+        await back.tap();
+        await expect(layer(page)).toHaveCount(0);
+        await expect(input).toBeFocused();
+        expect(await log(page)).toEqual([]);
+    });
+
+    test("picking a suggestion submits and closes the layer", async ({ page }) => {
+        const input = await open(page);
+        await input.tap();
+        await page.getByRole("option", { name: "Engineer" }).tap();
+        await expect(input).toHaveValue("Engineer");
+        await expect(layer(page)).toHaveCount(0);
+        await expect.poll(() => log(page)).toEqual(["search:Engineer"]);
+    });
+
+    test("Enter on typed words submits and closes the layer", async ({ page }) => {
+        const input = await open(page);
+        await input.tap();
+        await input.fill("nurse");
+        await input.press("Enter");
+        await expect(layer(page)).toHaveCount(0);
+        expect(await log(page)).toEqual(["search:nurse"]);
+    });
+});
+
+test.describe("search combobox on desktop keeps the popover", () => {
+    test.use({ viewport: { width: 1440, height: 900 } });
+    test("focus opens the floating popover, no layer", async ({ page }) => {
+        const input = await open(page);
+        await input.focus();
+        await expect(page.locator("[data-slot=combobox-popover]")).toBeVisible();
+        await expect(page.locator("[data-search-layer]")).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Close search" })).toHaveCount(0);
     });
 });

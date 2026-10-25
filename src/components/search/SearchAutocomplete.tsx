@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, type KeyboardEvent, type Key } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, type CSSProperties, type KeyboardEvent, type Key } from "react";
 import type { ComboBoxState } from "react-aria-components";
-import { Combobox, ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopover, ComboboxSection } from "@/components/ui/combobox";
-import { Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
+import { Combobox, ComboboxInput, ComboboxItem, ComboboxLayer, ComboboxList, ComboboxPopover, ComboboxSection } from "@/components/ui/combobox";
+import { ArrowLeft, Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { getSuggestions, groupSuggestions, SearchSuggestion, SuggestionRow, SuggestionSection } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
@@ -12,6 +12,7 @@ import {
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
 } from "@/lib/jobs/recent-searches";
+import { LG_UP_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 
 interface SearchAutocompleteProps {
@@ -84,6 +85,16 @@ export interface SearchAutocompleteHandle {
     focus: () => void;
 }
 
+// Fixed to the visual viewport's full height; the padding keeps the top row clear of a notch.
+const LAYER_STYLE: CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    height: "100dvh",
+    paddingTop: "env(safe-area-inset-top)",
+    paddingLeft: "env(safe-area-inset-left)",
+    paddingRight: "env(safe-area-inset-right)",
+};
+
 export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAutocompleteProps>(function SearchAutocomplete({
     value,
     onChange,
@@ -107,6 +118,14 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     // (`allowsEmptyCollection`), so a typed query can fetch the suggestions that
     // will fill it.
     const [isOpen, setIsOpen] = useState(false);
+    // Below `lg` the focused field becomes the standard full-screen search view
+    // (back arrow + field on top, full-width rows below). The layer is a CSS
+    // switch on the SAME elements, never a second input: iOS opens the keyboard
+    // only for focus that happens inside the tap, so the input that took the tap
+    // must be the one that stays mounted and focused.
+    const compact = !useMediaQuery(LG_UP_QUERY);
+    const [layerOpen, setLayerOpen] = useState(false);
+    const layer = compact && layerOpen;
     // The SHARED recent-searches store (lib/jobs/recent-searches.ts) — the
     // same store the jobs page's landing chips render, so the dropdown
     // history and the chips can never disagree. Read-only here: recording
@@ -168,11 +187,25 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     useImperativeHandle(
         ref,
         () => ({
-            close: () => comboboxStateRef.current?.close(),
+            close: () => {
+                comboboxStateRef.current?.close();
+                setLayerOpen(false);
+            },
             focus: () => inputRef.current?.focus(),
         }),
         [],
     );
+
+    // The page behind the layer must not scroll under a finger on the list.
+    useEffect(() => {
+        if (!layer) return;
+        const { body, documentElement: html } = document;
+        const prev = [body.style.overflow, html.style.overflow];
+        body.style.overflow = html.style.overflow = "hidden";
+        return () => {
+            [body.style.overflow, html.style.overflow] = prev;
+        };
+    }, [layer]);
 
     // A server-drawn box can be typed in before the page's code runs. That
     // text is still in the field when it hydrates; take it as the value, or
@@ -248,10 +281,21 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     // It used to be that hover set the row, so a pointer resting where the list
     // opened made "accountant" + Enter search the old first suggestion.
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Escape") setLayerOpen(false);
         if (e.key !== "Enter" || e.currentTarget.hasAttribute("aria-activedescendant")) return;
         // `onSearch` is the search; a surrounding form must not submit it a second time.
         e.preventDefault();
+        setLayerOpen(false);
         onSearchRef.current();
+    };
+
+    // The library hands focus back to the field after a pick; that is not a new
+    // visit to it. Set by a pick, cleared by the next press on the field or blur.
+    const pickedRef = useRef(false);
+    const openLayer = () => {
+        if (!compact) return;
+        setLayerOpen(true);
+        comboboxStateRef.current?.open(null, "focus");
     };
 
     const handleSelect = (key: Key | null) => {
@@ -270,105 +314,23 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         // The same tick closes the list: the library opens it on ANY change
         // of the controlled text while focused, including the one above, so a
         // close issued before the re-render would be undone by it.
+        setLayerOpen(false);
+        pickedRef.current = true;
         setTimeout(() => {
             comboboxStateRef.current?.close();
             onSearchRef.current();
         }, 0);
     };
 
-    return (
-        <Combobox
-            ref={anchorRef}
-            stateRef={comboboxStateRef}
-            className={containerClassName}
-            aria-label={ariaLabel}
-            name={name}
-            isDisabled={disabled}
-            // Free text searches (Enter), a suggestion is only a shortcut to it.
-            // `selectedKey` stays null so picking the same row twice still
-            // fires: a pick is an action, not a value the field remembers.
-            selectedKey={null}
-            onSelectionChange={handleSelect}
-            inputValue={value}
-            onInputChange={onChange}
-            items={sections}
-            menuTrigger="focus"
-            allowsEmptyCollection
-            onOpenChange={setIsOpen}
-        >
-            {/* The glyph is a FLEX SIBLING of the field, never an absolutely
-                positioned overlay with `pl-*` on the input holding the text
-                clear of it. That older shape coupled the component and its
-                callers on one shared tailwind-merge axis — padding — so any
-                caller passing `px-*` silently deleted the `pl-*` and the icon
-                landed on the placeholder's first word: no error, just a broken
-                field. As row siblings they cannot overlap by construction and
-                callers own their own padding again. `jobs-first-screen.spec.ts`
-                ("no glyph painted over the search field overlaps where its text
-                starts") measures this and is the regression gate. */}
-            <div className="relative flex h-full w-full items-center">
-                {leadingIcon && (
-                    <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
-                        {leadingIcon}
-                    </span>
-                )}
-                <ComboboxInput
-                    ref={inputRef}
-                    type="text"
-                    placeholder={placeholder}
-                    className={cn(
-                        "relative z-20 overflow-hidden text-ellipsis transition-all",
-                        leadingIcon && "min-w-0 flex-1",
-                        // Must clear the button's own footprint (inset + size),
-                        // which differs per breakpoint below: mobile needs
-                        // right-1.5 (6px) + w-10 (40px) = 46px -> pr-12 (48px);
-                        // lg needs lg:right-2.5 (10px) + lg:w-6 (24px) = 34px
-                        // -> lg:pr-9 (36px). A single non-responsive value here
-                        // either clips the button's own breakpoint or leaves
-                        // slack under the other one.
-                        showClear && "pr-12 lg:pr-9",
-                        className,
-                    )}
-                    onKeyDown={handleKeyDown}
-                    autoFocus={autoFocus}
-                />
-                {/* z-30, strictly above the Input's z-20 — a sibling with a
-                    LOWER z-index here lost hit-testing to the (visually
-                    transparent) Input on top of it, which is the exact bug
-                    this button fixes. Kept inside this same shallow wrapper
-                    (not `containerClassName`) so it shares the Input's own
-                    stacking context rather than the caller's. */}
-                {showClear && (
-                    <button
-                        type="button"
-                        data-testid="search-input-clear"
-                        aria-label="Clear search"
-                        title="Clear search"
-                        // Without this, mousedown moves focus to this button
-                        // before onClick fires, blurring the Input. Touch taps
-                        // are unaffected — they fire their own click regardless
-                        // of what a mousedown handler does.
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => onClear?.()}
-                        className={cn(
-                            "absolute right-1.5 z-30 flex ctl-sm ctl-button ctl-square items-center justify-center text-muted-foreground transition-colors hover:text-foreground lg:right-2.5",
-                            CONTROL_FOCUS_VISIBLE,
-                        )}
-                    >
-                        <X size={16} aria-hidden />
-                    </button>
-                )}
-            </div>
-
-            {(suggestions.length > 0 || showSuggestLoading) && (
-                <ComboboxPopover triggerRef={anchorRef}>
+    const suggestionList = (
+        <>
                     {showSuggestLoading && (
                         <div role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
                             <InlineSpinner size={16} className="shrink-0" />
                             Loading suggestions…
                         </div>
                     )}
-                    <ComboboxList aria-label="Search suggestions">
+                    <ComboboxList aria-label="Search suggestions" className={layer ? "max-h-none" : undefined}>
                         {(section: SuggestionSection) => (
                             <ComboboxSection key={section.id} id={section.id} aria-label={section.label ?? "Suggestions"} heading={section.label} items={section.rows}>
                                 {(row: SuggestionRow) => (
@@ -401,8 +363,144 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                             </ComboboxSection>
                         )}
                     </ComboboxList>
-                </ComboboxPopover>
+        </>
+    );
+
+    return (
+        <Combobox
+            ref={anchorRef}
+            stateRef={comboboxStateRef}
+            className={containerClassName}
+            aria-label={ariaLabel}
+            name={name}
+            isDisabled={disabled}
+            // Free text searches (Enter), a suggestion is only a shortcut to it.
+            // `selectedKey` stays null so picking the same row twice still
+            // fires: a pick is an action, not a value the field remembers.
+            selectedKey={null}
+            onSelectionChange={handleSelect}
+            inputValue={value}
+            onInputChange={onChange}
+            items={sections}
+            menuTrigger="focus"
+            allowsEmptyCollection
+            onOpenChange={setIsOpen}
+        >
+            {/* The glyph is a FLEX SIBLING of the field, never an absolutely
+                positioned overlay with `pl-*` on the input holding the text
+                clear of it. That older shape coupled the component and its
+                callers on one shared tailwind-merge axis — padding — so any
+                caller passing `px-*` silently deleted the `pl-*` and the icon
+                landed on the placeholder's first word: no error, just a broken
+                field. As row siblings they cannot overlap by construction and
+                callers own their own padding again. `jobs-first-screen.spec.ts`
+                ("no glyph painted over the search field overlaps where its text
+                starts") measures this and is the regression gate. */}
+            {/* Two wrappers that vanish (`contents`) at rest and on desktop, so the
+                field sits exactly where it always did. Below `lg` while open the
+                outer one is the full-viewport layer (inline style: position is
+                what makes it a layer, so it must not depend on a class) and the
+                inner one its top row. The input is the same node in both. */}
+            <ComboboxLayer
+                active={layer}
+                data-search-layer={layer ? "" : undefined}
+                style={layer ? LAYER_STYLE : undefined}
+                className={layer ? "z-[var(--z-sheet)] flex flex-col bg-background animate-in fade-in motion-reduce:animate-none" : "contents"}
+            >
+            <div className={layer ? "flex shrink-0 items-center gap-1 px-2 py-2" : "contents"}>
+            {layer && (
+                <button
+                    type="button"
+                    aria-label="Close search"
+                    // Keep the focus on the field: the layer closes, the field stays the trigger.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setLayerOpen(false)}
+                    className={cn("flex size-11 shrink-0 items-center justify-center text-foreground", CONTROL_FOCUS_VISIBLE)}
+                >
+                    <ArrowLeft size={20} aria-hidden />
+                </button>
             )}
+            <div className={cn("relative flex h-full w-full items-center", layer && "h-11 min-w-0 flex-1 rounded-pill bg-surface-3")}>
+                {leadingIcon && (
+                    <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
+                        {leadingIcon}
+                    </span>
+                )}
+                <ComboboxInput
+                    ref={inputRef}
+                    type="text"
+                    placeholder={placeholder}
+                    className={cn(
+                        "relative z-20 overflow-hidden text-ellipsis transition-all",
+                        leadingIcon && "min-w-0 flex-1",
+                        // Must clear the button's own footprint (inset + size),
+                        // which differs per breakpoint below: mobile needs
+                        // right-1.5 (6px) + w-10 (40px) = 46px -> pr-12 (48px);
+                        // lg needs lg:right-2.5 (10px) + lg:w-6 (24px) = 34px
+                        // -> lg:pr-9 (36px). A single non-responsive value here
+                        // either clips the button's own breakpoint or leaves
+                        // slack under the other one.
+                        showClear && "pr-12 lg:pr-9",
+                        className,
+                        // Last, so it wins over a caller's own size: the layer's field is a
+                        // 44px row; 16px type keeps iOS from zooming the page on focus.
+                        layer && "h-11 text-base",
+                    )}
+                    enterKeyHint="search"
+                    onFocus={() => !pickedRef.current && openLayer()}
+                    // A press on a field that already has focus (after Escape or the back
+                    // arrow) fires no focus event. Pointer-DOWN, not click: a pick closes the
+                    // layer on pointer-up, and the click that follows lands on the field below.
+                    onPointerDown={() => {
+                        pickedRef.current = false;
+                        openLayer();
+                    }}
+                    onBlur={() => {
+                        pickedRef.current = false;
+                        setLayerOpen(false);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    autoFocus={autoFocus}
+                />
+                {/* z-30, strictly above the Input's z-20 — a sibling with a
+                    LOWER z-index here lost hit-testing to the (visually
+                    transparent) Input on top of it, which is the exact bug
+                    this button fixes. Kept inside this same shallow wrapper
+                    (not `containerClassName`) so it shares the Input's own
+                    stacking context rather than the caller's. */}
+                {showClear && (
+                    <button
+                        type="button"
+                        data-testid="search-input-clear"
+                        aria-label="Clear search"
+                        title="Clear search"
+                        // Without this, mousedown moves focus to this button
+                        // before onClick fires, blurring the Input. Touch taps
+                        // are unaffected — they fire their own click regardless
+                        // of what a mousedown handler does.
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => onClear?.()}
+                        className={cn(
+                            "absolute right-1.5 z-30 flex ctl-sm ctl-button ctl-square items-center justify-center text-muted-foreground transition-colors hover:text-foreground lg:right-2.5",
+                            CONTROL_FOCUS_VISIBLE,
+                        )}
+                    >
+                        <X size={16} aria-hidden />
+                    </button>
+                )}
+            </div>
+
+            </div>
+            {layer ? (
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+                    {suggestionList}
+                </div>
+            ) : (
+                (suggestions.length > 0 || showSuggestLoading) && (
+                    <ComboboxPopover triggerRef={anchorRef}>{suggestionList}</ComboboxPopover>
+                )
+            )}
+            </ComboboxLayer>
         </Combobox>
     );
 });

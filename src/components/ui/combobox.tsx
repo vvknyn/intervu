@@ -26,6 +26,7 @@ import {
   ListBoxItem,
   ListBoxSection,
   Popover,
+  PopoverContext,
   type ComboBoxProps,
   type ComboBoxState,
   type InputProps,
@@ -95,6 +96,19 @@ function ComboboxPopover({ className, ...props }: Omit<PopoverProps, "className"
   )
 }
 
+/**
+ * The compact-width stand-in for the popover: a plain wrapper that takes the
+ * popover's place as the library's "list surface" while `active`. React Aria
+ * hides every element outside the input and that surface from assistive tech
+ * while the list is open, so the wrapper has to be the one it is told about,
+ * or the rows (and a back button) would be hidden. Inactive, it renders the
+ * same element with no ref, so the Popover owns the slot again.
+ */
+function ComboboxLayer({ active, ...props }: React.ComponentProps<"div"> & { active: boolean }) {
+  const surface = React.useContext(PopoverContext) as { ref?: React.Ref<HTMLDivElement> } | null
+  return <div data-slot="combobox-layer" ref={active ? surface?.ref : undefined} {...props} />
+}
+
 function ComboboxList<T extends object>({ className, ...props }: Omit<ListBoxProps<T>, "className"> & { className?: string }) {
   return <ListBox data-slot="combobox-list" className={cn("max-h-[300px] overflow-y-auto py-2 outline-none", className)} {...props} />
 }
@@ -125,7 +139,7 @@ function ComboboxItem({ className, ...props }: Omit<ListBoxItemProps, "className
     <ListBoxItem
       data-slot="combobox-item"
       className={cn(
-        "flex cursor-pointer items-center gap-3 px-4 py-3 text-sm text-muted-foreground outline-none transition-colors",
+        "flex min-h-11 cursor-pointer items-center gap-3 px-4 py-3 text-sm text-muted-foreground outline-none transition-colors",
         "data-[hovered]:bg-surface-hover data-[hovered]:text-foreground data-[focused]:bg-surface-3 data-[focused]:text-foreground",
         className,
       )}
@@ -134,4 +148,4 @@ function ComboboxItem({ className, ...props }: Omit<ListBoxItemProps, "className
   )
 }
 
-export { Combobox, ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopover, ComboboxSection }
+export { Combobox, ComboboxInput, ComboboxItem, ComboboxLayer, ComboboxList, ComboboxPopover, ComboboxSection }

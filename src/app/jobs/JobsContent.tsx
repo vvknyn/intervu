@@ -166,7 +166,7 @@ import {
     applyLocalAiSearchParam,
 } from "@/lib/local-ai/flag";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
-import { useMediaQuery } from "@/hooks/use-media-query";
+import { LG_UP_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
@@ -1140,7 +1140,7 @@ export function JobsContent({
     // `lg` (1024px — matches every other mobile/desktop split in this file,
     // e.g. FilterChipsRow's own `lg:hidden`), inline exactly as before at
     // `lg` and up.
-    const isLgUp = useMediaQuery("(min-width: 1024px)");
+    const isLgUp = useMediaQuery(LG_UP_QUERY);
     // Entry text only — deliberately NOT seeded from the URL's places. Landing
     // on `?country=toronto,montreal` cannot be shown in one box, and showing
     // just the first would under-report the filter that is actually running.
