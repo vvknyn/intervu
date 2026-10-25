@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { eventLoopLine, upstreamErrorLine } from "../../scripts/event-loop-delay.mjs";
+import { eventLoopLine, upstreamErrorLine, visitorLeftLine } from "../../scripts/event-loop-delay.mjs";
 
 const ms = (n: number) => n * 1e6; // histogram values are nanoseconds
 
@@ -26,4 +26,8 @@ test("upstream error line has code, port, method, path without query, elapsed", 
 
 test("upstream error without a code, and a bare-query url", () => {
     assert.equal(upstreamErrorLine({ code: undefined, port: 3001, method: "GET", url: "?a=1", elapsedMs: 5 }), "[proxy] upstream_error code=unknown port=3001 GET / 5ms");
+});
+
+test("visitor left line has port, method, path without query, elapsed, and no error code", () => {
+    assert.equal(visitorLeftLine({ port: 3001, method: "GET", url: "/co/x?q=a@b.c", elapsedMs: 10222.4 }), "[proxy] visitor_left port=3001 GET /co/x 10222ms");
 });

@@ -25,7 +25,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { startEventLoopMonitor, upstreamErrorLine } from "./event-loop-delay.mjs";
+import { startEventLoopMonitor, upstreamErrorLine, visitorLeftLine } from "./event-loop-delay.mjs";
 import { WORKER_HEAP_MB, clientKey, parseCpuMax, parseMemoryMax, pickWorker, resolveWorkerCount, stampArrival, withoutHopHeaders } from "./web-pool.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -122,7 +122,10 @@ function startPool(n) {
                 upRes.on("error", () => res.destroy());
             },
         );
+        let visitorLeft = false;
         upstream.on("error", (err) => {
+            // We destroyed it ourselves (below): the reset is ours, and nobody is left to answer.
+            if (visitorLeft) return;
             // Refused means that server is down: take it out until it listens again.
             const refused = err.code === "ECONNREFUSED";
             if (refused && w.ready) {
@@ -142,9 +145,12 @@ function startPool(n) {
             res.writeHead(502, { "content-type": "text/plain" });
             res.end("Bad gateway");
         });
-        // The visitor left: stop the work on their behalf.
+        // The visitor left: stop the work on their behalf, and say so apart from a server failure.
         res.on("close", () => {
-            if (!res.writableFinished) upstream.destroy();
+            if (res.writableFinished) return;
+            visitorLeft = true;
+            console.error(visitorLeftLine({ port: w.port, method: req.method, url: req.url, elapsedMs: Date.now() - arrivedAt }));
+            upstream.destroy();
         });
         if (req.method === "GET" || req.method === "HEAD") upstream.end();
         else req.pipe(upstream);
