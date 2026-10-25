@@ -44,7 +44,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/data/geo ./data/geo
 # The entrypoint: WEB_CONCURRENCY Next.js servers behind :3000, each visitor
 # always on the same one (scripts/start-web.mjs). Capped by the container's
 # CPUs and memory at 768 MB a server; WEB_CONCURRENCY=1 runs server.js alone.
-COPY --from=builder --chown=nextjs:nodejs /app/scripts/start-web.mjs /app/scripts/web-pool.mjs ./
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/start-web.mjs /app/scripts/web-pool.mjs /app/scripts/event-loop-delay.mjs ./
 ENV WEB_CONCURRENCY=3
 
 USER nextjs

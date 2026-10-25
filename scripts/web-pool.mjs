@@ -98,3 +98,9 @@ export function withoutHopHeaders(headers) {
     for (const h of [...HOP_BY_HOP, ...named]) delete out[h];
     return out;
 }
+
+/** When this request first reached the proxy: set once, so a retry to the next server keeps the original time. */
+export function stampArrival(req, now = Date.now()) {
+    req.arrivedAt ??= now;
+    return req.arrivedAt;
+}

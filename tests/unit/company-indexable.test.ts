@@ -251,10 +251,25 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.ok(!("labelSpellings" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
   });
 
+  it("carries site_description only when it is a string, else absent", () => {
+    const hit = { domain: "acme.com", open_role_count: 40 };
+    assert.equal(parseCompanyDirectoryHit({ ...hit, site_description: "We make anvils for everyone" })?.siteDescription, "We make anvils for everyone");
+    assert.equal(parseCompanyDirectoryHit({ ...hit, site_description: 7 })?.siteDescription, undefined);
+    assert.equal(parseCompanyDirectoryHit(hit)?.siteDescription, undefined);
+  });
+
   it("carries wikidata_industries items, dropping malformed entries; absent when none remain", () => {
     const hit = { domain: "acme.com", open_role_count: 40 };
     const parsed = parseCompanyDirectoryHit({ ...hit, wikidata_industries: [{ label: "Acme", industries: ["retail", 3] }, { label: "", industries: [] }, { label: "Bad" }, null] });
     assert.deepEqual(parsed?.wikidataIndustries, [{ label: "Acme", industries: ["retail"] }]);
+    const facts = { id: "Q1", founded: 1999, hq_country: "DE", employees: 1200, employees_as_of: 2023, description: "A firm" };
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, wikidata_industries: [{ label: "Acme", industries: [], ...facts }] })?.wikidataIndustries, [
+      { label: "Acme", industries: [], id: "Q1", founded: 1999, hqCountry: "DE", employees: 1200, employeesAsOf: 2023, description: "A firm" },
+    ]);
+    assert.deepEqual(
+      parseCompanyDirectoryHit({ ...hit, wikidata_industries: [{ label: "Acme", industries: [], id: "x", founded: "1999", hq_country: "de", employees: -3, description: " " }] })?.wikidataIndustries,
+      [{ label: "Acme", industries: [] }],
+    );
     assert.ok(!("wikidataIndustries" in parseCompanyDirectoryHit({ ...hit, wikidata_industries: [] })!));
     assert.ok(!("wikidataIndustries" in parseCompanyDirectoryHit(hit)!));
   });
