@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { BookmarkSimple } from "@phosphor-icons/react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -26,13 +27,51 @@ export function RowBookmarkButton({
     successPulse?: boolean;
     className?: string;
 }) {
+    // The state words for assistive tech, spoken only when the state CHANGES
+    // while this button is mounted (a list of already-saved rows stays silent).
+    // A toast would be visual noise on every save, so there is no toast: the
+    // existing toaster is for errors and the guest sign-in prompt.
+    const saved = pursuit !== undefined;
+    const [last, setLast] = useState({ saved, message: "" });
+    if (last.saved !== saved) setLast({ saved, message: saved ? "Saved" : "Removed" });
+    return (
+        <>
+            <BookmarkControl
+                pursuit={pursuit}
+                onGoAfter={onGoAfter}
+                successPulse={successPulse}
+                changed={last.message}
+                className={className}
+            />
+            <span role="status" aria-live="polite" className="sr-only">
+                {last.message}
+            </span>
+        </>
+    );
+}
+
+function BookmarkControl({
+    pursuit,
+    onGoAfter,
+    successPulse,
+    changed,
+    className,
+}: {
+    pursuit: Pursuit | undefined;
+    onGoAfter: () => void;
+    successPulse: boolean;
+    /** "Saved" / "Removed" once the state has flipped since mount, else "". */
+    changed: string;
+    className?: string;
+}) {
     if (pursuit) {
         const optimistic = isOptimisticPursuitId(pursuit.id);
+        // The glyph eases in on the flip. Only the first element after it does: the optimistic → confirmed swap keeps the filled glyph, so replaying the fade there would blink.
         const filled = (
             <BookmarkSimple
                 size={20}
                 weight="fill"
-                className={cn(successPulse && "success-pulse")}
+                className={cn(successPulse && "success-pulse", optimistic && changed === "Saved" && "fade-in-base")}
             />
         );
         if (optimistic) {
@@ -77,7 +116,7 @@ export function RowBookmarkButton({
             data-testid="job-save-trigger"
             className={cn("text-muted-foreground hover:text-foreground", successPulse && "success-pulse", className)}
         >
-            <BookmarkSimple size={20} />
+            <BookmarkSimple size={20} className={cn(changed === "Removed" && "fade-in-base")} />
         </Button>
     );
 }
