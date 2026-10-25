@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
 import { getCompanyRailAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
+import { READING_MEASURE } from "@/components/ui/prose";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -534,11 +535,11 @@ export function JobDetailDocument({
         <div data-testid="job-detail-posting" className="py-4">
             <h2 className="mb-2 text-sm font-semibold text-foreground">About this role</h2>
             {blocks.length > 0 ? (
-                <div className="max-w-[640px]">
+                <div className={READING_MEASURE}>
                     <FormattedJobDescription description={job.description} headingLevel={3} />
                 </div>
             ) : (
-                <p className="max-w-[640px] text-base leading-normal text-foreground">
+                <p className={`${READING_MEASURE} text-base leading-normal text-foreground`}>
                     No description was captured for this role.{" "}
                     {job.apply_url ? `Use ${applyButtonLabel(signedOut)} to read the full details on the employer's site.` : "Try the original posting for full details."}
                 </p>

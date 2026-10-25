@@ -4,6 +4,7 @@ import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/
 import { AGENT } from "@/lib/agent/config";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { READING_MEASURE } from "@/components/ui/prose";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 export const metadata: Metadata = {
@@ -45,7 +46,7 @@ function HelpSection({
   return (
     <section id={id} className="scroll-mt-8 border-t border-border py-8 first:border-t-0 first:pt-0">
       <SectionTitle>{title}</SectionTitle>
-      <div className="mt-3 space-y-3 text-base leading-relaxed text-foreground">{children}</div>
+      <div className={`mt-3 space-y-4 text-base leading-relaxed text-foreground ${READING_MEASURE}`}>{children}</div>
     </section>
   );
 }
@@ -139,7 +140,10 @@ export default function ConnectHelpPage() {
           <p>
             Out of the box, this gets you search and tracking: ask your AI to find roles,
             sanity-check a posting, or save something to your tracker, and it can do that right
-            away. It can also list the roles that fit your résumé, found and matched on what each posting asks
+            away.
+          </p>
+          <p>
+            It can also list the roles that fit your résumé, found and matched on what each posting asks
             for before its title (the search looks for the duties and tools your résumé lists first, and your titles fill what is left), so a title you haven&apos;t held can show up (leaving out any
             posted more than 30 days ago, above your level, asking for what your résumé doesn&apos;t show, written in a language you haven&apos;t chosen
             (your résumé&apos;s language and English until you say otherwise; ask it to include French, say, or to stop showing it),
@@ -151,8 +155,14 @@ export default function ConnectHelpPage() {
             list, its best fit&apos;s, with its other roles that fit listed under it), marking a remote role whose
             posting says it hires in your country with the posting&apos;s own line that says so, and naming the place a remote
             role is open to (&quot;Remote (North America)&quot;) when its posting says so,
-            list today&apos;s picks (one per employer, the same way), and turn the daily picks email on or off. Actually opening a listing and filling out the application form needs a
-            different kind of tool — one with browser control, like Claude Code. Either way,
+            list today&apos;s picks (one per employer, the same way), and turn the daily picks email on or off.
+          </p>
+          <p>
+            Actually opening a listing and filling out the application form needs a
+            different kind of tool — one with browser control, like Claude Code.
+          </p>
+          <p>
+            Either way,
             nothing here ever submits an application by itself; you&apos;re always the one who
             hits submit.
           </p>

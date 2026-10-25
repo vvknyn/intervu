@@ -22,6 +22,7 @@ import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { CONNECT_FAQ_NO_MCP_NEEDED, CONNECT_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { PageTitle } from "@/components/ui/heading";
+import { READING_MEASURE } from "@/components/ui/prose";
 import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS, CONNECT_SAMPLE_PROMPTS } from "@/lib/agent/permissions-copy";
 
 const MCP_CLIENTS = CONNECT_CLIENTS.filter((c) => c.kind === "mcp");
@@ -128,7 +129,7 @@ export function ConnectClient({
         <PageTitle>
           Connect your AI to live, verified job data
         </PageTitle>
-        <p className="mt-2 max-w-3xl text-sm text-muted-foreground leading-relaxed">
+        <p className={`mt-2 ${READING_MEASURE} text-sm text-muted-foreground leading-relaxed`}>
           Query live ATS postings directly inside your favorite AI client with zero hallucinations.
           Screen out stale postings, compare true hiring rates, and analyze market trends.
         </p>
@@ -266,7 +267,7 @@ export function ConnectClient({
               </button>
             </div>
 
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className={`text-xs text-muted-foreground leading-relaxed ${READING_MEASURE}`}>
               Autonomous desktop worker for macOS. Discovers verified postings matching your goals, parses ATS forms, and queues drafts for your 1-click review.
             </p>
 
@@ -305,7 +306,7 @@ export function ConnectClient({
             <AccordionItem value="faq-seekers">
               <AccordionTrigger>Frequently asked questions</AccordionTrigger>
               <AccordionContent className="pb-3 pt-1">
-                <div className="space-y-3 text-xs leading-relaxed text-muted-foreground">
+                <div className={`space-y-3 text-xs leading-relaxed text-muted-foreground ${READING_MEASURE}`}>
                   <div>
                     <p className="font-semibold text-foreground">Do I need an AI to search jobs on Velai?</p>
                     <p className="mt-0.5">
