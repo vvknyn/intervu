@@ -25,6 +25,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { startEventLoopMonitor, upstreamErrorLine } from "./event-loop-delay.mjs";
 import { WORKER_HEAP_MB, clientKey, parseCpuMax, parseMemoryMax, pickWorker, resolveWorkerCount, withoutHopHeaders } from "./web-pool.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -47,6 +48,7 @@ if (count === 1) {
     console.log(`[start-web] 1 server (cpus ${cpus}, memory ${Math.round(memoryBytes / 2 ** 20)} MB, requested ${process.env.WEB_CONCURRENCY ?? "unset"})`);
     await import(serverJs);
 } else {
+    startEventLoopMonitor("proxy");
     startPool(count);
 }
 
@@ -111,6 +113,7 @@ function startPool(n) {
             return;
         }
         const w = workers[idx];
+        const arrivedAt = Date.now();
         const upstream = http.request(
             { host: "127.0.0.1", port: w.port, method: req.method, path: req.url, headers: withoutHopHeaders(req.headers), agent },
             (upRes) => {
@@ -135,6 +138,7 @@ function startPool(n) {
                 forward(req, res, true);
                 return;
             }
+            console.error(upstreamErrorLine({ code: err.code, port: w.port, method: req.method, url: req.url, elapsedMs: Date.now() - arrivedAt }));
             res.writeHead(502, { "content-type": "text/plain" });
             res.end("Bad gateway");
         });
