@@ -780,6 +780,42 @@ function hostSpelledStem(groups: readonly NameGroup[], labels: readonly string[]
   return stem ? shownSpelling(stem.spellings) : null;
 }
 
+/** A display name's words as (spelling, comparison key) pairs; words with no letter or digit ("&", "-") are not words. */
+function nameWords(display: string): { raw: string; key: string }[] {
+  return [...display.matchAll(/\S+/g)]
+    .map(([raw]) => ({ raw: raw.replace(/[,.;:]+$/, ""), key: alnum(raw) }))
+    .filter((word) => word.key !== "");
+}
+
+/**
+ * The name a domain's rows agree on when no single group holds most of them: the longest leading word
+ * sequence that groups holding a strict majority of the rows all start with ("Globex" over Globex Hong
+ * Kong, Globex France, Globex Evolution ...), spelled as those rows most often spell it. `null` when no
+ * such sequence is a name the domain agrees with. A minority subsidiary never names the company.
+ */
+function majorityBrandRoot(groups: readonly NameGroup[], domain: string): string | null {
+  const total = groups.reduce((sum, g) => sum + g.count, 0);
+  const grouped = groups.map((g) => ({ ...g, words: nameWords(g.display) }));
+  const prefixes = new Map<string, number>();
+  for (const { words } of grouped) {
+    for (let len = 1; len <= words.length; len += 1) prefixes.set(words.slice(0, len).map((w) => w.key).join(" "), len);
+  }
+  const roots = [...prefixes]
+    .map(([key, len]) => ({ key, len, members: grouped.filter((g) => g.words.slice(0, len).map((w) => w.key).join(" ") === key) }))
+    .filter(({ members }) => members.reduce((sum, g) => sum + g.count, 0) * 2 > total)
+    .sort((a, b) => b.len - a.len);
+  for (const { len, members } of roots) {
+    const spellings = new Map<string, number>();
+    for (const { words, count } of members) {
+      const spelling = words.slice(0, len).map((w) => w.raw).join(" ");
+      spellings.set(spelling, (spellings.get(spelling) ?? 0) + count);
+    }
+    const root = nameAgreeingWithDomain(shownSpelling(spellings), domain);
+    if (root) return root;
+  }
+  return null;
+}
+
 /**
  * Pure: pick the best-supported display name for a company from its own job
  * rows. Candidates are cleaned through `cleanCompany` first (it already
@@ -843,6 +879,14 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
   if (!best) {
     for (const group of candidates) {
       if (!best || group.count > best.count) best = group;
+    }
+    // A plurality is not enough to name the company: only a strict majority of the agreeing rows may,
+    // otherwise the brand root they share does, and with neither the domain stays unnamed.
+    if (best && best.count * 2 <= candidates.reduce((sum, g) => sum + g.count, 0)) {
+      // One group spelling the host's label from the starts of its words ("Alpha Systems Inc" on alphasys.com) is the domain's own entity.
+      const spelling = candidates.filter((g) => host.labels.some((label) => unspelledTrailingWords(label, g.display) < Infinity));
+      const root = spelling.length === 1 ? null : majorityBrandRoot(candidates, domain);
+      best = spelling.length === 1 ? spelling[0]! : root ? { count: 0, display: root, tokens: brandTokens(root), extends: 0 } : null;
     }
   }
 

@@ -779,3 +779,40 @@ describe("siteSpelling — same-letters casing: site casing, connectors, vowelle
     assert.equal(siteSpelling("Tsd Group", [], "hii.com"), "Tsd Group");
   });
 });
+
+describe("companies/company-name — a minority group never names the company", () => {
+  it("names the shared brand root when no group holds a majority", () => {
+    const r = resolveCompanyName(rows({ "Globex Hong Kong Limited": 9, "GLOBEX FRANCE SIEGE": 8, "Globex Evolution Siege": 7, "globex france": 4 }), "globex.fr");
+    assert.equal(r.value, "Globex");
+    assert.equal(r.agrees, true);
+  });
+
+  it("leaves a majority winner as it was", () => {
+    const r = resolveCompanyName(rows({ "Initech Inc": 6, "Initech Canada": 4 }), "initech.com");
+    assert.equal(r.value, "Initech Inc");
+    assert.equal(r.agrees, true);
+  });
+
+  it("names nothing (agrees=false) when no root and no majority exist", () => {
+    const r = resolveCompanyName(rows({ "Zenith Foods": 3, "Orbit Foods": 3 }), "zenithorbit.com");
+    assert.equal(r.agrees, false);
+    assert.equal(r.source, "domain");
+  });
+
+  it("with no majority, the one group that spells the host label is the domain's own entity (alphasys.com)", () => {
+    assert.equal(resolveCompanyName(rows({ "Alpha Systems Inc": 1, "Alpha Networks LLC": 1 }), "alphasys.com").value, "Alpha Systems Inc");
+  });
+
+  it("with two groups spelling the label, the brand root names it", () => {
+    const r = resolveCompanyName(rows({ "Alpha Systems Inc": 2, "Alpha Sys Canada": 2, "Alpha Networks LLC": 2 }), "alphasys.com");
+    assert.equal(r.value, "Alpha");
+    assert.equal(r.agrees, true);
+  });
+
+  it("is stable when a different minority subsidiary has the plurality", () => {
+    const a = resolveCompanyName(rows({ "Globex Hong Kong Limited": 9, "Globex France Siege": 8, "Globex Evolution Siege": 7, "Globex Process Outsourcing": 5 }), "globex.fr");
+    const b = resolveCompanyName(rows({ "Globex Hong Kong Limited": 9, "Globex France Siege": 10, "Globex Evolution Siege": 7, "Globex Process Outsourcing": 5 }), "globex.fr");
+    assert.equal(a.value, "Globex");
+    assert.equal(b.value, a.value);
+  });
+});
