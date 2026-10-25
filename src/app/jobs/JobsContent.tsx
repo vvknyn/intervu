@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
-import { Sheet, SheetBar, SheetBody, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBar, SheetBody, SheetContent, SheetFooter, SheetHandle, SheetTitle } from "@/components/ui/sheet";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
@@ -168,7 +168,7 @@ import {
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
-import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, showResultsLabel, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { searchBoxFor } from "@/lib/jobs/search-copy";
 import { offersRankByFit, RESUME_READ_LABEL, resumeReadDetail, resumeReadLine } from "@/lib/jobs/resume-entry";
@@ -4767,7 +4767,7 @@ export function JobsContent({
      * bottom sheet, dense rail). Only `layout` differs — see SerpFilters's own
      * prop doc for why the rail cannot just be a narrower panel.
      */
-    const renderFiltersPanel = (layout: "panel" | "rail" = "panel") => (
+    const renderFiltersPanel = (layout: "panel" | "sheet" | "rail" = "panel") => (
         <>
             {result?.configured && (
                 <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
@@ -5659,16 +5659,20 @@ export function JobsContent({
                                 <SheetBody
                                     id="filters-panel"
                                     data-testid="filters-panel"
-                                    className="p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
+                                    className="p-4 text-foreground custom-scrollbar"
                                 >
-                                    {renderFiltersPanel()}
-                                    {/* Same reachability gap as the desktop inline panel
-                                        above — the global `Footer` never scrolls into view
-                                        below the mobile infinite feed either. */}
-                                    <div className="mt-3 pt-3">
-                                        <FooterLinks />
-                                    </div>
+                                    {renderFiltersPanel("sheet")}
                                 </SheetBody>
+                                {/* Filters apply live, so "Show N jobs" only closes the sheet;
+                                    N is the live total, never a guess (showResultsLabel). */}
+                                <SheetFooter className="shrink-0 flex-row gap-3 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                                    <Button variant="outline" disabled={activeCount === 0} onClick={panelClearAll}>
+                                        Clear all
+                                    </Button>
+                                    <Button className="flex-1" onClick={() => setFiltersOpen(false)}>
+                                        {showResultsLabel(result?.configured && !result.unavailable && !loading ? totalCount : null)}
+                                    </Button>
+                                </SheetFooter>
                             </SheetContent>
                         </Sheet>
                     ) : null}

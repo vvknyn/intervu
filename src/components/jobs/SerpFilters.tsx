@@ -254,9 +254,10 @@ export function SerpFilters({
     /**
      * How much horizontal room the caller is giving us.
      *
-     * `panel` (default) is the full-width expand and the bottom sheet — the
-     * groups sit side by side. `rail` is the dense layout's 232px column, where
-     * they must stack.
+     * `panel` (default) is the full-width expand — the groups sit side by side.
+     * `sheet` is the bottom sheet: the same grid, but the sheet's own sticky
+     * footer owns "Clear all", so the in-panel reset is left out. `rail` is the
+     * dense layout's 232px column, where they must stack.
      *
      * This is a PROP and not a breakpoint because Tailwind's `md:` asks the
      * VIEWPORT how wide it is, not this element. In the dense rail those two
@@ -265,7 +266,7 @@ export function SerpFilters({
      * into ~50px each, which overlaps them into an unreadable stack. Only the
      * caller knows which box the filters landed in.
      */
-    layout?: "panel" | "rail";
+    layout?: "panel" | "sheet" | "rail";
 }) {
     const ghostHideLabel =
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
@@ -280,7 +281,7 @@ export function SerpFilters({
                 className={
                     layout === "rail"
                         ? "grid grid-cols-1 gap-y-3"
-                        : "grid grid-cols-2 gap-x-3 gap-y-3 md:grid-cols-4"
+                        : "grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 md:grid-cols-4"
                 }
             >
                 {postedDateSupported && (
@@ -446,7 +447,7 @@ export function SerpFilters({
                 )}
             </div>
 
-            {activeCount > 0 && (
+            {activeCount > 0 && layout !== "sheet" && (
                 <div className="mt-2 flex justify-end border-t border-border pt-2">
                     <Button variant="ghost" size="xs" onClick={onClearAll}>
                         Reset all ✕
