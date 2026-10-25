@@ -312,6 +312,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         const slow = new Promise<"slow">((resolve) => {
             timer = setTimeout(() => resolve("slow"), MODEL_READ_LIMIT_MS);
         });
+        // load-result-allow: a failed model read leaves phase "unimproved"; the strip says the quick match stands
         const upgraded = parseResumeLocally(textContent, { withModel: true }).catch(() => null);
         let phase: EnhancementPhase = "unimproved";
         try {

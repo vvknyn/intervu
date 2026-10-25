@@ -1,4 +1,4 @@
-import { WaitBar } from "@/components/ui/wait-state";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /** SERP first-page loading rows — shared by /jobs route loading.tsx and page splash. */
 
@@ -23,6 +23,17 @@ function JobCardSkeleton() {
     );
 }
 
+/** Placeholder rows alone — the splash's rows and the "load more" tail share them. */
+export function JobsListSkeletonRows({ count }: { count: number }) {
+    return (
+        <>
+            {Array.from({ length: count }).map((_, i) => (
+                <JobCardSkeleton key={i} />
+            ))}
+        </>
+    );
+}
+
 export function JobsListSplash({ rowCount = 5 }: { rowCount?: number }) {
     return (
         <div className="px-[var(--list-inset)]">
@@ -30,9 +41,8 @@ export function JobsListSplash({ rowCount = 5 }: { rowCount?: number }) {
                 Finding live roles… checking each posting is still active.
             </p>
             <div className="mt-2">
-                {Array.from({ length: rowCount }).map((_, i) => (
-                    <JobCardSkeleton key={i} />
-                ))}
+                {/* Rows hold their space but paint only once the wait outlasts the ladder's first step. */}
+                <WaitState label="Finding live roles" skeleton={<JobsListSkeletonRows count={rowCount} />} />
             </div>
         </div>
     );

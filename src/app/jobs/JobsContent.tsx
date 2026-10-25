@@ -17,7 +17,8 @@ import {
     Question,
     LockSimple,
 } from "@phosphor-icons/react";
-import { InlineSpinner } from "@/components/ui/wait-state";
+import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
+import { useResultSetEnter } from "@/lib/motion/result-set-enter";
 import { Button } from "@/components/ui/button";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
@@ -160,7 +161,7 @@ import { isKnownDeadApplyUrl, probeApplyUrl } from "@/lib/jobs/apply-url-health"
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
-import { JobsListSplash } from "@/components/jobs/JobsListSplash";
+import { JobsListSplash, JobsListSkeletonRows } from "@/components/jobs/JobsListSplash";
 import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
 import {
     applyLocalAiSearchParam,
@@ -183,6 +184,7 @@ import { noteResumeOnFile } from "@/hooks/use-onboarding";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
 import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
+
 // `loading: () => null` on each: without it a dynamic() component holds up
 // the first render of everything around it until its own chunk arrives, and
 // these only show once a job is opened or the importer is asked for.
@@ -317,6 +319,7 @@ import { listCandidates } from "@/lib/jobs/for-you/list-rows";
 import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, omitsPastSenior, resumeDefaultLanguages, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
+import { scoringPreferences } from "@/lib/agent-preferences-read";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { viewerDefaults } from "@/lib/jobs/viewer-defaults";
 import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
@@ -1684,7 +1687,8 @@ export function JobsContent({
     // reads: the pack filters, the chip scores, the hub probe and "Rank by fit". Explicit
     // preferences override the résumé; a signed-out visitor resolves from the résumé alone.
     const uid = user?.uid ?? null;
-    const { prefs: agentPrefs } = useAgentPreferences(uid);
+    const prefsRead = useAgentPreferences(uid);
+    const agentPrefs = scoringPreferences(prefsRead);
     const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
     seniorityRef.current = signals?.seniority ?? null;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
@@ -2761,7 +2765,8 @@ export function JobsContent({
     // Nothing is said twice: a list with no role to count has its headline in the empty state below.
     const recommendedLine = recommendedReady && recommended.slots.length > 0 ? formatHubFitLine(recommended.summary, recommended.slots.length) : null;
     const language = useLanguageChoice(uid);
-    const readLanguages = signals?.languages?.value ?? null;
+    // Only once the saved preferences have been read: before that the résumé's language stands in, and a save from it replaces the stored one.
+    const readLanguages = prefsRead.status === "ready" ? (signals?.languages?.value ?? null) : null;
     // The languages postings are read in: a control where roles written in another were left out, and wherever the
     // person has changed them. Saved to the account, so only for a signed-in one.
     const languagesControl = (leftOut?: Record<string, number>) =>
@@ -4418,6 +4423,7 @@ export function JobsContent({
         loading,
         hitCount: hits.length,
     });
+    const resultSetEntering = useResultSetEnter(resultSearchKey);
     // The ONE "broaden this search" nudge — the same component the packs' thin state renders, so the
     // board's zero and thin results offer the same options with the same counts. Each option applies
     // in place through `applyFilterState`, the chokepoint every filter change goes through.
@@ -4687,7 +4693,7 @@ export function JobsContent({
                     reportJobEnabled={reportJobEnabled}
                     collapseDescription={collapseDescription}
                     actionBarBelow={!collapseDescription}
-                    className="border-0 bg-transparent"
+                    className="border-0 bg-transparent detail-crossfade"
                     descriptionPending={detailDescriptionPending}
                     onRetryDescription={retryDescription}
                     matchScore={matchScores?.get(detailJob.id) ?? undefined}
@@ -6179,7 +6185,7 @@ export function JobsContent({
                                             </h2>
                                         </div>
                                     )}
-                                    <div>
+                                    <div className={cn(resultSetEntering && "result-set-enter")}>
                                         {/* Deliverable 3 — one row (the best-ranked
                                             member) per cluster, its variants inserted
                                             right below only while expanded. The seam
@@ -6310,7 +6316,7 @@ export function JobsContent({
                                                     className="w-full"
                                                 />
                                             ) : loadingMore ? (
-                                                <span className="text-xs text-muted-foreground">Loading more roles…</span>
+                                                <WaitState label="Loading more roles" skeleton={<JobsListSkeletonRows count={2} />} className="w-full" />
                                             ) : (
                                                 <button
                                                     type="button"

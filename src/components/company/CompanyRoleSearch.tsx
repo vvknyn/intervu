@@ -28,6 +28,7 @@ import { sortByFit as sortListByFit } from "@/lib/jobs/for-you/band-order";
 import { matchBand, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
+import { scoringPreferences } from "@/lib/agent-preferences-read";
 import { noteResumeOnFile } from "@/hooks/use-onboarding";
 import { captureEvent } from "@/lib/analytics/events";
 import { resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
@@ -251,7 +252,7 @@ export function CompanyRoleSearch({
   // computed once per résumé/job-set, keyed by job id — same map idiom as
   // `/jobs` (SERP). `null` (no résumé) short-circuits to no map at all.
   // With the saved preferences /jobs and the role's own page use, so a role's label is the same everywhere.
-  const { prefs: agentPrefs } = useAgentPreferences(user?.uid ?? null);
+  const agentPrefs = scoringPreferences(useAgentPreferences(user?.uid ?? null));
   const matchScores = useMemo(() => {
     if (!resume) return null;
     const signals = resolveCandidateSignals(resume, agentPrefs);

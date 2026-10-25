@@ -60,7 +60,7 @@ import {
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/types/resume";
-import { WaitBar } from "@/components/ui/wait-state";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -150,8 +150,13 @@ export function PostingCheckHeader({
  * the existing site-wide animation-neutralizing rule there.
  */
 export function JobDetailSkeleton() {
+    return <WaitState label="Loading this role" skeleton={<JobDetailSkeletonBlocks />} />;
+}
+
+/** The skeleton's geometry alone, for a parent that already owns the wait (`JobPageSkeleton`). */
+export function JobDetailSkeletonBlocks() {
     return (
-        <div className="overflow-hidden bg-surface" aria-hidden="true">
+        <div className="overflow-hidden bg-surface">
             <div className="p-6">
                 <div className="flex items-start gap-4">
                     <WaitBar className="h-12 w-12 shrink-0" />
