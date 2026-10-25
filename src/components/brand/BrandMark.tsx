@@ -12,6 +12,8 @@
  *  `LOCKED_MARK_DATA_URI` (128px) because Satori cannot fetch local files.
  */
 
+import Link from "next/link";
+import type { ComponentProps } from "react";
 import { LOCKED_MARK_SRC } from "@/lib/brand/locked-mark-data-uri";
 
 /** Header lockup only. The locked paper tile, brackets and live dot exactly
@@ -105,5 +107,16 @@ export function BrandLockup({ className, markClassName }: { className?: string; 
                 Velai
             </span>
         </span>
+    );
+}
+
+/** The lockup as a link home. `hit-band` gives the 28-32px lockup the 44px tap
+ *  band on a coarse pointer, so every lockup link (TopBar, auth card) has it
+ *  by construction rather than by remembering the class. */
+export function BrandHomeLink({ className, markClassName, ...link }: ComponentProps<typeof Link> & { markClassName?: string }) {
+    return (
+        <Link className={["hit-band inline-flex w-fit shrink-0 transition-opacity hover:opacity-90", className].filter(Boolean).join(" ")} data-rulebook-exempt {...link}>
+            <BrandLockup markClassName={markClassName} />
+        </Link>
     );
 }
