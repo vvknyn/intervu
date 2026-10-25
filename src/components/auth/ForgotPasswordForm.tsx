@@ -93,6 +93,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                         name="email"
                         type="email"
                         autoComplete="email"
+                        enterKeyHint="go"
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}

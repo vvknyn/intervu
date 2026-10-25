@@ -84,6 +84,13 @@ export function Affordance({
     );
 }
 
+/** The typed draft as a salary floor: digits only, so a pasted "-5", "$65,000"
+ *  or "abc" can never commit a negative or non-numeric value (the field is
+ *  type=text, which does no validation of its own). */
+export function parseSalaryMinDraft(draft: string): number {
+    return Number(draft.replace(/[^0-9]/g, "")) || 0;
+}
+
 /**
  * Free-form salary floor, alongside the SALARY_PRESETS ladder (G1) — writes
  * the exact same `salary_min` param the preset radios do, so there is one
@@ -107,10 +114,7 @@ export function SalaryCustomMinInput({
         setDraft(salaryMin > 0 ? String(salaryMin) : "");
     }, [salaryMin]);
 
-    const commit = () => {
-        const parsed = Math.max(0, Math.round(Number(draft.replace(/[^0-9]/g, "")) || 0));
-        onSalaryMin(parsed);
-    };
+    const commit = () => onSalaryMin(parseSalaryMinDraft(draft));
 
     return (
         // Wraps the field under its label when the column is narrow (a
@@ -121,10 +125,10 @@ export function SalaryCustomMinInput({
             <span className="flex min-w-0 items-center gap-1 rounded-ctl border border-border px-1.5 py-1">
                 <span className="text-muted-foreground">$</span>
                 <input
-                    type="number"
-                    min={0}
-                    step={1000}
+                    type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
+                    enterKeyHint="done"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onBlur={commit}
@@ -254,9 +258,10 @@ export function SerpFilters({
     /**
      * How much horizontal room the caller is giving us.
      *
-     * `panel` (default) is the full-width expand and the bottom sheet — the
-     * groups sit side by side. `rail` is the dense layout's 232px column, where
-     * they must stack.
+     * `panel` (default) is the full-width expand — the groups sit side by side.
+     * `sheet` is the bottom sheet: the same grid, but the sheet's own sticky
+     * footer owns "Clear all", so the in-panel reset is left out. `rail` is the
+     * dense layout's 232px column, where they must stack.
      *
      * This is a PROP and not a breakpoint because Tailwind's `md:` asks the
      * VIEWPORT how wide it is, not this element. In the dense rail those two
@@ -265,7 +270,7 @@ export function SerpFilters({
      * into ~50px each, which overlaps them into an unreadable stack. Only the
      * caller knows which box the filters landed in.
      */
-    layout?: "panel" | "rail";
+    layout?: "panel" | "sheet" | "rail";
 }) {
     const ghostHideLabel =
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
@@ -280,7 +285,7 @@ export function SerpFilters({
                 className={
                     layout === "rail"
                         ? "grid grid-cols-1 gap-y-3"
-                        : "grid grid-cols-2 gap-x-3 gap-y-3 md:grid-cols-4"
+                        : "grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 md:grid-cols-4"
                 }
             >
                 {postedDateSupported && (
@@ -446,7 +451,7 @@ export function SerpFilters({
                 )}
             </div>
 
-            {activeCount > 0 && (
+            {activeCount > 0 && layout !== "sheet" && (
                 <div className="mt-2 flex justify-end border-t border-border pt-2">
                     <Button variant="ghost" size="xs" onClick={onClearAll}>
                         Reset all ✕

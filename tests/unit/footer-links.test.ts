@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAREER_HUBS } from "../../src/lib/seo/career-hubs";
-import { LEAN_LEGAL_LINKS, LEGAL_LINKS } from "../../src/components/layout/Footer";
+import { FOOTER_GROUPS, LEAN_LEGAL_LINKS, LEGAL_LINKS, groupFooterLinks } from "../../src/components/layout/Footer";
 
 describe("footer links come from one list", () => {
     it("every footer variant carries About the checks", () => {
@@ -25,5 +25,30 @@ describe("footer links come from one list", () => {
             for (const hub of CAREER_HUBS) assert.ok(hrefs.has(hub.path), hub.path);
             assert.ok(hrefs.has("/co"));
         }
+    });
+});
+
+describe("footer groups (phone sections)", () => {
+    it("every link lands in exactly one group, none lost", () => {
+        const groups = groupFooterLinks(LEGAL_LINKS);
+        assert.deepEqual(groups.map((g) => g.group), [...FOOTER_GROUPS]);
+        const grouped = groups.flatMap((g) => g.links.map((l) => l.href));
+        assert.equal(grouped.length, LEGAL_LINKS.length);
+        assert.deepEqual(new Set(grouped), new Set(LEGAL_LINKS.map((l) => l.href)));
+    });
+    it("groups by the link's own group, whatever the link", () => {
+        const sample = [
+            { href: "/a", group: "Company" as const },
+            { href: "/b", group: "Help & legal" as const },
+            { href: "/c", group: "Company" as const },
+        ];
+        const byGroup = Object.fromEntries(groupFooterLinks(sample).map((g) => [g.group, g.links.map((l) => l.href)]));
+        assert.deepEqual(byGroup, { "Job searches": [], Company: ["/a", "/c"], "Help & legal": ["/b"] });
+    });
+    it("the legal pair sits under Help & legal and every career hub under Job searches", () => {
+        const of = (href: string) => LEGAL_LINKS.find((l) => l.href === href)?.group;
+        assert.equal(of("/privacy"), "Help & legal");
+        assert.equal(of("/terms"), "Help & legal");
+        for (const hub of CAREER_HUBS) assert.equal(of(hub.path), "Job searches", hub.path);
     });
 });
