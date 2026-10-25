@@ -20,6 +20,7 @@ import {
   monthsLabel,
   totalPrice,
 } from "./offer";
+import { Disclosure, DisclosureSummary } from "@/components/ui/disclosure";
 
 type PricingClientProps = {
   signedIn: boolean;
@@ -181,10 +182,10 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
       <Prose className="mt-10">
         <SectionTitle>Questions</SectionTitle>
         {FAQ.map((item) => (
-          <details key={item.question} className="mt-3 border-b border-border pb-3 last:border-b-0">
-            <summary className="cursor-pointer font-semibold text-foreground">{item.question}</summary>
+          <Disclosure key={item.question} className="mt-3 border-b border-border pb-3 last:border-b-0">
+            <DisclosureSummary className="font-semibold text-foreground">{item.question}</DisclosureSummary>
             <p className="mt-2 text-muted-foreground">{item.answer}</p>
-          </details>
+          </Disclosure>
         ))}
         <p className="mt-6 text-sm text-muted-foreground">
           Refunds and billing are written into the <Link href="/terms">terms</Link>.
