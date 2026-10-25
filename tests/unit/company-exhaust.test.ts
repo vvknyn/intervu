@@ -479,32 +479,27 @@ describe("buildWarnSentence", () => {
   });
 });
 
-describe("resolveSector — health_reviews, then fingerprints, then boards", () => {
-  it("takes the first source that names a real sector", () => {
-    assert.equal(resolveSector({ health_reviews: "Fintech", fingerprints: "Retail", boards: "Energy" }), "Fintech");
-    assert.equal(resolveSector({ health_reviews: null, fingerprints: "Retail", boards: "Energy" }), "Retail");
-  });
-
-  it("skips the default bucket so a real boards.sector still wins", () => {
-    assert.equal(resolveSector({ health_reviews: "general", fingerprints: " Unknown ", boards: "Healthcare" }), "Healthcare");
-    assert.equal(resolveSector({ health_reviews: null, fingerprints: "", boards: "Healthcare" }), "Healthcare");
+describe("resolveSector — the hiring.cafe profile's first non-generic industry", () => {
+  it("takes the first industry that names a real sector, skipping the default bucket", () => {
+    assert.equal(resolveSector(["Fintech", "Retail"]), "Fintech");
+    assert.equal(resolveSector(["general", " Unknown ", "Healthcare"]), "Healthcare");
   });
 
   it("shows a machine token as words, any token and any separator", () => {
-    assert.equal(resolveSector({ health_reviews: "big_tech", fingerprints: null, boards: null }), "Big Tech");
-    assert.equal(resolveSector({ health_reviews: null, fingerprints: "financial_services", boards: null }), "Financial Services");
-    assert.equal(resolveSector({ health_reviews: null, fingerprints: null, boards: "ai-infra" }), "AI Infra");
+    assert.equal(resolveSector(["big_tech"]), "Big Tech");
+    assert.equal(resolveSector(["financial_services"]), "Financial Services");
+    assert.equal(resolveSector(["ai-infra"]), "AI Infra");
   });
 
   it("leaves free text unchanged and still skips NON_SECTORS tokens", () => {
-    assert.equal(resolveSector({ health_reviews: "Industrial Automation", fingerprints: null, boards: null }), "Industrial Automation");
-    assert.equal(resolveSector({ health_reviews: "Fintech", fingerprints: null, boards: null }), "Fintech");
-    assert.equal(resolveSector({ health_reviews: "general", fingerprints: "unknown", boards: "real_estate" }), "Real Estate");
+    assert.equal(resolveSector(["Industrial Automation"]), "Industrial Automation");
+    assert.equal(resolveSector(["general", "unknown", "real_estate"]), "Real Estate");
   });
 
-  it("is null when no source names one", () => {
-    assert.equal(resolveSector({ health_reviews: "general", fingerprints: null, boards: null }), null);
-    assert.equal(resolveSector(null), null);
+  it("is null when no industry names one: no classifier column can fill it", () => {
+    assert.equal(resolveSector(["general"]), null);
+    assert.equal(resolveSector([]), null);
+    assert.equal(resolveSector(), null);
   });
 });
 

@@ -162,7 +162,7 @@ export type CompanyExhaust = {
   integrity: ExhaustSection<IntegrityFacts>;
   techStack: ExhaustSection<TechFacts>;
   changeHistory: ExhaustSection<ChangeEventRow[]>;
-  /** The one resolved sector (see {@link resolveSector}); null when no source names one. */
+  /** The hiring.cafe profile's sector (see {@link resolveSector}); null when it names none. Never from the pipeline's classifier columns. */
   sector: string | null;
   /** The employer's careers page from `company_boards` (see {@link resolveCareersUrl}); null when none is a web address. */
   careersUrl: string | null;
@@ -314,20 +314,18 @@ function isoDate(v: unknown): string | null {
   return Number.isNaN(Date.parse(s)) ? null : s;
 }
 
-/** health_reviews and fingerprints fill every domain, with a default bucket
- *  ('general', 'unknown') when they could not classify it. That bucket is not
- *  a sector, so it must not shadow a real one further down the chain. */
+/** Default buckets and labels that classify the economy or a legal form, not the work.
+ *  They are not a sector, so they must not shadow a real one further down the chain. */
 const NON_SECTORS = new Set([
   "", "general", "unknown",
   // labels that classify the economy or a legal form, not the work
   "service", "business-to-business", "business to business", "holding company", "holding company activities",
 ]);
 
-/** THE sector resolver: health_reviews, then fingerprints, then boards, then the hiring.cafe
- *  profile's first non-generic industry (its own words); the first that names a real sector wins
- *  (as a display label), null when none does. */
-export function resolveSector(row: Partial<SectorRow> | null, industries: readonly string[] = []): string | null {
-  for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards, ...industries]) {
+/** THE sector resolver for the hiring.cafe profile: its first non-generic industry (its own words) as a display label, null when none names a real
+ *  sector. The pipeline's classifier columns never feed the sector (guesses, no named source); Wikidata is the fallback in `buildIdentityFacts`. */
+export function resolveSector(industries: readonly string[] = []): string | null {
+  for (const candidate of industries) {
     const sector = str(candidate)?.trim();
     if (sector && !NON_SECTORS.has(sector.toLowerCase())) return categoryLabel(sector);
   }
@@ -356,7 +354,7 @@ export function pickWikidata<T>(items: readonly WikidataItem[], displayName: str
   return { value, item: first };
 }
 
-/** The sector from Wikidata's industry (P452), the last resort after {@link resolveSector}: the one industry (none when it has several) of the item
+/** The sector from Wikidata's industry (P452), the fallback after {@link resolveSector}: the one industry (none when it has several) of the item
  *  {@link pickWikidata} selects; null when the selected items' industries differ. */
 export function wikidataSectorPick(items: readonly WikidataItem[], displayName: string): { value: string; item: WikidataItem } | null {
   const picked = pickWikidata(items, displayName, (item) => (item.industries.length > 0 ? item.industries : null));
@@ -483,9 +481,6 @@ async function fetchHealthRow(pg: Queryable, domain: string): Promise<HealthRow 
 }
 
 export interface SectorRow {
-  health_reviews: string | null;
-  fingerprints: string | null;
-  boards: string | null;
   careers_url: string | null;
   /** company_boards.last_scrape_outcome: the pipeline's verdict on the stored URL. */
   last_scrape_outcome: string | null;
@@ -495,14 +490,10 @@ export interface SectorRow {
   domain: string;
 }
 
-/** The three sector columns the box holds for one domain, side by side so
- *  {@link resolveSector} can pick, plus the careers page the same board row holds; scalar subselects each hit a domain index. */
+/** The careers page the box's board row holds for one domain, with the scrape verdict on it and the newest posting URLs; scalar subselects each hit a domain index. */
 async function fetchSectorRow(pg: Queryable, domain: string): Promise<SectorRow | null> {
   const { rows } = await pg.query<SectorRow>(
     `SELECT
-       (SELECT sector FROM company_health_reviews WHERE company_domain = $1 ORDER BY created_at DESC LIMIT 1) AS health_reviews,
-       (SELECT sector FROM company_fingerprints WHERE domain = $1 LIMIT 1) AS fingerprints,
-       (SELECT sector FROM company_boards WHERE company_domain = $1 LIMIT 1) AS boards,
        (SELECT career_page_url FROM company_boards WHERE company_domain = $1 LIMIT 1) AS careers_url,
        (SELECT last_scrape_outcome FROM company_boards WHERE company_domain = $1 LIMIT 1) AS last_scrape_outcome,
        (SELECT array_agg(url ORDER BY first_seen_at DESC) FROM (SELECT url, first_seen_at FROM job_listings WHERE company_domain = $1 ORDER BY first_seen_at DESC LIMIT 20) recent) AS listing_urls`,
@@ -855,8 +846,9 @@ function assembleExhaust(settled: Settled, nowMs: number): CompanyExhaust {
   const { cadence, integrity } = buildHiringRecordSections(value("record"), nowMs);
   const enrichmentRows = value("enrichment") ?? new Map<string, EnrichmentRow>();
   const sector = value("sector");
+  const profile = buildProfileSection(enrichmentRows.get("company_profile"));
   return {
-    profile: buildProfileSection(enrichmentRows.get("company_profile")),
+    profile,
     funding: buildFundingSection(enrichmentRows.get("company_profile"), enrichmentRows.get("funding")),
     secListing: buildSecSection(enrichmentRows.get("sec_filing_summary")),
     govContracts: buildGovSection(enrichmentRows.get("government_contract")),
@@ -867,7 +859,7 @@ function assembleExhaust(settled: Settled, nowMs: number): CompanyExhaust {
     cadence,
     integrity,
     changeHistory: buildChangeHistorySection(value("changeHistory") ?? [], nowMs),
-    sector: sector ? resolveSector(sector, buildProfileSection(enrichmentRows.get("company_profile"))?.data.industries) : null,
+    sector: resolveSector(profile?.data.industries),
     careersUrl: resolveCareersUrl(sector),
   };
 }
