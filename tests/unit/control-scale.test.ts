@@ -68,6 +68,10 @@ test("the scale is three steps, and the touch floor is a hit area on every step"
     for (const s of steps) assert.match(coarse, new RegExp(`\\.ctl-${s}[^{]*\\)::before`), `.ctl-${s} gets the ::before hit area`);
     assert.match(coarse, /\bbutton\b[^{]*\)::before/, "every <button> gets the hit area, sized or not");
     assert.match(coarse, /height:\s*max\(100%,\s*var\(--hit-min\)\)/);
+    // Only checkbox and radio render the ::before in both engines (measured in
+    // WebKit and Chromium); every other input stays unpositioned so it cannot
+    // paint over a leading icon (date-likes were positioned for nothing).
+    assert.match(coarse, /input:not\(\[type="checkbox"\], \[type="radio"\]\)\)\)\s*\{\s*position:\s*relative/);
 });
 
 test("every size variant of every ui primitive takes a scale step (or carries the on-line marker)", () => {
