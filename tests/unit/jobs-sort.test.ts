@@ -229,14 +229,14 @@ describe('sortOptionLabel', () => {
         }
     });
 
-    it('is the one label source both the desktop sort menu and the mobile filter-sheet tabs import — a re-typed literal cannot drift back in', () => {
-        // Regression guard for the actual defect: the mobile ToolbarSegment
-        // tabs used to carry their own hand-typed lowercase copies
+    it('is the one label source the sort menu (the one sort control at every width) imports — a re-typed literal cannot drift back in', () => {
+        // Regression guard for the actual defect: the since-removed mobile
+        // sort tabs used to carry their own hand-typed lowercase copies
         // ('freshest', 'top pay') instead of importing this function.
         const pageSrc = readFileSync(path.join(__dirname, '../../src/app/jobs/JobsContent.tsx'), 'utf8');
         assert.match(pageSrc, /import\s*\{[^}]*\bsortOptionLabel\b[^}]*\}\s*from\s*["']@\/lib\/jobs\/sort["']/);
         const sortOptionLabelCallSites = pageSrc.match(/sortOptionLabel\(/g) ?? [];
-        assert.ok(sortOptionLabelCallSites.length >= 5, `expected sortOptionLabel used at every desktop + mobile call site, found ${sortOptionLabelCallSites.length}`);
+        assert.ok(sortOptionLabelCallSites.length >= 3, `expected sortOptionLabel used at every sort menu item, found ${sortOptionLabelCallSites.length}`);
         assert.doesNotMatch(pageSrc, /label="freshest"/);
         assert.doesNotMatch(pageSrc, /label="top pay"/);
     });

@@ -91,19 +91,6 @@ test("toolbar control height", async (t) => {
         );
     });
 
-    await t.test("a segment takes a control-scale step, never its own height", () => {
-        // Sort segments share the toolbar chips' md step (globals.css `.ctl-md`)
-        // so the same control is the same height in the header bar and the sheet.
-        const start = src.indexOf("function ToolbarSegment");
-        assert.notEqual(start, -1, "ToolbarSegment must exist");
-        const seg = classNameBlockAt(src.indexOf("className={", start));
-        assert.ok(seg, "ToolbarSegment must style itself through a className expression");
-        assert.match(seg!, /\bctl-md\b/);
-        assert.match(seg!, /items-center/, "segments must flex-center their label");
-        assert.match(seg!, /leading-none/, "uppercase labels need a flush line-box or they sit high");
-        assert.doesNotMatch(seg!, HEIGHT_UTIL);
-    });
-
     await t.test("the toolbar scroller is one scrollable row in a narrow column and wraps in a wide one", () => {
         const scroller = pageSrc.slice(
             pageSrc.indexOf('data-testid="jobs-toolbar-scroller"'),

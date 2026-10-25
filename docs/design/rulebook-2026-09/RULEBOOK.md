@@ -31,6 +31,8 @@ Where this file disagrees with BRIEF.md, this file wins. Levers, boards, copy an
 | Typeface | ours | Source Sans 3 body; Libre Franklin 700 wordmark. IBM Plex and SF are NOT used. |
 
 ## Explicit exclusions (write these on the Sources board)
+> Surfaces and fills (translucency, blur, glass bars) are governed by `docs/design/DESIGN-LANGUAGE.md` (Calm pass R4: glass on chrome bars only). Where the list below disagrees with it, DESIGN-LANGUAGE.md wins.
+
 HIG materials/translucency/blur · HIG rounded corners · Carbon blue-60 and IBM Plex · Carbon pill tags · Carbon gray-filled secondary buttons · uppercase tracked labels · NEW/Relisted badge pills · icon-per-fact meta rows · glass header · card boxes with shadows for list items · more than one filled button per region · font sizes outside 12/14/16/20 · text colors outside the five above.
 
 ## Boards

@@ -10,6 +10,7 @@ import { buildJobSearchFaqJsonLd, buildWebApplicationJsonLd, serializeJsonLd } f
 import { Prose } from "@/components/ui/prose";
 import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { Disclosure, DisclosureSummary } from "@/components/ui/disclosure";
 
 const TITLE = "About velai";
 const DESCRIPTION = "What velai is, how it works, and where the data comes from.";
@@ -100,10 +101,10 @@ export default function AboutPage() {
       <Prose className="mt-6">
         <SectionTitle>Questions</SectionTitle>
         {JOB_SEARCH_FAQ.map((item) => (
-          <details key={item.question} className="mt-3 border-b border-border pb-3 last:border-b-0">
-            <summary className="cursor-pointer font-semibold text-foreground">{item.question}</summary>
+          <Disclosure key={item.question} className="mt-3 border-b border-border pb-3 last:border-b-0">
+            <DisclosureSummary className="font-semibold text-foreground">{item.question}</DisclosureSummary>
             <p className="mt-2 text-muted-foreground">{item.answer}</p>
-          </details>
+          </Disclosure>
         ))}
       </Prose>
     </PageContainer>
