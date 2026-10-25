@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,7 +136,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
     const loadPreferences = useCallback(async () => {
         setStatus("loading");
         for (let attempt = 0; attempt < 4; attempt++) {
-            const res = await fetchAgentPreferencesAction();
+            const res = await settleAction(fetchAgentPreferencesAction());
             if (!res.error && res.data) {
                 seedFrom(res.data);
                 setStatus("ready");
@@ -197,7 +198,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     custom: computeCustomAnswersPatch(customRows, loadedCustomKeys),
                 },
             };
-            const res = await saveAgentPreferencesAction(patch);
+            const res = await settleAction(saveAgentPreferencesAction(patch));
             if (res.error || !res.data) {
                 toast.error(res.error || "Couldn't save your agent's answers. Try again.");
                 return;
