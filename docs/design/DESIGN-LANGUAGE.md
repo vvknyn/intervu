@@ -62,8 +62,10 @@ See `docs/design-language-rollout.md` (project store) for phased surface rollout
    whitespace, colour used scarcely.
 2. **Dark-only** — Concept A charcoal is the only shipped surface; there is no user-facing
    light/dark toggle. (ollama.com has none; we are not copying that either.)
-3. **Radius stays 0 everywhere.** Squared is our signature. (ollama.com is pills; we are not
-   copying that either.)
+3. **Radius is tokenised, never ad hoc.** Three semantic roles: `--radius-ctl` (12px: buttons,
+   inputs), `--radius-panel` (16px: cards, sheets, dialogs, popovers, logo tiles) and
+   `--radius-pill` (9999px: search pill, pill chips, avatars, status dots). A component names a
+   role; it does not pick a pixel value.
 4. **Primary buttons are ink, not brand-coloured.** The accent survives as a sparing accent for
    links, live states and small marks — the same role ollama gives its one blue.
 
@@ -107,7 +109,9 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
 `--faint`, `--chip`, `--brand`, `--brand-foreground`, `--brand-muted`, plus the status channel
 (`--verdict-*`, `--st-*`) — keep their names. Only values change.
 
-- **Radius: 0.** All nine `--radius-*` keys are `0px`. `rounded-full` and arbitrary
+- **Radius: three semantic tokens.** `--radius-ctl` 12px, `--radius-panel` 16px, `--radius-pill`
+  9999px (roles in the `globals.css` comment above them); the named-scale `--radius-*` keys are
+  legacy values with no assigned role. `rounded-full` and arbitrary
   `rounded-[Npx]` bypass the theme, so they are banned in components except where a shape is
   genuinely circular (avatars, dots, spinners) — plus one standing exception:
   `WhatsAppThreadHero`'s `rounded-[30px]` phone bezel, because it depicts a literal phone and a
@@ -228,7 +232,30 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
 | Deck | `--transition-deck` (220ms) + `--motion-deck-shift` (12%) | For-you pack index — `.deck-enter-*` / `.deck-exit-*` on commit; drag-follow reads `computeDeckDragOffset`; reduced motion = instant index swap (no follow/slide) |
 | Page | `--transition-page` (180ms) | For you ↔ Search column — `.jobs-home-view-crossfade` (opacity only; first paint skipped) |
 | Stack | `--transition-stack` (600ms) + `--ease-stack` | Opened pack's role cards (`RoleStack`) — "Tip back under": the next role slides up over the open one, which tips back, shrinks and dims (`.role-stack-card[data-stack-pose]`); reduced motion = instant swap |
+| Enter ease | `--ease-enter` | `cubic-bezier(0.22, 1, 0.36, 1)` ease-out for anything that arrives |
+| Stagger | `--motion-stagger` (30ms) | Per-row delay step in `.result-set-enter` |
 | Easing | `--ease-standard` | `cubic-bezier(0.4, 0, 0.2, 1)` default |
+
+### Motion patterns (reuse these; do not write a new keyframe)
+
+- **New result set enters.** `.result-set-enter` on the rows container: opacity plus 4px rise,
+  `--transition-enter`, `--ease-enter`, 30ms stagger on the first 8 rows (under 500ms total). It
+  plays only when the result set changes (`useResultSetEnter`, `src/lib/motion/result-set-enter.ts`;
+  the first set shown is the baseline). Appends, back navigation and re-renders never replay it.
+- **Detail pane crossfade.** `.detail-crossfade` on the pane, keyed by job id: opacity plus at most
+  4px, `--transition-base`. The exit is an instant swap, so it is faster than the enter.
+- **Late image.** `.fade-in-base` (opacity only) for a logo or label that arrives after paint.
+  Skip it when the image is already complete on mount, so cached images never blink.
+- **Refetch with rows on screen.** Keep the rows, set `data-refreshing`, show `.updating-label`
+  beside the count. Both wait `--refresh-delay` (from `WAIT_SKELETON_AFTER_MS`, 300ms) so a fast
+  refetch shows nothing. The count changes only when data lands.
+- **Loading placeholders.** Always `WaitState` / `WaitBar` (`src/components/ui/wait-state.tsx`):
+  they show after 300ms and never flash. A spinner stays only on an action or a labelled check.
+- **Menus grow from the trigger.** Dropdown, popover, select and tooltip content carry
+  `origin-(--radix-<name>-content-transform-origin)` with token durations.
+- **Selected vs hover rows.** Selected is the `brand-tint-bg` tier plus `aria-current`; hover is
+  `surface-hover`. No stripe, no lift.
+- **Reduced motion.** Every class above is zeroed in the `prefers-reduced-motion: reduce` block.
 
 - **Guard:** `tests/unit/design-language.test.ts` enforces the three rules above against the
   rule rather than against a list — a new shadow key, a new hue-named token or a seventh copy
