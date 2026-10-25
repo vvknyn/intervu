@@ -208,6 +208,85 @@ async function expectSheetBar(page: Page, title: string | RegExp, content: Locat
     await expect(sheet).toBeHidden();
 }
 
+test("on a phone the Filters sheet holds filters only, in one column, over a sticky Clear all / Show results bar", { tag: ["@J-MOB-11"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    await page.goto("/jobs?q=engineer");
+    await page.getByTestId("filters-toggle").click();
+    const panel = page.getByTestId("filters-panel");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("a[href='/terms']")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear all" })).toBeVisible();
+    const show = page.getByRole("button", { name: /^Show (results|[\d,]+\+? jobs?)$/ });
+    await expect(show).toBeVisible();
+    const sheet = page.getByRole("dialog", { name: "Filters" });
+    // One column: every filter group starts at the same left edge (a 2-up grid gives two).
+    const groups = panel.locator("div.grid").first().locator("> *");
+    expect(await groups.count()).toBeGreaterThanOrEqual(2);
+    const lefts = await groups.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().x)));
+    expect(new Set(lefts).size).toBe(1);
+    // Sticky: with the body scrolled to its end the bar still ends at the sheet's bottom edge, both buttons in view.
+    await panel.evaluate((e) => { e.scrollTop = e.scrollHeight; });
+    const clear = page.getByRole("button", { name: "Clear all" });
+    const bar = clear.locator("xpath=..");
+    await expect
+        .poll(async () => {
+            const [s, f, c, b] = [await box(sheet), await box(bar), await box(clear), await box(show)];
+            const [inView, vh] = [(r: { y: number; height: number }) => r.y >= s.y && r.y + r.height <= s.y + s.height, page.viewportSize()!.height];
+            return Math.abs(s.y + s.height - (f.y + f.height)) <= 1 && s.y + s.height <= vh && inView(c) && inView(b);
+        })
+        .toBe(true);
+    // A thumb target: the 44px step on both buttons.
+    expect((await box(clear)).height).toBeGreaterThanOrEqual(44);
+    expect((await box(show)).height).toBeGreaterThanOrEqual(44);
+    await show.click();
+    await expect(panel).toBeHidden();
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
+// The Filters journey's neighbour: the full footer is not on /jobs (a lean surface), so this reads it on /about.
+test("on a phone the footer is one collapsible section per kind of link: 44px triggers that open on a tap, Enter or Space, and at 1440 only the flat line shows", { tag: ["@J-MOB-11"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    await page.goto("/about");
+    const footer = page.getByTestId("site-footer");
+    const triggers = footer.locator("[data-slot=accordion-trigger]");
+    // The section names are the contract; Footer.tsx cannot be imported here (it pulls in browser-only modules).
+    const groups = ["Job searches", "Company", "Help & legal"];
+    expect(await triggers.count()).toBe(groups.length);
+    for (const [i, group] of groups.entries()) {
+        const trigger = triggers.nth(i);
+        await trigger.scrollIntoViewIfNeeded();
+        await expect(trigger).toHaveText(group);
+        expect((await box(trigger)).height).toBeGreaterThanOrEqual(44);
+        // A tap opens the section and shows its links (the first link of the group is enough to see it).
+        const links = footer.locator(`[data-slot=accordion-item]:nth-child(${i + 1}) a`);
+        await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        await expect(links.first()).toBeHidden();
+        await trigger.tap();
+        await expect(trigger).toHaveAttribute("aria-expanded", "true");
+        await expect(links.first()).toBeVisible();
+        expect((await box(links.first())).height).toBeGreaterThanOrEqual(44);
+        await trigger.tap();
+        await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        await expect(links.first()).toBeHidden();
+        // The keyboard does the same from a focused trigger.
+        for (const key of ["Enter", "Space"]) {
+            await trigger.focus();
+            await page.keyboard.press(key);
+            await expect(trigger).toHaveAttribute("aria-expanded", "true");
+            await expect(links.first()).toBeVisible();
+            await page.keyboard.press(key);
+            await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        }
+    }
+    // At 1440 the accordion is gone and the flat line of links is what shows.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(triggers.first()).toBeHidden();
+    await expect(footer.getByRole("link", { name: "Privacy" })).toBeVisible();
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("on a phone every bottom sheet opens under the same bar: a title and a Close above its content (filters, tracker)", { tag: ["@J-MOB-25"] }, async ({ page, diagnostics }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "a phone width");
     await returningVisitor(page);
