@@ -117,13 +117,12 @@ export function SalaryCustomMinInput({
     onSalaryMin: (v: number) => void;
 }) {
     const [draft, setDraft] = useState(salaryMin > 0 ? String(salaryMin) : "");
+    const [invalid, setInvalid] = useState(false);
 
     useEffect(() => {
         setDraft(salaryMin > 0 ? String(salaryMin) : "");
         setInvalid(false);
     }, [salaryMin]);
-
-    const [invalid, setInvalid] = useState(false);
 
     const commit = () => {
         const value = parseSalaryMinDraft(draft);
@@ -141,6 +140,7 @@ export function SalaryCustomMinInput({
                 <span className="text-muted-foreground">$</span>
                 <input
                     type="text"
+                    inputMode="numeric"
                     enterKeyHint="done"
                     value={draft}
                     onChange={(e) => {

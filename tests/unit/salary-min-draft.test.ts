@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { parseSalaryMinDraft } from "../../src/components/jobs/SerpFilters";
 
 test("a typed salary floor reads what people type, in whole dollars", () => {
@@ -27,4 +29,10 @@ test("a draft we would have to guess at is rejected, never committed", () => {
     for (const draft of ["abc", "-5", "-100", "1.5e5", "12 0", "120k+", "1,2000", "12,34", "k", "$", "120kk", "1.2.3", "120 k", "NaN", "Infinity", "9".repeat(20)]) {
         assert.equal(parseSalaryMinDraft(draft), null, JSON.stringify(draft));
     }
+});
+
+test("the custom minimum opens the digit keypad on a phone", () => {
+    const src = readFileSync(path.join(__dirname, "../../src/components/jobs/SerpFilters.tsx"), "utf8");
+    const field = /<input\b(?:(?!\/>)[\s\S])*?data-testid="salary-custom-min"[\s\S]*?\/>/.exec(src)?.[0] ?? "";
+    assert.match(field, /inputMode="numeric"/);
 });
