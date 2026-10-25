@@ -4,7 +4,7 @@ import { buildArticleJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle, SubTitle } from "@/components/ui/heading";
+import { PageTitle, SectionTitle, SubTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const HEADLINE = "Ghost jobs aren't the problem — wasted applications are";
@@ -62,11 +62,11 @@ export default function GhostJobsResearchPage() {
       <PageTitle className="mt-3">
         Ghost jobs aren&apos;t the problem. Wasted applications are.
       </PageTitle>
-      <p className="mt-1.5 text-base text-muted-foreground">
+      <PageLead>
         We scored {stats.totalScored.toLocaleString()} job listings from corporate ATS platforms.{" "}
         {stats.gradePct.DF}% are outright junk. But nearly half are missing the signals you need to know if
         they&apos;re worth your time.
-      </p>
+      </PageLead>
       <p
         data-testid="ghost-jobs-asof"
         className="mono-data mb-6 mt-3 border-b border-border pb-3 text-xs text-muted-foreground"

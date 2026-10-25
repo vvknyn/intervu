@@ -6,7 +6,7 @@ import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = ELUTA_ALTERNATIVE;
@@ -32,9 +32,9 @@ export default function ElutaAlternativePage() {
       <PageTitle className="mt-3">
         Eluta crawls the career page. So do we — then we ask if it&apos;s still open.
       </PageTitle>
-      <p className="mt-1.5 text-base text-muted-foreground">
+      <PageLead>
         velai reads employer career pages wherever they publish. Eluta stays focused on one regional catalog.
-      </p>
+      </PageLead>
 
       <Prose className="mt-6">
         <p>

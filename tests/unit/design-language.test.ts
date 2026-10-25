@@ -1407,3 +1407,17 @@ test("reading measure: no <p> with a wider named max-w than READING_MEASURE", ()
     assert.equal(WIDE_P_MEASURE.test('<p className="mt-3 max-w-xl text-base">'), true, "positive control: max-w-xl on a <p> must be flagged");
     assert.equal(WIDE_P_MEASURE.test('<p className="max-w-md">'), false, "negative control: max-w-md must not be flagged");
 });
+
+/** A page lead is a PageLead (reading measure built in), never a raw 16px <p> hand-rolled after the h1 with no READING_MEASURE.
+ *  Smaller or already-measured paragraphs (error pages, mocks, dense headers) are out of scope. */
+const RAW_LEAD = /<\/PageTitle>\s*<p\b(?![^>]*READING_MEASURE)[^>]*\btext-base\b/;
+
+test("page lead: no raw 16px <p> directly after </PageTitle>", () => {
+    const offenders = walkTsxFiles(path.join(ROOT, "src"))
+        .filter((f) => RAW_LEAD.test(readFileSync(f, "utf8")))
+        .map((f) => path.relative(ROOT, f));
+    assert.deepEqual(offenders, [], `use PageLead from @/components/ui/heading: ${offenders.join("; ")}`);
+    assert.equal(RAW_LEAD.test('</PageTitle>\n  <p className="mt-1.5 text-base text-muted-foreground">'), true, "positive control: a raw <p> after the title must be flagged");
+    assert.equal(RAW_LEAD.test("</PageTitle>\n  <PageLead>"), false, "negative control: PageLead must not be flagged");
+    assert.equal(RAW_LEAD.test("</PageTitle>\n  <p className={`mt-3 ${READING_MEASURE} text-base`}>"), false, "negative control: an already-measured <p> must not be flagged");
+});
