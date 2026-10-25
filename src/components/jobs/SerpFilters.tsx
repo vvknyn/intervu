@@ -109,6 +109,10 @@ export function parseSalaryMinDraft(draft: string): number | null {
  * Exported so both SerpFilters' own Salary group and FacetBar's Salary chip
  * (a presentation of this same filter, not a second one) mount it.
  */
+/** Error copy shows only what the digit keypad (inputMode="numeric") can type;
+ *  the parser still accepts "120k" / "$120,000" from a desktop keyboard or paste. */
+export const SALARY_MIN_ERROR = "Enter an amount like 120000.";
+
 export function SalaryCustomMinInput({
     salaryMin,
     onSalaryMin,
@@ -162,7 +166,7 @@ export function SalaryCustomMinInput({
             </span>
             {invalid && (
                 <span role="alert" className="w-full text-destructive" data-testid="salary-custom-min-error">
-                    Enter an amount like 120000 or 120k.
+                    {SALARY_MIN_ERROR}
                 </span>
             )}
         </label>

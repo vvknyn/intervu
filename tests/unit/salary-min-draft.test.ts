@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { parseSalaryMinDraft } from "../../src/components/jobs/SerpFilters";
+import { parseSalaryMinDraft, SALARY_MIN_ERROR } from "../../src/components/jobs/SerpFilters";
 
 test("a typed salary floor reads what people type, in whole dollars", () => {
     const cases: [string, number][] = [
@@ -35,4 +35,11 @@ test("the custom minimum opens the digit keypad on a phone", () => {
     const src = readFileSync(path.join(__dirname, "../../src/components/jobs/SerpFilters.tsx"), "utf8");
     const field = /<input\b(?:(?!\/>)[\s\S])*?data-testid="salary-custom-min"[\s\S]*?\/>/.exec(src)?.[0] ?? "";
     assert.match(field, /inputMode="numeric"/);
+});
+
+test("the error copy and placeholder only show amounts a digit keypad can type", () => {
+    const src = readFileSync(path.join(__dirname, "../../src/components/jobs/SerpFilters.tsx"), "utf8");
+    const placeholder = /data-testid="salary-custom-min"[\s\S]*?placeholder="e\.g\. ([^"]*)"|placeholder="e\.g\. ([^"]*)"[\s\S]*?data-testid="salary-custom-min"/.exec(src);
+    const amounts = [SALARY_MIN_ERROR.match(/like (\S+?)\.?$/)?.[1], placeholder?.[1] ?? placeholder?.[2]];
+    for (const amount of amounts) assert.match(amount ?? "", /^[0-9]+$/, String(amount));
 });
