@@ -74,7 +74,7 @@ export default function ConnectHelpPage() {
         Setup help
       </p>
       <PageTitle className="mt-2">Connecting your AI to velai</PageTitle>
-      <p className="mt-3 max-w-xl text-base text-muted-foreground">
+      <p className={`mt-3 ${READING_MEASURE} text-base text-muted-foreground`}>
         Two ways to connect: a connector you paste into an AI client you already use, or a local
         agent you install on your own Mac. If an install failed and sent you here, find the
         section it named below — each one covers what happened, why, and what to do next. Start

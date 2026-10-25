@@ -21,6 +21,7 @@ import {
 import { AGENT } from "@/lib/agent/config";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { READING_MEASURE } from "@/components/ui/prose";
 
 export const metadata: Metadata = {
   title: "OpenClaw — an overnight job-application agent",
@@ -38,7 +39,7 @@ export default function OpenclawPage() {
       <PageContainer measure="reading" className="flex flex-col items-start pb-14 pt-16">
         <OpenclawStatusBadge />
         <PageTitle className="mt-4 max-w-2xl">{OPENCLAW_HEADLINE}</PageTitle>
-        <p className="mt-4 max-w-xl text-base text-muted-foreground">
+        <p className={`mt-4 ${READING_MEASURE} text-base text-muted-foreground`}>
           A skill for OpenClaw, the open-source assistant you run on your own machine. It works while you
           sleep and messages you on WhatsApp when an application is ready. You read it, you send it.
         </p>
@@ -70,7 +71,7 @@ export default function OpenclawPage() {
       <section aria-labelledby="wont-do-heading" className="border-t border-border py-16">
         <PageContainer measure="reading">
           <SectionTitle id="wont-do-heading">What it won&apos;t do</SectionTitle>
-          <p className="mt-3 max-w-xl text-sm text-muted-foreground">
+          <p className={`mt-3 ${READING_MEASURE} text-sm text-muted-foreground`}>
             The difference between this and a spray-and-pray auto-applier is everything it refuses to do on its own.
           </p>
           <ul className="mt-8 flex flex-col gap-5">
@@ -96,7 +97,7 @@ export default function OpenclawPage() {
       <section aria-labelledby="runs-local-heading" className="border-t border-border py-16">
         <PageContainer measure="reading">
           <SectionTitle id="runs-local-heading">Runs on your machine</SectionTitle>
-          <p className="mt-4 max-w-xl text-base text-foreground">{RUNS_ON_YOUR_MACHINE.long}</p>
+          <p className={`mt-4 ${READING_MEASURE} text-base text-foreground`}>{RUNS_ON_YOUR_MACHINE.long}</p>
         </PageContainer>
       </section>
 

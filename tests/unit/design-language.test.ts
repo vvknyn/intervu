@@ -1394,3 +1394,16 @@ test("reading measure: no max-w-prose or max-w-[<n>ch] outside prose.tsx", () =>
     assert.equal(CH_MEASURE.test('<p className="max-w-[60ch]">'), true, "positive control: a ch width must be flagged");
     assert.equal(CH_MEASURE.test('<p className="max-w-prose">'), true, "positive control: max-w-prose must be flagged");
 });
+
+/** A paragraph's width comes from READING_MEASURE, never a wider named max-w (max-w-xl = ~88 chars/line). */
+const WIDE_P_MEASURE = /<p\b[^>]*className=[^>]*\bmax-w-(?:lg|xl|[2-7]xl)\b/;
+
+test("reading measure: no <p> with a wider named max-w than READING_MEASURE", () => {
+    const offenders = walkTsxFiles(path.join(ROOT, "src"))
+        .filter((f) => !f.includes(`${path.sep}mock${path.sep}`))
+        .filter((f) => WIDE_P_MEASURE.test(readFileSync(f, "utf8")))
+        .map((f) => path.relative(ROOT, f));
+    assert.deepEqual(offenders, [], `use READING_MEASURE from @/components/ui/prose: ${offenders.join("; ")}`);
+    assert.equal(WIDE_P_MEASURE.test('<p className="mt-3 max-w-xl text-base">'), true, "positive control: max-w-xl on a <p> must be flagged");
+    assert.equal(WIDE_P_MEASURE.test('<p className="max-w-md">'), false, "negative control: max-w-md must not be flagged");
+});
