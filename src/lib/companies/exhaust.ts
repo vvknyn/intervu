@@ -16,6 +16,7 @@
  */
 import { eventTypeLabel } from "@/lib/companies/events";
 import { machineTokenLabel } from "@/lib/companies/machine-token";
+import { deriveBoardRoot } from "@/lib/companies/careers-board-root";
 import { RECORD_WINDOW_WEEKS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
 import { formatCount } from "@/lib/format";
@@ -315,25 +316,52 @@ function isoDate(v: unknown): string | null {
  *  a sector, so it must not shadow a real one further down the chain. */
 const NON_SECTORS = new Set(["", "general", "unknown"]);
 
-/** THE sector resolver: health_reviews, then fingerprints, then boards; the
- *  first that names a real sector wins (as a display label), null when none does. */
-export function resolveSector(row: Partial<SectorRow> | null): string | null {
-  for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards]) {
+/** THE sector resolver: health_reviews, then fingerprints, then boards, then the hiring.cafe
+ *  profile's first non-generic industry (its own words); the first that names a real sector wins
+ *  (as a display label), null when none does. */
+export function resolveSector(row: Partial<SectorRow> | null, industries: readonly string[] = []): string | null {
+  for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards, ...industries]) {
     const sector = str(candidate)?.trim();
     if (sector && !NON_SECTORS.has(sector.toLowerCase())) return machineTokenLabel(sector);
   }
   return null;
 }
 
-/** THE careers-link resolver: a stored `career_page_url` is shown only when it is an http(s) address. */
+/** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x),
+ *  which the pipeline can keep as career_page_url (subspace pipeline.ts:207 isPersistableDiscoveredUrl) but a person cannot browse. */
+const API_ENDPOINT = /^(?:[a-z0-9-]+-)?api\.|\/(?:api|v\d+)(?:\/|$)/i;
+
+/** `company_boards.last_scrape_outcome` values saying the kept URL is not a usable careers page
+ *  (subspace src/lib/scrape-outcome.ts:12-45 union). Transient ERROR_* / DOMAIN_TIMEOUT and
+ *  EMPTY_BOARD (a real page with no jobs) are deliberately absent. status='explored' is not a verdict. */
+const UNUSABLE_URL_OUTCOMES = new Set([
+  "CAREER_PAGE_JUNK",
+  "CAREER_PAGE_CORPORATE",
+  "CAREER_PAGE_REDIRECTED",
+  "URL_DEAD_404",
+  "SLUG_OWNERSHIP_MISMATCH",
+  "SITE_PARKED",
+]);
+
+/** The pipeline's verdict that the stored URL is unusable (last_scrape_outcome), or an API endpoint. */
+function isJunkStoredCareersUrl(row: Partial<SectorRow>, url: URL): boolean {
+  return UNUSABLE_URL_OUTCOMES.has(row.last_scrape_outcome ?? "") || API_ENDPOINT.test(url.hostname) || API_ENDPOINT.test(url.pathname);
+}
+
+/** THE careers-link resolver: the stored `career_page_url` when it is an http(s) address the pipeline did not
+ *  judge junk, else the board root derived from the domain's latest posting URL, else null. */
 export function resolveCareersUrl(row: Partial<SectorRow> | null): string | null {
   const raw = str(row?.careers_url)?.trim();
-  if (!raw) return null;
-  try {
-    return /^https?:$/.test(new URL(raw).protocol) ? raw : null;
-  } catch {
-    return null;
+  if (raw) {
+    try {
+      const url = new URL(raw);
+      if (/^https?:$/.test(url.protocol) && !isJunkStoredCareersUrl(row ?? {}, url)) return raw;
+    } catch {
+      /* not a URL: fall through to the derived root */
+    }
   }
+  const listing = str(row?.listing_url)?.trim();
+  return listing ? deriveBoardRoot(listing) : null;
 }
 
 // ─────────────────────────────── row shapes ───────────────────────────────
@@ -412,6 +440,10 @@ export interface SectorRow {
   fingerprints: string | null;
   boards: string | null;
   careers_url: string | null;
+  /** company_boards.last_scrape_outcome: the pipeline's verdict on the stored URL. */
+  last_scrape_outcome: string | null;
+  /** The domain's most recent posting URL, for deriving a board root when no stored URL is usable. */
+  listing_url: string | null;
 }
 
 /** The three sector columns the box holds for one domain, side by side so
@@ -422,7 +454,9 @@ async function fetchSectorRow(pg: Queryable, domain: string): Promise<SectorRow 
        (SELECT sector FROM company_health_reviews WHERE company_domain = $1 ORDER BY created_at DESC LIMIT 1) AS health_reviews,
        (SELECT sector FROM company_fingerprints WHERE domain = $1 LIMIT 1) AS fingerprints,
        (SELECT sector FROM company_boards WHERE company_domain = $1 LIMIT 1) AS boards,
-       (SELECT career_page_url FROM company_boards WHERE company_domain = $1 LIMIT 1) AS careers_url`,
+       (SELECT career_page_url FROM company_boards WHERE company_domain = $1 LIMIT 1) AS careers_url,
+       (SELECT last_scrape_outcome FROM company_boards WHERE company_domain = $1 LIMIT 1) AS last_scrape_outcome,
+       (SELECT url FROM job_listings WHERE company_domain = $1 ORDER BY first_seen_at DESC LIMIT 1) AS listing_url`,
     [domain],
   );
   return rows[0] ?? null;
@@ -784,7 +818,7 @@ function assembleExhaust(settled: Settled, nowMs: number): CompanyExhaust {
     cadence,
     integrity,
     changeHistory: buildChangeHistorySection(value("changeHistory") ?? [], nowMs),
-    sector: resolveSector(sector),
+    sector: sector ? resolveSector(sector, buildProfileSection(enrichmentRows.get("company_profile"))?.data.industries) : null,
     careersUrl: resolveCareersUrl(sector),
   };
 }

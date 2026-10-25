@@ -352,10 +352,10 @@ describe("getCompanyExhaust — section isolation", () => {
       // A whole-row reference (`j.*`) detoasts every row's description.
       assert.doesNotMatch(sql, /\b\w+\.\*/);
       // Every scan is bounded by the window start on the indexed domain, bar
-      // the one MIN(first_seen_at), an index read that never touches row bodies.
+      // the one MIN(first_seen_at) and the one latest-posting LIMIT 1, index reads that never touch row bodies.
       const scans = sql.split(/FROM job_listings/).slice(1);
       for (const scan of scans)
-        assert.match(scan, /company_domain = \$1 AND (first_seen_at|closed_at) >= \(date_trunc\('week', now\(\)|company_domain = \$1\) AS first_day/);
+        assert.match(scan, /company_domain = \$1 AND (first_seen_at|closed_at) >= \(date_trunc\('week', now\(\)|company_domain = \$1\) AS first_day|company_domain = \$1 ORDER BY first_seen_at DESC LIMIT 1\) AS listing_url/);
     }
   });
 
