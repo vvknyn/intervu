@@ -47,4 +47,14 @@ describe("effectiveResumeSummary", () => {
     assert.equal(effectiveResumeSummary(server, local), server);
     assert.equal(effectiveResumeSummary({ source: "none" } as never, null).source, "none");
   });
+  it("shows the device copy over a locked account copy, and says the account also holds one", () => {
+    const out = effectiveResumeSummary({ source: "locked", updatedAt: "2026-10-01" } as never, local);
+    assert.equal(out.source, "resume_data");
+    assert.equal(out.accountCopyLocked, true);
+    assert.equal(effectiveResumeSummary({ source: "none" } as never, local).accountCopyLocked, undefined);
+  });
+  it("stays locked, never none, when a saved copy is locked and the device holds none", () => {
+    const server = { source: "locked", updatedAt: "2026-10-01" } as never;
+    assert.equal(effectiveResumeSummary(server, null), server);
+  });
 });

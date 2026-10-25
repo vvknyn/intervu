@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { PAYMENT_REQUIRED } from "../../src/lib/billing/access";
 import { refuseUnpaid, whenPaid } from "../../src/lib/resume/when-paid";
-import { fetchBaseResumeDoc } from "../../src/lib/resume/base-resume";
+import { canonicalizeBaseResume, fetchBaseResumeDoc } from "../../src/lib/resume/base-resume";
 import { paywallRefusal } from "../../src/lib/agent/paywall";
 import { extensionMeBody } from "../../src/lib/extension-me";
 import { isPaymentRequired } from "../../src/lib/resume/payment-required";
@@ -40,9 +40,37 @@ describe("whenPaid / refuseUnpaid", () => {
 });
 
 describe("the one reader of the stored résumé", () => {
-    it("reports no résumé at all to an unpaid account, whoever it is", async () => {
-        for (const uid of ["u-free", "u-other-free"]) {
-            assert.deepEqual(await fetchBaseResumeDoc(uid, isPaid), { base: { source: "none" }, updatedAt: null });
+    const structured = { profile: { name: "Ada Lovelace", profession: "Engineer" }, experience: [{ role: "Engineer", company: "Acme", bullets: ["Built the engine"] }] } as never;
+    const stores = {
+        "resume_data only": { resume_data: structured, resume_text: undefined },
+        "resume_text only": { resume_data: undefined, resume_text: "  Ada Lovelace, Engineer at Acme  " },
+        "both": { resume_data: structured, resume_text: "Ada Lovelace" },
+    };
+    const readOf = (stored: { resume_data?: never; resume_text?: string }, updatedAt = "2026-10-01") => async () => ({
+        base: canonicalizeBaseResume(stored.resume_data, stored.resume_text),
+        updatedAt,
+    });
+
+    for (const [shape, stored] of Object.entries(stores)) {
+        it(`tells an unpaid account a résumé is saved, and nothing of it (${shape})`, async () => {
+            for (const uid of ["u-free", "u-other-free"]) {
+                const out = await fetchBaseResumeDoc(uid, isPaid, readOf(stored as never));
+                assert.deepEqual(out, { base: { source: "locked" }, updatedAt: "2026-10-01" });
+                const wire = JSON.stringify(out);
+                assert.doesNotMatch(wire, /Ada|Lovelace|Acme|engine|resume_data|resume_text/);
+            }
+        });
+
+        it(`hands a paid account exactly what is stored (${shape})`, async () => {
+            const read = readOf(stored as never);
+            assert.deepEqual(await fetchBaseResumeDoc("u-paid", isPaid, read), await read());
+            assert.notEqual((await fetchBaseResumeDoc("u-paid", isPaid, read)).base.source, "locked");
+        });
+    }
+
+    it("reports none to an unpaid account that has nothing stored, or only a blank text", async () => {
+        for (const stored of [{}, { resume_text: "   " }]) {
+            assert.deepEqual(await fetchBaseResumeDoc("u-free", isPaid, readOf(stored as never, "x")), { base: { source: "none" }, updatedAt: "x" });
         }
     });
 });

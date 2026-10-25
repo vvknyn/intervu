@@ -1778,6 +1778,8 @@ export function JobsContent({
                 };
                 setImportOpen(true);
             },
+            // Queued only by /resume, and replay is path-scoped.
+            resume: () => {},
         },
         user,
         onGateOpen: (reason) => {
