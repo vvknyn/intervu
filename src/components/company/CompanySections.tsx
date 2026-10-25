@@ -15,7 +15,7 @@ import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { formatCount } from "@/lib/format";
 import { openCountLabel } from "@/lib/companies/presentation";
-import type { RelatedCompany } from "@/lib/companies/related-companies";
+import { relatedHeading, type RelatedCompanies } from "@/lib/companies/related-companies";
 
 export interface SectionContext {
   facts: CompanyFacts;
@@ -23,7 +23,7 @@ export interface SectionContext {
   nowMs: number;
   /** The interactive roles list (a client component, already rendered by the body). */
   roles: ReactNode;
-  related: RelatedCompany[];
+  related: RelatedCompanies | null;
   faq: CompanyFaqItem[];
   /** The ghost-flagged sentence, null when the page cannot state it. */
   staleShare: string | null;
@@ -209,10 +209,10 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
     );
   },
   openRoles: ({ roles }) => <div data-testid="company-section-openRoles" className="border-t border-border pt-6">{roles}</div>,
-  related: ({ related }) => (
-    <Section id="related" title="Related companies">
+  related: ({ related }) => related && (
+    <Section id="related" title={relatedHeading(related.facet)}>
       <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-        {related.map((c) => (
+        {related.companies.map((c) => (
           <li key={c.domain} className="min-w-0 truncate">
             <a href={companyBoardPath(c.domain)} className="text-brand hover:underline">{c.name}</a>
             {c.openCount && <span className="text-muted-foreground">{` · ${openCountLabel(c.openCount)} open`}</span>}

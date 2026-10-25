@@ -143,7 +143,7 @@ export default async function CompanyPageMock({
   const data = sample === "1" ? { ...fixed, openCount: 480, openCountIsLowerBound: false } : fixed;
   return (
     <div className="min-h-[calc(100dvh-3.5rem)] bg-background">
-      <CompanyPageBody data={data} signedIn={signedIn === "1"} now={now} related={[]} />
+      <CompanyPageBody data={data} signedIn={signedIn === "1"} now={now} related={null} />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { CompanyIntelGate } from "@/components/company/CompanyIntelGate";
 import { staleShareText } from "@/components/company/company-page-copy";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanySections } from "@/components/company/CompanySections";
-import type { RelatedCompany } from "@/lib/companies/related-companies";
+import type { RelatedCompanies } from "@/lib/companies/related-companies";
 import { buildCompanyFaq } from "@/lib/companies/company-faq";
 import { companySections } from "@/lib/companies/company-sections";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
@@ -52,7 +52,7 @@ export function CompanyPageBody({
   /** The route's one clock read (see page.tsx). */
   now: number;
   /** Same-skill or same-country companies from the sitemap set; empty omits the section. */
-  related: RelatedCompany[];
+  related: RelatedCompanies | null;
 }) {
   // An anonymous visitor already gets a single combined ask from
   // `CompanyExhaustGate`'s sign-in card below (full record + hiring
@@ -82,7 +82,7 @@ export function CompanyPageBody({
       now={now}
     />
   );
-  const sectionIds = companySections(data.facts, { roleCount: data.jobs.length, relatedCount: related.length, faqCount: faq.length });
+  const sectionIds = companySections(data.facts, { roleCount: data.jobs.length, relatedCount: related?.companies.length ?? 0, faqCount: faq.length });
   const sectionCtx = { facts: data.facts, exhaust: data.exhaust, nowMs: data.nowMs, roles, related, faq, staleShare };
 
   // Exhaust PG history, same `CompanyChangeEvent` shape as the projector
