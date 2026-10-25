@@ -862,8 +862,10 @@ describe("companies/company-name — a minority group never names the company", 
     assert.equal(name({ "Zeta Analytics Holdings": 5, ...acronym }, "zeta.com"), "Zeta Analytics Holdings");
     // the one-brand-word echo ("Zeta", "Zeta Inc") is still the domain echoed, not a spelling
     assert.notEqual(name({ "Zeta Inc": 5, ...acronym }, "zeta.com"), "Zeta Inc");
-    // fewer words wins among acronyms too
-    assert.equal(name({ "Zinc Eagle Tool Alliance": 4, "Zebra Tank Works": 4, "Zulu Echo Tango Alpha": 1 }, "zeta.com"), "Zebra Tank Works");
+    // two compositions (no direct name) are no single entity: word count does not rank them, the brand root decides
+    assert.notEqual(name({ "Zinc Eagle Tool Alliance": 4, "Zebra Tank Works": 4, "Zulu Echo Tango Alpha": 1 }, "zeta.com"), "Zebra Tank Works");
+    // a short composition ("Acme MH UK Ltd") does not outrank the brand root its siblings share
+    assert.equal(name({ "Acme MH UK Ltd": 10, "Acme Material Handling Sweden": 8, "Acme Material Handling Austria GmbH": 7, "Acme Material Handling Polska": 6 }, "acmemh.com"), "Acme Material Handling");
   });
 
   it("a tie at the fewest words falls through to the brand root", () => {

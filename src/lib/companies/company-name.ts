@@ -917,10 +917,10 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
     // otherwise the brand root they share does, and with neither the domain stays unnamed.
     if (best && best.count * 2 <= candidates.reduce((sum, g) => sum + g.count, 0)) {
       // One group spelling the host's label from the starts of its words ("Alpha Systems Inc" on alphasys.com) is the domain's own entity.
-      // The fewest words wins; a tie at that minimum is no single entity and falls to the brand root.
-      const wordsSpelling = (g: NameGroup) => Math.min(...host.labels.map((label) => labelSpellingWords(label, g.display)));
-      const fewest = Math.min(...candidates.map(wordsSpelling));
-      const spelling = candidates.filter((g) => fewest < Infinity && wordsSpelling(g) === fewest);
+      // A name leading with a whole host label is direct evidence; compositions across words are weaker and count only when none is direct. One group in the tier names the company, 2+ fall to the brand root.
+      const span = (g: NameGroup) => Math.min(...host.labels.map((label) => labelSpellingWords(label, g.display)));
+      const direct = candidates.filter((g) => span(g) === 1);
+      const spelling = direct.length ? direct : candidates.filter((g) => span(g) < Infinity);
       const root = spelling.length === 1 ? null : majorityBrandRoot(candidates, domain);
       best = spelling.length === 1 ? spelling[0]! : root ? { count: 0, display: root, tokens: brandTokens(root), extends: 0 } : null;
     }
