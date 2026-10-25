@@ -251,8 +251,8 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
   they show after 300ms and never flash. A spinner stays only on an action or a labelled check.
 - **Menus grow from the trigger.** Dropdown, popover, select and tooltip content carry
   `origin-(--radix-<name>-content-transform-origin)` with token durations.
-- **Selected vs hover rows.** Selected is `brand-tint-bg` plus a 1px inset `ring-live-tint-border` hairline and
-  `aria-current` (tint alone is 1.03x hover; the hairline is 2.3x); hover is `surface-hover`. No
+- **Selected vs hover rows.** Selected is `brand-tint-bg` plus a 1px inset `ring-brand-muted` hairline and
+  `aria-current` (tint alone is 1.03x hover; the hairline is 5.3x the tint, 5.5x hover, 6.5x the page, over the 3x WCAG 1.4.11 asks); hover is `surface-hover`. No
   stripe, no lift. Chips and tiles on the selected row lift to `surface-3`.
 - **Reduced motion.** Every class above is zeroed in the `prefers-reduced-motion: reduce` block.
 
