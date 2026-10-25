@@ -92,7 +92,7 @@ export function ResumeStatesMock() {
                 Dev-only harness — not linked from product navigation.
             </p>
 
-            {/* ToolbarSegment recipe (design-language.md §5): bare buttons, no
+            {/* Segment recipe (design-language.md §5): bare buttons, no
                 filled/bordered wrapper — same shape as /jobs's sort segments
                 and ResumeImportModal's local-AI toggle. A padded pill wrapper
                 here would edge-hug the buttons against its own border. */}
