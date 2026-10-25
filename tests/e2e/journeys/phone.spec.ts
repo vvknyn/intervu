@@ -218,6 +218,26 @@ test("on a phone the Filters sheet holds filters only, in one column, over a sti
     await expect(page.getByRole("button", { name: "Clear all" })).toBeVisible();
     const show = page.getByRole("button", { name: /^Show (results|[\d,]+\+? jobs?)$/ });
     await expect(show).toBeVisible();
+    const sheet = page.getByRole("dialog", { name: "Filters" });
+    // One column: every filter group starts at the same left edge (a 2-up grid gives two).
+    const groups = panel.locator("div.grid").first().locator("> *");
+    expect(await groups.count()).toBeGreaterThanOrEqual(2);
+    const lefts = await groups.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().x)));
+    expect(new Set(lefts).size).toBe(1);
+    // Sticky: with the body scrolled to its end the bar still ends at the sheet's bottom edge, both buttons in view.
+    await panel.evaluate((e) => { e.scrollTop = e.scrollHeight; });
+    const clear = page.getByRole("button", { name: "Clear all" });
+    const bar = clear.locator("xpath=..");
+    await expect
+        .poll(async () => {
+            const [s, f, c, b] = [await box(sheet), await box(bar), await box(clear), await box(show)];
+            const [inView, vh] = [(r: { y: number; height: number }) => r.y >= s.y && r.y + r.height <= s.y + s.height, page.viewportSize()!.height];
+            return Math.abs(s.y + s.height - (f.y + f.height)) <= 1 && s.y + s.height <= vh && inView(c) && inView(b);
+        })
+        .toBe(true);
+    // A thumb target: the 44px step on both buttons.
+    expect((await box(clear)).height).toBeGreaterThanOrEqual(44);
+    expect((await box(show)).height).toBeGreaterThanOrEqual(44);
     await show.click();
     await expect(panel).toBeHidden();
     expect(diagnostics.pageErrors).toEqual([]);

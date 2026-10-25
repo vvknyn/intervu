@@ -5498,14 +5498,14 @@ export function JobsContent({
                     <div
                         id="filters-panel"
                         data-testid="filters-panel"
-                        className="panel-enter max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel bg-surface p-2.5 text-foreground custom-scrollbar"
+                        className="panel-enter flex max-h-[min(62dvh,520px)] flex-col rounded-panel bg-surface p-2.5 text-foreground"
                     >
-                        {renderFiltersPanel()}
+                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">{renderFiltersPanel()}</div>
                         {/* The global `Footer` is mounted below this infinite feed and
                             never scrolls into view here — this is the only reachable
                             desktop filter surface on /jobs, so the footer links live
-                            at its end too. */}
-                        <div className="mt-3 pt-3">
+                            at its end too, outside the scroll area so no row is cut. */}
+                        <div className="mt-3 shrink-0 pt-3">
                             <FooterLinks />
                         </div>
                     </div>
@@ -5668,10 +5668,21 @@ export function JobsContent({
                                 {/* Filters apply live, so "Show N jobs" only closes the sheet;
                                     N is the live total, never a guess (showResultsLabel). */}
                                 <SheetFooter className="shrink-0 flex-row gap-3 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                                    <Button variant="outline" disabled={activeCount === 0} onClick={panelClearAll}>
+                                    <Button
+                                        // control-type-allow: the sheet action bar is a phone thumb target, so both buttons take the 44px step
+                                        variant="outline"
+                                        size="lg"
+                                        disabled={activeCount === 0}
+                                        onClick={panelClearAll}
+                                    >
                                         Clear all
                                     </Button>
-                                    <Button className="flex-1" onClick={() => setFiltersOpen(false)}>
+                                    <Button
+                                        // control-type-allow: the sheet action bar is a phone thumb target, so both buttons take the 44px step
+                                        size="lg"
+                                        className="flex-1"
+                                        onClick={() => setFiltersOpen(false)}
+                                    >
                                         {showResultsLabel(result?.configured && !result.unavailable && !loading ? totalCount : null)}
                                     </Button>
                                 </SheetFooter>
