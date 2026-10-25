@@ -131,7 +131,6 @@ export function CompanyRoleSearch({
   searchesPartialWindow,
   jobsSearchUrl,
   now,
-  stats = [],
 }: {
   jobs: PublicJob[];
   companyDomain: string;
@@ -152,9 +151,6 @@ export function CompanyRoleSearch({
    *  verdict's staleness read stays pure and testable — never Date.now()
    *  in a render body, which would also desync client and server HTML. */
   now: number;
-  /** The stat row above the list (`buildCompanyRoleStats`). The résumé fit
-   *  count joins it here because only this component holds the résumé. */
-  stats?: CompanyRoleStat[];
 }) {
   const [query, setQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
@@ -269,7 +265,6 @@ export function CompanyRoleSearch({
   const fitStat = roleFitStat(matchScores, jobs.length, searchesPartialWindow);
   // Ask for the résumé until one is known to be on hand.
   const askForFit = jobs.length > 0 && !resume && !resumePending;
-  const allStats = fitStat ? [fitStat, ...stats] : stats;
 
   // `jobs` arrives already deduped — `getCompanyPageData` (get-company.ts)
   // runs `collapseDuplicatePostings` once, server-side, so every downstream
@@ -321,11 +316,9 @@ export function CompanyRoleSearch({
 
   return (
     <section data-testid="company-role-search">
-      {allStats.length > 0 && (
+      {fitStat && (
         <div data-testid="company-role-stats" className="mb-8 flex flex-wrap gap-x-8 gap-y-4">
-          {allStats.map((stat) => (
-            <KpiStat key={stat.key} value={stat.value} label={stat.label} minWidthClassName="min-w-0" />
-          ))}
+          <KpiStat value={fitStat.value} label={fitStat.label} minWidthClassName="min-w-0" />
         </div>
       )}
       {askForFit && (

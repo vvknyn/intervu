@@ -9,7 +9,7 @@ import { PAY_SCOPE, type CompanyFacts, type Distribution } from "@/lib/companies
 import type { SectionId } from "@/lib/companies/company-sections";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { listedOnPostings, listedOnRoles, statedOfTotal } from "@/lib/companies/facts-copy";
-import { exhaustHiringRecord } from "@/lib/companies/hiring-record";
+import { exhaustHiringRecord, trackingStartedInWindow } from "@/lib/companies/hiring-record";
 import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { formatCount } from "@/lib/format";
@@ -115,7 +115,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
     const lines = [
       exhaustHiringRecord(exhaust, nowMs),
       h.lastPostedAt && `Newest role posted ${h.lastPostedAt.slice(0, 10)}`,
-      h.monitoredSince && `Watched since ${monthYear(h.monitoredSince)}`,
+      h.monitoredSince && !trackingStartedInWindow(h.monitoredSince, nowMs) && `Watched since ${monthYear(h.monitoredSince)}`,
     ].filter(Boolean);
     return (
       <Section id="hiringNow" title="Hiring now">
