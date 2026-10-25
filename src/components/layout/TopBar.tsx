@@ -102,7 +102,7 @@ export function TopBar() {
                     href="/"
                     prefetch={false}
                     {...prefetchOnIntent("/")}
-                    className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-90"
+                    className="hit-band flex shrink-0 items-center gap-2 transition-opacity hover:opacity-90"
                     data-testid="topbar-logo"
                     data-rulebook-exempt
                 >
@@ -209,7 +209,7 @@ export function TopBar() {
                                 href="/pricing"
                                 prefetch={false}
                                 data-testid="topbar-pricing"
-                                className={cn("px-2 text-sm text-muted-foreground hover:text-foreground", CHROME_FOCUS_VISIBLE)}
+                                className={cn("hit-band px-2 text-sm text-muted-foreground hover:text-foreground", CHROME_FOCUS_VISIBLE)}
                             >
                                 Pricing
                             </Link>

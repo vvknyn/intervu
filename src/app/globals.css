@@ -849,13 +849,14 @@ body:has([data-shell="bleed"]) {
    file, range, color and date-likes do), so they sit on the `lg` step (44px)
    themselves and are NOT positioned here: `position: relative` on them only
    re-orders paint, hiding an absolute leading icon (z-index auto) that
-   precedes them under their opaque fill. */
+   precedes them under their opaque fill. A plain link (the header logo) is
+   not a control by tag; `hit-band` opts it in. */
 @layer base {
   @media (pointer: coarse) {
-    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"], textarea, select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]))) {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band):where(:not([class*="before:"], textarea, select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]))) {
       position: relative;
     }
-    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"]))::before {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band):where(:not([class*="before:"]))::before {
       content: "";
       position: absolute;
       top: 50%;
@@ -864,6 +865,24 @@ body:has([data-shell="bleed"]) {
       height: max(100%, var(--hit-min));
       transform: translate(-50%, -50%);
     }
+  }
+}
+
+/* HIT BAND ROOM — a scroller (overflow auto/hidden/scroll/clip on either axis
+   clips both) paints nothing outside its padding box, so the floor's ::before
+   above is cut to the scroller's own height: a 32px chip in a 32px sideways
+   row is touchable on 32px, and a tap 20px from its centre lands on the
+   section behind it. On a coarse pointer this gives the scroller the room the
+   band needs, as block padding sized to the md control step, cancelled by an
+   equal negative block margin so the row occupies the space it did and nothing
+   around it moves. A control shorter than the md step needs a larger pad. Put
+   it on every element that clips overflow and holds controls; the /jobs
+   journey tap-band.spec.ts probes the result. */
+@utility scroll-hit {
+  @media (pointer: coarse) {
+    --scroll-hit-pad: calc((var(--hit-min) - var(--control-h-md)) / 2);
+    padding-block: var(--scroll-hit-pad);
+    margin-block: calc(-1 * var(--scroll-hit-pad));
   }
 }
 
