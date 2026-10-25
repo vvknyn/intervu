@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
 import { normalizeLanguages } from "@/lib/match/posting-language";
+import { settleAction } from "@/lib/load-result";
 
 /**
  * The signed-in candidate's saved preferences, for `resolveCandidateSignals(resume, prefs)`.
@@ -19,6 +20,8 @@ import { normalizeLanguages } from "@/lib/match/posting-language";
 interface Read {
     uid: string;
     prefs: AgentPreferences | null;
+    /** The read never answered: `prefs` is unknown, not "none saved". Not kept, so the next mount reads again. */
+    failed?: true;
 }
 
 let current: Read | null = null;
@@ -43,19 +46,19 @@ const ATTEMPTS = 4;
 const RETRY_MS = 400;
 
 async function load(uid: string) {
-    if (current?.uid === uid || loading === uid) return;
+    if ((current?.uid === uid && !current.failed) || loading === uid) return;
     loading = uid;
     let prefs: AgentPreferences | null = null;
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-        const res = await fetchAgentPreferencesAction().catch(() => null);
-        if (res?.data) {
+        const res = await settleAction(fetchAgentPreferencesAction());
+        if (res.data) {
             prefs = res.data;
             break;
         }
         if (attempt < ATTEMPTS - 1) await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
     }
     // A newer account (or a Settings save) took over while this read was out.
-    if (loading === uid) publish({ uid, prefs });
+    if (loading === uid) publish(prefs ? { uid, prefs } : { uid, prefs, failed: true });
 }
 
 /** Read the account's preferences again (a new résumé just rewrote what the old one filled). */
@@ -99,11 +102,11 @@ export async function saveLanguageChoice(uid: string, languages: string[]): Prom
     return true;
 }
 
-export function useAgentPreferences(uid: string | null): { prefs: AgentPreferences | null; settled: boolean } {
+export function useAgentPreferences(uid: string | null): { prefs: AgentPreferences | null; settled: boolean; failed: boolean } {
     const read = useSyncExternalStore(subscribe, () => current, () => null);
     useEffect(() => {
         if (uid) void load(uid);
     }, [uid]);
-    if (!uid) return { prefs: null, settled: true };
-    return read?.uid === uid ? { prefs: read.prefs, settled: true } : { prefs: null, settled: false };
+    if (!uid) return { prefs: null, settled: true, failed: false };
+    return read?.uid === uid ? { prefs: read.prefs, settled: true, failed: !!read.failed } : { prefs: null, settled: false, failed: false };
 }

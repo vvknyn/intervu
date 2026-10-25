@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { fetchResumeData } from "@/actions/resume";
 import { LanguagesControl } from "@/components/jobs/LanguagesControl";
 import { Label } from "@/components/ui/label";
-import { useAgentPreferences } from "@/hooks/use-agent-preferences";
+import { LoadFailedState } from "@/components/ui/load-failed-state";
+import { reloadAgentPreferences, useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { useLanguageChoice } from "@/hooks/use-language-choice";
 import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
 import { storedResumeData } from "@/lib/resume/stored-resume-data";
@@ -16,7 +17,7 @@ import type { ResumeData } from "@/types/resume";
  * out a role written in a language not listed here, and say so where they list.
  */
 export function LanguagesSetting({ uid }: { uid: string }) {
-    const { prefs } = useAgentPreferences(uid);
+    const { prefs, failed } = useAgentPreferences(uid);
     const language = useLanguageChoice(uid);
     // `undefined` while their résumé loads; `null` when they have none we can read.
     const [resume, setResume] = useState<ResumeData | null | undefined>(undefined);
@@ -36,6 +37,15 @@ export function LanguagesSetting({ uid }: { uid: string }) {
     }, [uid]);
 
     if (resume === undefined) return null;
+    if (failed) {
+        return (
+            <LoadFailedState
+                title="We can't load your saved language right now."
+                onRetry={() => void reloadAgentPreferences(uid)}
+                testId="settings-languages-load-failed"
+            />
+        );
+    }
     const read = resolveCandidateSignals(resume, prefs).languages?.value ?? null;
     const resumeDefault = resumeDefaultLanguages(resume);
     return (

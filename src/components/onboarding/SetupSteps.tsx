@@ -169,6 +169,7 @@ function SkipButton({ onClick, label = "Skip" }: { onClick: () => void; label?: 
 
 /** Saves roles to Settings › Preferences › Roles and the shared preferences copy. */
 async function saveRoles(roles: string): Promise<boolean> {
+    // load-result-allow: a write; null returns false and the step shows "Couldn't save your roles. Try again, or skip this step."
     const res = await saveAgentPreferencesAction({ search: { query: roles } }).catch(() => null);
     const uid = getSignedInUser()?.uid;
     if (!res?.data) return false;
@@ -309,6 +310,7 @@ function PlaceStep({ view, resumeLocation, onAnswer }: { view: OnboardingView; r
         const res = await saveAgentPreferencesAction({
             search: { location, remoteOnly },
             ...(relocationText ? { answers: { relocation: relocationText } } : {}),
+        // load-result-allow: a write; null shows "Couldn't save where you work. Try again, or skip this step." below
         }).catch(() => null);
         setSaving(false);
         if (!res?.data) return setError("Couldn't save where you work. Try again, or skip this step.");
@@ -440,6 +442,7 @@ function EmailStep({
         if (!search) return;
         setSaving(true);
         setError(null);
+        // load-result-allow: a write; null shows "Couldn't set up the email. Try again, or skip this step." below
         const res = await saveSavedSearchAction({ name: search.name, href: search.href }).catch(() => null);
         setSaving(false);
         if (!res || res.error) return setError("Couldn't set up the email. Try again, or skip this step.");

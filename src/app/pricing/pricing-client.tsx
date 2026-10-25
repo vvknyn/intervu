@@ -81,6 +81,7 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ months }),
       });
+      // load-result-allow: an unreadable reply falls to CHECKOUT_FALLBACK_ERROR on the page and Buy comes back; nothing renders as empty
       const body = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
       if (res.ok && body?.url) {
         window.location.assign(body.url);
