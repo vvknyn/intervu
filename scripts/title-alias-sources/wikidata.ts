@@ -46,11 +46,13 @@ async function fetchOccupationRows(): Promise<string> {
 export const wikidataLoader: TitleSourceLoader = {
   id: "wikidata",
   label: "Wikidata occupations (query.wikidata.org)",
-  version: "SPARQL snapshot",
+  version: "SPARQL snapshot 2026-10-26",
   license: "CC0 1.0",
   files: [{ name: FILE, url: ENDPOINT, fetchBody: fetchOccupationRows }],
   parse(files) {
     const rows = JSON.parse(files[FILE]) as Array<{ item: string; label: string; aliases: string }>;
-    return rows.map((r): RawConcept => ({ id: `wikidata:${r.item}`, lang: "en", group: "wikidata", matchLevel: "concept", names: [r.label, ...(r.aliases ? r.aliases.split("|") : [])] }));
+    return rows
+      .filter((r) => /^Q\d+$/.test(r.item)) // the query also returns a few properties (P…)
+      .map((r): RawConcept => ({ id: `wikidata:${r.item}`, names: [r.label, ...(r.aliases ? r.aliases.split("|") : [])] }));
   },
 };

@@ -1,6 +1,5 @@
-import { censusLoader } from "./census";
-import { onetLoader } from "./onet";
 import type { TitleSourceLoader } from "./types";
+import { wikidataLoader } from "./wikidata";
 
 /** Every source the generator reads. */
-export const TITLE_SOURCE_LOADERS: TitleSourceLoader[] = [onetLoader, censusLoader];
+export const TITLE_SOURCE_LOADERS: TitleSourceLoader[] = [wikidataLoader];

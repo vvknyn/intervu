@@ -9,7 +9,7 @@
  * Only titles present in BOTH the file and the graph are scored, as unordered pairs.
  *   precision = of the pairs the graph expands (either direction), the share TechWolf puts under one ESCO URI.
  *   recall    = of the pairs TechWolf puts under one ESCO URI, the share the graph expands.
- * The gold labels are ESCO occupations and the graph is O*NET-based, so read both as a lower bound.
+ * The gold labels are ESCO occupations and the graph lists plain synonyms and is silent on finer ESCO splits, so read recall as a lower bound and precision as strict.
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
