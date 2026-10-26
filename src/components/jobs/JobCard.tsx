@@ -36,6 +36,8 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
+import { rowSourceFacts } from "@/lib/jobs/row-source-facts";
+import { Badge } from "@/components/ui/badge";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
 import { formatCardPlace, presentJob } from "@/lib/presentation";
@@ -146,6 +148,7 @@ export function JobCard({
     // text AND its own chip would say the same fact twice.
     const factChips = buildFactChips(job, null, null).filter((c) => c.kind === "work_type" || c.kind === "salary");
     const freshness = classifyPostingFreshness(job, now);
+    const sourceFacts = rowSourceFacts(job, now);
     // "Hires in Canada" for a remote role whose posting says so in words its place fields lack (HiresIn.tsx).
     const hires = hiresNoteOf(matchScore);
     // A plain "Remote" reads "Remote (Canada)" when its posting limits it to a place its fields leave out (remote-scope.ts).
@@ -317,8 +320,9 @@ export function JobCard({
                     the detail pane's verdict word — sharing this line with
                     the facts (instead of a second row) is what keeps the
                     comfortable row inside the rulebook's 96-112px band. */}
-                {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0 || hires) && (
-                    <div className="mt-1 flex flex-wrap items-baseline text-sm text-muted-foreground">
+                {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0 || hires || sourceFacts.firstSeen || sourceFacts.fromEmployerSite) && (
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                        <span>
                         <MetaLine
                             items={[
                                 ...factChips.map((c) => (
@@ -353,6 +357,10 @@ export function JobCard({
                                 ),
                             ]}
                         />
+                        </span>
+                        {/* Two facts the row has no other place for, as quiet squared `key value` chips (SourceFact). */}
+                        {sourceFacts.firstSeen && <SourceFact testId="first-seen-pill" label="Seen by Velai" value={sourceFacts.firstSeen} />}
+                        {sourceFacts.fromEmployerSite && <SourceFact testId="employer-site-pill" label="From the company's site" />}
                     </div>
                 )}
                 {reasonLine && (
@@ -399,5 +407,15 @@ export function JobCard({
             </span>
             </div>
         </div>
+    );
+}
+
+/** A fact as a squared hairline chip: `Badge` (the word primitive) boxed, key muted, value in the row's tabular figures. */
+function SourceFact({ testId, label, value }: { testId: string; label: string; value?: string }) {
+    return (
+        <Badge data-testid={testId} className="mono-data rounded-none border border-border-subtle px-1.5 py-0.5 font-normal leading-none text-muted-foreground">
+            {label}
+            {value && <span className="font-semibold text-foreground">{value}</span>}
+        </Badge>
     );
 }
