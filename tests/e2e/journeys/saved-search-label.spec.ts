@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * Saved-search chip: a raw boolean query reads as a short label, the full terms show in a tooltip on
@@ -37,7 +38,8 @@ const chip = (page: Page, name: string) => page.getByTestId('saved-search-item')
 test.describe('saved-search chip label — pointer device', () => {
     test.use({ viewport: { width: 1440, height: 900 } });
 
-    test('labels, tooltip on hover and focus, no tooltip when the label shows everything', async ({ page }, info) => {
+    test('labels, tooltip on hover and focus, no tooltip when the label shows everything', { tag: ['@J-ALERTS-49'] }, async ({ page }, info) => {
+        test.skip(info.project.name === 'mobile', 'hover needs a pointer; the touch test covers the phone');
         await openWithSavedSearches(page);
         await expect(chip(page, 'Résumé keywords')).toBeVisible();
         await expect(chip(page, 'Data Analyst +1 more')).toBeVisible();
@@ -65,7 +67,7 @@ test.describe('saved-search chip label — pointer device', () => {
 test.describe('saved-search chip label — touch', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-    test('terms are reachable without hover', async ({ page }, info) => {
+    test('terms are reachable without hover', { tag: ['@J-ALERTS-50'] }, async ({ page }, info) => {
         await openWithSavedSearches(page);
         await expect(chip(page, 'Résumé keywords')).toBeVisible();
         const triggers = page.getByTestId('saved-search-terms-trigger');
