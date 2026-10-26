@@ -22,7 +22,7 @@ const VIEWPORTS = [
 
 for (const [name, engine] of ENGINES) {
     for (const viewport of VIEWPORTS) {
-        test(`${name} ${viewport.width}: source pills show only where the row's facts make them true`, async ({ baseURL }) => {
+        test(`${name} ${viewport.width}: source pills show only where the row's facts make them true`, { tag: ['@J-JOBS-163'] }, async ({ baseURL }) => {
             test.skip(!/localhost|127\.0\.0\.1/.test(baseURL ?? ''), '/mock/* is a design fixture, not served on production');
             const browser = await engine.launch();
             try {
