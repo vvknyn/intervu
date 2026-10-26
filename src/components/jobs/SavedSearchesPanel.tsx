@@ -301,6 +301,7 @@ export function SavedSearchesPanel({
                             <button
                                 type="button"
                                 data-testid="saved-search-item"
+                                title={terms ? undefined : label} // the tooltip carries the terms; otherwise a cut-off name shows in full
                                 onClick={() => {
                                     writeVisitCursor(`saved:${savedSearchId(s.href)}`, new Date().toISOString());
                                     onApply(effectiveSavedSearchState(s, resumeQuery));
