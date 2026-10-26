@@ -10,6 +10,7 @@ import { resumeDataFromPlainText, structureResumeText } from "../../src/lib/resu
 import { markdownResumeToPlainText } from "../../src/lib/resume/markdown-text";
 import { resumeDataToZipMarkdown } from "../../src/lib/resume/to-zip-markdown";
 import { resumeDataToParsedDocument } from "../../src/lib/resume/parse-resume-content";
+import { resumeMatchText } from "../../src/lib/resume/match-text";
 
 const FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/sample-resume.txt"), "utf8");
 
@@ -294,6 +295,24 @@ Salesforce`;
         assert.deepEqual([out.experience[1].role, out.experience[1].company], ["Software Engineer", "Beta Systems"]);
     });
 
+    it("reads an employer without the place printed beside it, as it always has, and never mistakes the employer for a place", () => {
+        const read = (line: string) => structureResumeText(`Jane Sample\n\nEXPERIENCE\n${line}\n- Built things\n`).experience.map((e) => [e.role, e.company]);
+        const lines: Array<[line: string, role: string, company: string]> = [
+            ["Software Engineer | Acme Corp | Toronto, ON | Jan 2019 – Present", "Software Engineer", "Acme Corp"],
+            ["Software Engineer | Acme Corp, Toronto, ON | Jan 2019 – Present", "Software Engineer", "Acme Corp, Toronto, ON"],
+            ["Software Engineer, Acme Corp, Toronto, ON | Jan 2019 – Present", "Software Engineer", "Acme Corp"],
+            ["Acme Corp, Toronto, ON | Jan 2019 – Present", "", "Acme Corp"],
+            ["Software Engineer at Acme Corp, Toronto, ON | Jan 2019 – Present", "Software Engineer", "Acme Corp, Toronto, ON"],
+            ["Software Engineer — Acme Corp — Chicago, IL — 2019 – 2021", "Software Engineer", "Acme Corp"],
+            ["Nurse | Humber River Health | Toronto, ON | 2019 – 2021", "Nurse", "Humber River Health"],
+            ["Software Engineer | Acme Corp | Payments Team | 2019 – 2021", "Software Engineer", "Acme Corp"],
+            // Read before 2026-10-26 as a place, with no employer.
+            ["Commis Chef, Ballymore House, Kinsale | 2019 – 2021", "Commis Chef", "Ballymore House"],
+            ["Marketing Manager, Brightloop Media — Chicago, IL | 2019 – 2021", "Marketing Manager", "Brightloop Media"],
+        ];
+        assert.deepEqual(lines.map(([line]) => read(line)), lines.map(([, role, company]) => [[role, company]]));
+    });
+
     it("keeps an experience section that names no role under its own heading, not in the last job", () => {
         const text = [
             "Asha Rao", "Professional Experience", "Programme Officer | Lakeside Trust | 2019 – Present",
@@ -304,6 +323,50 @@ Salesforce`;
         assert.deepEqual(out.experience.map((e) => [e.role, e.company, e.description]), [["Programme Officer", "Lakeside Trust", "• Ran field surveys"]]);
         const kept = out.additionalSections?.find((s) => s.heading === "Research Internship Experience");
         assert.deepEqual(kept?.lines, ["Organisation: Riverside Institute", "Project: Mapping water use"]);
+    });
+
+    it("keeps each school's labelled lines with that school, and searches by its coursework", () => {
+        const text = [
+            "Asha Rao", "Education", "BSc Computer Science, Riverside University, 2018", "• GPA: 3.8/4.0",
+            "• Relevant coursework: Algorithms, Databases; Operating Systems", "• Thesis: Mapping water use",
+            "Baku State University, Azerbaijan 2015",
+        ].join("\n");
+        const out = resumeDataFromPlainText(text);
+        assert.deepEqual(out.education.map((e) => [e.institution, e.year, e.gpa, e.coursework]), [
+            ["Riverside University", "2018", "3.8/4.0", ["Algorithms", "Databases", "Operating Systems"]],
+            ["Baku State University", "2015", undefined, undefined],
+        ]);
+        assert.deepEqual(out.additionalSections?.map((s) => [s.heading, s.after, s.lines]), [["Thesis", "education", ["Mapping water use"]]]);
+        assert.match(resumeMatchText(out), /^Databases$/m);
+    });
+
+    it("keeps every job of a long history, and the words over its first one", () => {
+        const jobs = Array.from({ length: 15 }, (_, n) => [`Analyst ${n + 1} | Firm ${n + 1} | ${2024 - n} – ${2025 - n}`, `• Built report ${n + 1}`]);
+        const text = ["Asha Rao", "Experience", "Ten years of reporting for lenders.", ...jobs.flat()].join("\n");
+        const out = resumeDataFromPlainText(text);
+        assert.equal(out.experience.length, 15);
+        assert.deepEqual(out.additionalSections?.map((s) => s.lines), [["Ten years of reporting for lenders."]]);
+    });
+
+    it("never opens a role at a project's duration line", () => {
+        const out = resumeDataFromPlainText(["Asha Rao", "Projects", "Ledger | 2021", "- Built a ledger", "(6 months)"].join("\n"));
+        assert.deepEqual(out.experience, []);
+        assert.deepEqual(out.projects?.map((p) => [p.role || p.company, p.dates, p.description]), [["Ledger", "2021", "• Built a ledger\n• (6 months)"]]);
+    });
+
+    it("reads a 50,000-character line in linear time, every word of it kept", () => {
+        // Trimming its trailing "=" run with a regex took 10.8 s before 2026-10-26.
+        const line = `a${"=".repeat(50_000)}b`;
+        const started = performance.now();
+        const out = structureResumeText(["Asha Rao", "Experience", "Analyst | Firm | 2019 – 2021", line].join("\n"));
+        const elapsed = performance.now() - started;
+        assert.ok(JSON.stringify(out).includes(line), "the line was read and kept");
+        assert.ok(elapsed < 2_000, `${Math.round(elapsed)} ms`);
+    });
+
+    it("names a skills list by its heading only when the heading says more than \"Skills\"", () => {
+        const text = ["Asha Rao", "SKILLS", "Python, SQL, Tableau, dbt", "LANGUAGE SKILLS", "English, Hindi, Marathi, Tamil"].join("\n");
+        assert.deepEqual(structureResumeText(text).competencies.map((c) => c.category), ["", "LANGUAGE SKILLS"]);
     });
 
     it("leaves plain text alone, even with a # or * in it", () => {

@@ -2,12 +2,14 @@
     "caps-classic": {
         "experience": [["Senior Data Analyst", "Harrowgate Logistics"], ["Data Analyst", "Kestrel Retail Group"], ["Junior Analyst", "Ambleside Insurance"]],
         "education": [["BSc Mathematics", "University of Leeds"]],
-        "skills": ["SQL", "Python", "dbt", "Tableau", "Power BI", "Forecasting", "Excel", "Snowflake"]
+        "skills": ["SQL", "Python", "dbt", "Tableau", "Power BI", "Forecasting", "Excel", "Snowflake"],
+        "places": ["Manchester", "York"]
     },
     "title-case-colon": {
         "experience": [["Marketing Manager", "Brightloop Media"], ["Marketing Specialist", "Northshore Fitness"]],
         "education": [["Bachelor of Arts in Communications", "Loyola University Chicago"]],
-        "skills": ["Paid Social", "Email Marketing", "Google Analytics", "HubSpot", "Copywriting", "A/B Testing", "Budget Planning"]
+        "skills": ["Paid Social", "Email Marketing", "Google Analytics", "HubSpot", "Copywriting", "A/B Testing", "Budget Planning"],
+        "places": ["Evanston, IL"]
     },
     "career-history-mmyyyy": {
         "experience": [["Mechanical Design Engineer", "Baltic Marine Systems"], ["Design Engineer", "Pomeranian Pumps"]],
@@ -65,7 +67,8 @@
     "no-headings": {
         "experience": [["Chef de Partie", "The Harbour Hotel"], ["Commis Chef", "Ballymore House"]],
         "education": [["Level 6 Certificate in Culinary Arts", "Munster Technological University"]],
-        "skills": ["HACCP", "Menu Costing", "Fish Butchery", "Sauces", "Allergen Management", "Stock Control", "Team Training"]
+        "skills": ["HACCP", "Menu Costing", "Fish Butchery", "Sauces", "Allergen Management", "Stock Control", "Team Training"],
+        "places": ["Kinsale"]
     },
     "linkedin-export": {
         "experience": [["Senior Project Manager", "Cedarline Telecom"], ["Project Manager", "Cedarline Telecom"], ["Project Coordinator", "Gulf Systems Integration"]],
@@ -87,7 +90,8 @@
     "functional-resume": {
         "experience": [["Customer Success Lead", "Peachtree Analytics"], ["Customer Success Manager", "Magnolia HR Software"], ["Account Coordinator", "Southern Office Supply"]],
         "education": [["BBA Marketing", "Georgia State University"]],
-        "skills": ["Account Management", "Renewals", "Onboarding", "Salesforce", "Zendesk", "Churn Analysis", "Training"]
+        "skills": ["Account Management", "Renewals", "Onboarding", "Salesforce", "Zendesk", "Churn Analysis", "Training"],
+        "places": ["Marietta, GA"]
     },
     "nurse-clinical": {
         "experience": [["Medical-Surgical Staff Nurse", "St. Luke's Example Medical Center"], ["Emergency Room Nurse", "Manila Example General Hospital"]],

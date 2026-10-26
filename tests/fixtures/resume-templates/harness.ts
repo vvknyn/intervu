@@ -21,6 +21,8 @@ export interface TemplateTruth {
     /** Lines that name the page, a block or a table's columns ("CURRICULUM VITAE", "PERSONAL INFORMATION",
      *  "Period | Role | Employer"), which no section keeps. */
     labels?: string[];
+    /** The place printed beside an employer ("York", "Marietta, GA"): a role has no field for it, so the read leaves it out. */
+    places?: string[];
 }
 
 export const TEMPLATES: Array<{ id: string; text: string; truth: TemplateTruth }> = Object.entries(
@@ -67,9 +69,9 @@ function strings(value: unknown): string[] {
 
 const words = (s: string) => norm(s).split(" ").filter((w) => w.length >= 3 && /[a-z]/.test(w));
 
-/** Input lines with a word the read kept nowhere, other than the template's labels: what it silently dropped. */
-export function unplacedLines(text: string, parsed: ResumeData, labels: string[] = []): string[] {
-    const kept = new Set(strings(parsed).flatMap(words));
+/** Input lines with a word the read kept nowhere, other than the template's labels and places: what it silently dropped. */
+export function unplacedLines(text: string, parsed: ResumeData, { labels = [], places = [] }: Pick<TemplateTruth, "labels" | "places">): string[] {
+    const kept = new Set([...strings(parsed), ...places].flatMap(words));
     return text
         .split("\n")
         .filter((line) => words(line).some((w) => !kept.has(w)) && !labels.some((label) => same(line, label)));

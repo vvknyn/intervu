@@ -112,6 +112,46 @@ describe("mergeModelIntoHeuristic", () => {
         ]);
         assert.deepEqual(raw.education?.map((e) => e.degree), ["MSc Statistics", "BSc Mathematics"]);
     });
+
+    describe("one entry read twice is one entry; two entries are never one", () => {
+        const NOW = new Date(2026, 9, 26);
+        const job = (role: string, company: string, dates: string) => ({ role, company, dates, description: "• Built it" });
+        const merge = (quick: Parameters<typeof mergeModelIntoHeuristic>[0], model: Record<string, unknown>) => mergeModelIntoHeuristic(quick, model, NOW).raw;
+
+        it("is one role when the dates agree and the employers share a word, however each read spells them", () => {
+            const raw = merge({ experience: [job("Senior Software Engineer", "Acme Corp, Toronto, ON", "2019 – Present")] }, { experience: [job("Sr. Software Engineer", "Acme", "Jan 2019 - Present")] });
+            assert.deepEqual(raw.experience?.map((e) => [e.role, e.company]), [["Sr. Software Engineer", "Acme"]]);
+        });
+
+        it("keeps the earlier role at the same employer whose title the later one starts with", () => {
+            const raw = merge(
+                { experience: [job("Software Engineer II", "Google", "2020 – Present"), job("Software Engineer", "Google", "2018 – 2020")] },
+                { experience: [job("Software Engineer II", "Google", "2020 – Present")] },
+            );
+            assert.deepEqual(raw.experience?.map((e) => [e.role, e.dates]), [["Software Engineer II", "2020 – Present"], ["Software Engineer", "2018 – 2020"]]);
+        });
+
+        it("never matches an empty name: a school-less MBA leaves both schools", () => {
+            const raw = merge(
+                { education: [{ degree: "MBA", institution: "Wharton", year: "Dec 2015" }, { degree: "", institution: "Lincoln High School", year: "2008" }] },
+                { education: [{ degree: "MBA", institution: "" }] },
+            );
+            assert.deepEqual(raw.education?.map((e) => e.institution), ["Wharton", "Lincoln High School", ""]);
+        });
+
+        it("lists the merged roles newest first", () => {
+            const raw = merge(
+                { experience: [job("Lead", "Alder", "2022 – Present"), job("Engineer", "Birch", "2019 – 2022"), job("Intern", "Cedar", "2018")] },
+                { experience: [job("Engineer", "Birch", "2019 – 2022")] },
+            );
+            assert.deepEqual(raw.experience?.map((e) => e.company), ["Alder", "Birch", "Cedar"]);
+        });
+
+        it("keeps C++, C# and C apart, in one list of each name", () => {
+            const raw = merge({ competencies: [{ category: "Languages", skills: ["C++", "C", "Go"] }] }, { competencies: [{ category: "Languages", skills: ["C#"] }] });
+            assert.deepEqual(raw.competencies, [{ category: "Languages", skills: ["C#", "C++", "C", "Go"] }]);
+        });
+    });
 });
 
 describe("parseModelJson", () => {

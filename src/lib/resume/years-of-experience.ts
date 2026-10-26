@@ -71,7 +71,7 @@ function parseDateToken(token: string): Date | null {
     return null;
 }
 
-interface ParsedRange {
+export interface ParsedRange {
     start: Date;
     end: Date; // clamped to `now` when current/ongoing/unparseable/future
 }
@@ -80,7 +80,7 @@ interface ParsedRange {
  * Split a free-text `dates` field ("Feb 2020 - Present", "2019-2023", "Mar 2022")
  * into a start/end range resolved against `now`. Null if no usable start date.
  */
-function parseDateRange(dates: string, now: Date): ParsedRange | null {
+export function parseDateRange(dates: string, now: Date): ParsedRange | null {
     if (!dates || !dates.trim()) return null;
 
     // The range's own two ends, so "October" and "05-2019" are never split apart.

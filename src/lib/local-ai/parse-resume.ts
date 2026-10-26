@@ -9,6 +9,7 @@
 
 import { normalizeParsedResume, type RawParsedResumeInput } from "@/lib/resume/normalize-parsed-resume";
 import { structureResumeText } from "@/lib/resume/structure-resume-text";
+import { parseDateRange } from "@/lib/resume/years-of-experience";
 import type { ParsedResumeResult } from "@/types/resume";
 import { scoreLocalParseConfidence } from "./parse-confidence";
 import { sealedChat } from "@/lib/sealed-ai/client";
@@ -80,35 +81,74 @@ function hasMeaningfulEducation(education: unknown): boolean {
 /** Lower-case letters and digits only: how two reads of one name compare. */
 const squash = (text: unknown) => String(text ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 
-/** "Verde S.L." and "Verde S.L. – Madrid": one name, one read with more after it. */
+/** "Verde S.L." and "Verde S.L. – Madrid": one name, one read with more after it. An empty name is no name. */
 function sameName(a: unknown, b: unknown): boolean {
     const [x, y] = [squash(a), squash(b)];
-    return x.startsWith(y) || y.startsWith(x);
+    return x !== "" && y !== "" && (x.startsWith(y) || y.startsWith(x));
+}
+
+const nameWords = (text: unknown) => String(text ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/** An entry as two reads name it: its title (or degree), its employer (or school) and its dates. */
+interface EntryRead {
+    title: unknown;
+    org: unknown;
+    dates: unknown;
+}
+
+/** "Jan 2019 – Present" and "2019 - Present": the years an entry starts and ends, or "" without dates. */
+function yearsOf(dates: unknown, now: Date): string {
+    const range = parseDateRange(String(dates ?? ""), now);
+    return range ? `${range.start.getFullYear()}-${range.end.getFullYear()}` : "";
 }
 
 /**
- * The model's entries, then each of the quick read's that none of them
- * names (in either order): a reply cut short at its token cap, or a résumé
- * longer than the text it was sent, keeps every entry the quick read found.
+ * One entry, read twice: the same years at an employer (or school) whose
+ * names share a word ("Sr. Software Engineer, Acme" and "Senior Software
+ * Engineer, Acme Corp, Toronto, ON"). Where either read has no dates, the
+ * same two names, in either order.
  */
-function unionEntries<T>(model: T[], quick: T[] = [], names: (entry: T) => [unknown, unknown]): T[] {
-    const covered = (entry: T) => {
-        const [a, b] = names(entry);
-        return model.some((m) => {
-            const [c, d] = names(m);
-            return (sameName(a, c) && sameName(b, d)) || (sameName(a, d) && sameName(b, c));
-        });
-    };
-    return [...model, ...quick.filter((entry) => !covered(entry))];
+function sameEntry(x: EntryRead, y: EntryRead, now: Date): boolean {
+    const [xYears, yYears] = [yearsOf(x.dates, now), yearsOf(y.dates, now)];
+    if (xYears && yYears) return xYears === yYears && nameWords(x.org).some((w) => nameWords(y.org).includes(w));
+    return (sameName(x.title, y.title) && sameName(x.org, y.org)) || (sameName(x.title, y.org) && sameName(x.org, y.title));
+}
+
+/** Newest first, as a résumé lists them: by when each began; entries without dates after them, in their order. */
+function newestFirst<T>(entries: T[], dates: (entry: T) => unknown, now: Date): T[] {
+    const dated = entries.map((entry) => ({ entry, start: parseDateRange(String(dates(entry) ?? ""), now)?.start.getTime() }));
+    dated.sort((a, b) => (a.start !== undefined && b.start !== undefined ? b.start - a.start : Number(a.start === undefined) - Number(b.start === undefined)));
+    return dated.map(({ entry }) => entry);
+}
+
+/**
+ * The model's entries and each of the quick read's that none of them is,
+ * newest first: a reply cut short at its token cap, or a résumé longer than
+ * the text it was sent, keeps every entry the quick read found.
+ */
+function unionEntries<T>(model: T[], quick: T[] = [], read: (entry: T) => EntryRead, now: Date): T[] {
+    const missed = quick.filter((entry) => !model.some((m) => sameEntry(read(entry), read(m), now)));
+    return newestFirst([...model, ...missed], (entry) => read(entry).dates, now);
 }
 
 type Competencies = NonNullable<RawParsedResumeInput["competencies"]>;
 
-/** The model's skill lists, then the quick read's skills none of them holds. */
+/** "C++", "C#" and "C" are three skills: a skill is its own letters, digits, + and #. */
+const skillKey = (skill: unknown) => String(skill ?? "").toLowerCase().replace(/[^\p{L}\p{N}+#]+/gu, "");
+
+/** The model's skill lists, each with the quick read's skills none of them holds from the quick read's list of that name. */
 function unionSkills(model: Competencies, quick: Competencies = []): Competencies {
-    const held = new Set(model.flatMap((c) => c.skills ?? []).map(squash));
-    const missed = quick.map((c) => ({ ...c, skills: (c.skills ?? []).filter((skill) => !held.has(squash(skill))) }));
-    return [...model, ...missed.filter((c) => c.skills.length > 0)];
+    const held = new Set(model.flatMap((c) => c.skills ?? []).map(skillKey));
+    const lists = model.map((c) => ({ ...c, skills: [...(c.skills ?? [])] }));
+    for (const c of quick) {
+        const missed = (c.skills ?? []).filter((skill) => !held.has(skillKey(skill)));
+        missed.forEach((skill) => held.add(skillKey(skill)));
+        if (missed.length === 0) continue;
+        const list = lists.find((l) => squash(l.category) === squash(c.category));
+        if (list) list.skills.push(...missed);
+        else lists.push({ ...c, skills: missed });
+    }
+    return lists;
 }
 
 /**
@@ -119,6 +159,7 @@ function unionSkills(model: Competencies, quick: Competencies = []): Competencie
 export function mergeModelIntoHeuristic(
     heuristic: RawParsedResumeInput,
     modelOut: Record<string, unknown> | null,
+    now: Date = new Date(),
 ): { raw: RawParsedResumeInput; usedHeuristic: boolean } {
     if (!modelOut || typeof modelOut !== "object") {
         return { raw: heuristic, usedHeuristic: true };
@@ -158,7 +199,7 @@ export function mergeModelIntoHeuristic(
     };
 
     if (hasMeaningfulExperience(fromModel.experience)) {
-        raw.experience = unionEntries(fromModel.experience!, heuristic.experience, (e) => [e.role, e.company]);
+        raw.experience = unionEntries(fromModel.experience!, heuristic.experience, (e) => ({ title: e.role, org: e.company, dates: e.dates }), now);
         modelContributed = true;
     }
     if (hasMeaningfulCompetencies(fromModel.competencies)) {
@@ -166,7 +207,7 @@ export function mergeModelIntoHeuristic(
         modelContributed = true;
     }
     if (hasMeaningfulEducation(fromModel.education)) {
-        raw.education = unionEntries(fromModel.education!, heuristic.education, (e) => [e.degree, e.institution]);
+        raw.education = unionEntries(fromModel.education!, heuristic.education, (e) => ({ title: e.degree, org: e.institution, dates: e.year }), now);
         modelContributed = true;
     }
     if (isNonEmptyString(fromModel.generatedSummary)) {

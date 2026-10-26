@@ -103,11 +103,6 @@ export function splitTrailingPlace(parts: string[]): { names: string[]; place: s
     return { names: parts, place: "" };
 }
 
-/** An employer without the place a résumé prints beside it: "Humber River Health, Toronto, ON" → "Humber River Health". */
-export function employerName(company: string): string {
-    return splitTrailingPlace(company.split(/,\s*/)).names.join(", ");
-}
-
 /**
  * A one-part place with none of that evidence ("Mississauga", "London") —
  * or "". Not the candidate's location: the name may be several places, or

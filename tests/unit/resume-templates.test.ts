@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { parseResumeLocally } from "../../src/lib/local-ai/parse-resume";
 import { extractPDFTextInBrowser } from "../../src/lib/local-ai/extract-in-browser";
 import { buildMatchQuery } from "../../src/lib/jobs/resume-match";
+import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
 import { TEMPLATES, sectionRecall, share, templateResumePdf, unplacedLines, type Recall } from "../fixtures/resume-templates/harness";
 
 /**
@@ -56,11 +57,27 @@ describe("résumé templates: the quick read gets every section from every layou
                     const { found, total } = recall[section];
                     assert.ok(share(recall[section]) >= MIN_RECALL, `${section} ${found}/${total}: ${JSON.stringify(read[section])}`);
                 }
-                assert.deepEqual(unplacedLines(input, parsed, truth.labels), [], "every line is kept");
+                assert.deepEqual(unplacedLines(input, parsed, truth), [], "every line is kept");
                 assert.ok(buildMatchQuery(parsed).q, "it searches /jobs");
             });
         }
     }
+
+    it("reads every part of every template without throwing: each prefix and each suffix, cut at a line", () => {
+        const thrown = TEMPLATES.flatMap(({ id, text }) => {
+            const lines = text.split("\n");
+            const parts = lines.flatMap((_, n) => [[`${id} first ${n + 1} lines`, lines.slice(0, n + 1)], [`${id} from line ${n + 1}`, lines.slice(n)]] as const);
+            return parts.flatMap(([label, part]) => {
+                try {
+                    structureResumeText(part.join("\n"));
+                    return [];
+                } catch (error) {
+                    return [`${label}: ${(error as Error).message}`];
+                }
+            });
+        });
+        assert.deepEqual(thrown, []);
+    });
 
     it("finds at least 99% of every section across all of them, pasted and uploaded", (t) => {
         assert.equal(Object.keys(corpus).length, SECTIONS.length * 2, "every template was read");
