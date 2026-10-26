@@ -806,7 +806,7 @@ const SKILL_CATEGORY_RE = /^([^:]{2,60}):\s*(.+)$/;
 const SKILLS_WRAPPER_RE = /^Skills?:\s*(.+)$/i;
 /** A degree name or abbreviation (`B.Sc.`, `BSc (Hons)`, `M.B.A.`, `B.Tech`, `Master of Design`). */
 const DEGREE_LIKE_RE =
-    /(?<![\p{L}])(?:bachelor|master|doctor(?:ate)?|associate|micromasters?|certificate|diploma|m\.?b\.?a|ph\.?\s?d|[bm]\.?\s?(?:sc|s|a|tech|eng|com|arch|ed|des|fa|phil)\.?|ll\.?[bm]|j\.?d|[bm]\.?\s?(?:asc|ba|sn|ph|pa)|pgce|pgde|pg\s?dip|pg\s?cert|hnd|hnc|btec|gcses?|a[- ]levels?)(?![\p{L}])/iu;
+    /(?<![\p{L}])(?:bachelor(?:s|'s)?|master(?:s|'s)?|doctor(?:ate)?|associate|micromasters?|certificate|diploma|m\.?b\.?a|ph\.?\s?d|[bm]\.?\s?(?:sc|s|a|tech|eng|com|arch|ed|des|fa|phil)\.?|ll\.?[bm]|j\.?d|[bm]\.?\s?(?:asc|ba|sn|ph|pa)|pgce|pgde|pg\s?dip|pg\s?cert|hnd|hnc|btec|gcses?|a[- ]levels?)(?![\p{L}])/iu;
 
 /** Words that name a school in the languages our résumés arrive in. */
 const INSTITUTION_RE =

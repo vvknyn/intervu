@@ -39,6 +39,20 @@ const DIGIT_TOKENS_TAIL_RE = /(?:^|\s+)(?:[\p{L}\d-]*\d[\p{L}\d-]*\s*)+$/u;
 /** "Greater Toronto Area", "San Francisco Bay Area". */
 const AREA_RE = /^\p{Lu}[\p{L}\p{M} .'’-]*\s(?:Area|Region)$/u;
 
+/** Company suffix on the first comma part of a contact segment ("Acme Private Ltd., Austin, TX"). */
+const ORG_IN_FIRST_PART_RE =
+    /\b(?:Private\s+Ltd\.?|Pvt\.?\s*Ltd\.?|Limited|LLC|LLP|GmbH|Corp\.?|Inc\.?)\b|\bLtd\.?\s*$/iu;
+
+function dropLeadingOrganizationPart(parts: string[]): string[] {
+    if (parts.length < 2 || !ORG_IN_FIRST_PART_RE.test(parts[0])) return parts;
+    const rest = parts.slice(1);
+    const shaped =
+        rest.length >= 1 &&
+        rest.length <= 3 &&
+        rest.every((p) => p.length <= 40 && PLACE_PART_RE.test(p));
+    return shaped && !isProse(rest.join(" ")) ? rest : parts;
+}
+
 /** Prose, contact data or dates — never a place, whatever else the segment holds. */
 function isNotPlaceText(s: string): boolean {
     if (!s || s.length > 80) return true;
@@ -73,7 +87,8 @@ export function parsePlaceSegment(segment: string | undefined | null): { parts: 
     const parts = s.split(",").map((p) => p.trim()).filter(Boolean);
     while (parts.length > 0 && /\d/.test(parts[0])) parts.shift();
     if (parts.length > 0) parts[parts.length - 1] = parts[parts.length - 1].replace(DIGIT_TOKENS_TAIL_RE, "");
-    const kept = parts.filter(Boolean);
+    let kept = parts.filter(Boolean);
+    kept = dropLeadingOrganizationPart(kept);
     const shaped = kept.length >= 1 && kept.length <= 3 && kept.every((p) => p.length <= 40 && PLACE_PART_RE.test(p));
     return shaped && !isProse(kept.join(" ")) ? { parts: kept, marked } : none;
 }

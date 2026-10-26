@@ -31,6 +31,11 @@ const POSITIVE: { name: string; header: string[]; expect: string }[] = [
     { name: "Montréal (non-ASCII)", header: ["Montréal, QC"], expect: "Montréal, QC" },
     { name: "Kraków (non-ASCII)", header: ["Kraków, Poland"], expect: "Kraków, Poland" },
     { name: "city, country not on the built-in list", header: ["Lagos, Nigeria"], expect: "Lagos, Nigeria" },
+    {
+        name: "employer before city on contact row",
+        header: ["Hearfon Systems Private Ltd., Bangalore, India | +91 99000 00000 | asha@example.com"],
+        expect: "Bangalore, India",
+    },
 ];
 
 /**
@@ -100,6 +105,7 @@ describe("sanitizeLocation", () => {
         ["Toronto, ON 416-555-0199", ""],
         ["Toronto, ON, 2019", ""],
         ["Toronto, ON | Jan 2020", ""],
+        ["Hearfon Systems Private Ltd., Bangalore, India", "Bangalore, India"],
         ["toronto.ca", ""],
         ["Remote", ""],
         ["into prioritized, shippable roadmaps.", ""],

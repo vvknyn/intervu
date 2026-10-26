@@ -534,6 +534,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-RESUME-58 | A guest's Sign up on a device résumé opens sign-up, records the gate open and queues no Edit or PDF | anon | `/resume` (local résumé), Sign up | signed-out | no | covered | resume.spec.ts |
 | J-RESUME-59 | A paid account whose saved résumé is older than the guest's device résumé: the guest's Edit, after sign-up, opens the editor on the device résumé and it stays open once that copy is saved to the account | anon | `/resume` (local résumé), Edit, sign up | signed-out → signed-in (paid) | no | covered | resume.spec.ts |
 | J-RESUME-60 | A signed-in /resume whose résumé read gets a 502 from the server (not an action response) shows "Couldn't load your résumé." with Try again after the retries, never endless loading | signed-in | `/resume` | signed-in | no | covered | resume.spec.ts |
+| J-RESUME-61 | A guest's local résumé on /resume shows a readable readout (not a typeset page): Bangalore, India as the place when the stored location wrongly included the employer, education without a leading pipe, the account pitch wrapping clear of Replace, and See jobs ranked for this résumé to /jobs | anon | local résumé seeded (legacy mis-parse) + `/resume` | signed-out | no | covered | resume.spec.ts |
 
 ## SETTINGS
 

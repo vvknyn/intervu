@@ -8,7 +8,7 @@ import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
-import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
+import { GuestResumeReadout } from "@/components/resume-builder/GuestResumeReadout";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
@@ -210,15 +210,21 @@ function ResumeContent() {
                                     — {RESUME_LOCAL_DEVICE_BANNER_BODY}
                                 </p>
                             </div>
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
-                                <div className="flex items-center gap-2">
-                                    <FileText size={20} className="text-live shrink-0" />
-                                    <div>
+                            <div className="flex flex-col gap-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
+                                <div className="flex items-start gap-2 min-w-0">
+                                    <FileText size={20} className="text-live shrink-0 mt-0.5" />
+                                    <div className="min-w-0 flex-1">
                                         <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>
-                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}<p className="text-xs text-muted-foreground">Create a free account for saved jobs and alerts. A paid month adds {paidFeaturesSentence()}.</p>
+                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}
+                                        <p
+                                            data-testid="resume-local-account-pitch"
+                                            className="text-xs text-muted-foreground mt-1"
+                                        >
+                                            Create a free account for saved jobs and alerts. A paid month adds {paidFeaturesSentence()}.
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -251,13 +257,11 @@ function ResumeContent() {
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                                <Link
-                                    href="/jobs"
-                                    data-testid="resume-see-matches"
-                                    className="text-foreground underline underline-offset-2 hover:text-brand"
-                                >
-                                    See jobs ranked for this résumé
-                                </Link>
+                                <Button asChild>
+                                    <Link href="/jobs" data-testid="resume-see-matches">
+                                        See jobs ranked for this résumé
+                                    </Link>
+                                </Button>
                                 {confirmingRemove ? (
                                     <InlineConfirm
                                         prompt="Remove this résumé from this device?"
@@ -276,7 +280,7 @@ function ResumeContent() {
                                     </button>
                                 )}
                             </div>
-                            <LiveResumePreview data={localResume} />
+                            <GuestResumeReadout data={localResume} />
                         </div>
                     ) : (
                         <SignedOutEmptyState onUploadClick={() => beginResumeUpload()} />
