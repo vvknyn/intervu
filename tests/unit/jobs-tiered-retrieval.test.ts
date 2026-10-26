@@ -121,7 +121,9 @@ function installRoutedMock(opts: {
     return calls;
 }
 
-describe("runTieredRetrieval — federated multi-search for bare role queries", () => {
+// Each case replaces global fetch. Node runs tests in a file concurrently, so one case's
+// multi-search body was landing in another's call list (4 queries seen where this file expects 2).
+describe("runTieredRetrieval — federated multi-search for bare role queries", { concurrency: false }, () => {
     it("(a) federated request shape: federation.limit/offset, strict query first (weight 100, title/company/tags), whole-document second (weight 0.01, unscoped), no per-query facets/limit/offset", async () => {
         const q = "quux engineer"; // not in the title alias graph: exactly the two tier queries
         await primeNonCompanyIntent(q);
