@@ -8,6 +8,7 @@
  * the same way when it is written and when it is looked up.
  */
 import graphJson from "./data/title-aliases.json";
+import { placeNamed } from "./resume-location";
 
 /** One occupation, as a synonym-level item of a source (a Wikidata occupation). */
 export interface TitleConcept {
@@ -82,7 +83,24 @@ export function expandTitleQuery(q: string, graph: TitleAliasGraph = DEFAULT_GRA
   const index = nameIndex(graph);
   const concepts = [...new Set(withPlurals(typed).flatMap((name) => index.get(name) ?? []))];
   if (concepts.length !== 1) return [typed];
-  return [...new Set([typed, ...concepts[0].names])];
+  return [...new Set([typed, ...concepts[0].names.filter((alias) => isSynonymAlias(typed, alias))])];
+}
+
+/**
+ * Whether `alias` may be EMITTED as a query for typed `typed` (any name stays a lookup KEY, so "slp" still expands).
+ * Dropped: a single token of 3 chars or fewer ("pt" reads as part-time), a place ("portugal"), and a sibling
+ * specialty, which keeps the head noun and swaps the modifier ("technical program manager" for "product manager")
+ * unless it carries every typed word. Symmetric, so the sibling does not expand back either.
+ * Accepted cost: true synonyms that share a head noun (truck driver / lorry driver) drop.
+ */
+function isSynonymAlias(typed: string, alias: string): boolean {
+  if (alias === typed) return true;
+  const words = alias.split(" ");
+  if (words.length === 1 && alias.length <= 3) return false;
+  if (placeNamed(alias)) return false;
+  const typedWords = typed.split(" ");
+  const sameHead = withPlurals(typedWords.at(-1)!).includes(words.at(-1)!) || withPlurals(words.at(-1)!).includes(typedWords.at(-1)!);
+  return !sameHead || typedWords.every((w) => words.some((a) => withPlurals(w).includes(a) || withPlurals(a).includes(w)));
 }
 
 const DEFAULT_GRAPH = graphJson as TitleAliasGraph;

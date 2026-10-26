@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { placeNamed } from "../../src/lib/jobs/resume-location";
 import graphJson from "../../src/lib/jobs/data/title-aliases.json";
 import { TITLE_SOURCE_LOADERS } from "../../scripts/title-alias-sources";
 import { parseCsvRecords } from "../../scripts/title-alias-sources/csv";
@@ -26,15 +27,15 @@ test("the typed query leads; matching is case, punctuation and plural tolerant",
     "speech language pathologist",
     "speech language pathologists",
     "speech and language therapist",
-    "slp",
   ]);
   assert.deepEqual(expandTitleQuery("SLP", g)[0], "slp");
+  assert.ok(expandTitleQuery("SLP", g).includes("speech and language therapist"));
   assert.deepEqual(expandTitleQuery("  ", g), []);
 });
 
 test("only the WHOLE query is matched, never a part of it", () => {
-  const g = synthetic(concept("a", "nurse", "rn"));
-  assert.deepEqual(expandTitleQuery("nurse", g), ["nurse", "rn"]);
+  const g = synthetic(concept("a", "nurse", "nursing sister"));
+  assert.deepEqual(expandTitleQuery("nurse", g), ["nurse", "nursing sister"]);
   assert.deepEqual(expandTitleQuery("nurse practitioner", g), ["nurse practitioner"]);
   assert.deepEqual(expandTitleQuery("senior nurse", g), ["senior nurse"]);
   assert.deepEqual(expandTitleQuery("zyxwv quux", g), ["zyxwv quux"]);
@@ -43,8 +44,34 @@ test("only the WHOLE query is matched, never a part of it", () => {
 test("a name owned by two concepts never expands, including through a plural form", () => {
   const shared = synthetic(concept("a", "model", "fashion model"), concept("b", "model", "scale model"));
   assert.deepEqual(expandTitleQuery("model", shared), ["model"]);
-  const viaPlural = synthetic(concept("a", "nurse", "rn"), concept("b", "nurses", "nursing staff"));
+  const viaPlural = synthetic(concept("a", "nurse", "nursing sister"), concept("b", "nurses", "nursing staff"));
   assert.deepEqual(expandTitleQuery("nurse", viaPlural), ["nurse"]);
+});
+
+test("rule a: a single token of 3 chars or fewer is never emitted, but still works as the typed key", () => {
+  const g = synthetic(concept("a", "physical therapist", "pt", "physiotherapist"), concept("b", "chief financial officer", "cfo", "finance chief"));
+  assert.deepEqual(expandTitleQuery("physical therapist", g), ["physical therapist", "physiotherapist"]);
+  assert.deepEqual(expandTitleQuery("chief financial officer", g), ["chief financial officer", "finance chief"]);
+  assert.deepEqual(expandTitleQuery("pt", g), ["pt", "physical therapist", "physiotherapist"]);
+  assert.ok(expandTitleQuery("cfo", g).includes("chief financial officer"));
+});
+
+test("rule b: an alias the place recognizer names is never emitted, in either direction", () => {
+  const g = synthetic(concept("a", "paralegal", "portugal", "legal aide"), concept("b", "bartender", "ontario", "barkeeper"));
+  assert.deepEqual(expandTitleQuery("paralegal", g), ["paralegal", "legal aide"]);
+  assert.deepEqual(expandTitleQuery("bartender", g), ["bartender", "barkeeper"]);
+  assert.ok(!expandTitleQuery("legal aide", g).includes("portugal"));
+});
+
+test("rule c: a same-head sibling is not a synonym unless it carries every typed word; symmetric", () => {
+  const g = synthetic(
+    concept("a", "product manager", "technical program manager", "senior product managers", "product owner"),
+    concept("b", "data analyst", "business analyst", "data analysts"),
+  );
+  assert.deepEqual(expandTitleQuery("product manager", g), ["product manager", "senior product managers", "product owner"]);
+  assert.deepEqual(expandTitleQuery("technical program manager", g), ["technical program manager", "product owner"]);
+  assert.deepEqual(expandTitleQuery("data analyst", g), ["data analyst", "data analysts"]);
+  assert.deepEqual(expandTitleQuery("business analyst", g), ["business analyst"]);
 });
 
 test("dropAmbiguousNames: a name held by two concepts is dropped from both; a concept left empty goes", () => {
@@ -92,11 +119,8 @@ test("normaliser: lower-case, folds diacritics, & -> and; parenthesised acronym 
 const PAIRS: Array<[string, string]> = [
   ["physical therapist", "physiotherapist"], // therapy
   ["speech therapist", "speech language pathologist"],
-  ["ux designer", "user experience designer"], // design
   ["lawyer", "attorney"], // legal
   ["doctor", "doctor of medicine"], // medicine
-  ["truck driver", "lorry driver"], // transport
-  ["taxi driver", "cab driver"],
   ["flight attendant", "cabin crew member"], // aviation
   ["fireman", "fire fighter"], // emergency services
   ["bartender", "barkeeper"], // hospitality
@@ -104,10 +128,11 @@ const PAIRS: Array<[string, string]> = [
   ["tailor", "tailoress"], // textile trades
   ["hairdresser", "hair stylist"], // beauty
   ["sales assistant", "retail clerk"], // retail
-  ["primary school teacher", "elementary school teacher"], // education
   ["recruiter", "headhunter"], // human resources
-  ["human resources manager", "personnel manager"],
-  ["chief executive officer", "ceo"], // management
+  ["truck driver", "trucker"], // transport
+  ["mechanic", "grease monkey"], // trades
+  ["pharmacist", "head dispenser"], // pharmacy
+  ["accountant", "accountant technician"], // finance
   ["fishmonger", "fish seller"], // food trades
   ["forklift operator", "forklift driver"], // warehousing
   ["air traffic controller", "atco"],
@@ -120,6 +145,24 @@ test(">=15 occupation families: each real pair expands in both directions", () =
     assert.ok(expandTitleQuery(b).includes(a), `${b} -> ${a}`);
     assert.equal(expandTitleQuery(a)[0], a);
   }
+});
+
+const HIGH_TRAFFIC = ["software developer","software engineer","developer","engineer","nurse","registered nurse","data analyst","data scientist","product manager","project manager","teacher","driver","truck driver","accountant","sales","marketing manager","designer","electrician","pharmacist","physical therapist","speech therapist","cashier","manager","consultant","analyst","lawyer","doctor","chef","cook","plumber","forklift operator","welder","recruiter","barista","mechanic","carpenter","architect","dentist","paralegal","web developer"];
+
+test("built artifact: no emitted alias of 40 high-traffic queries is a short token, a place or a same-head sibling", () => {
+  const head = (n: string) => n.split(" ").at(-1)!.replace(/(ies|es|s)$/, "");
+  for (const q of HIGH_TRAFFIC) {
+    const [typed, ...aliases] = expandTitleQuery(q);
+    for (const a of aliases) {
+      assert.ok(a.includes(" ") || a.length > 3, `${q} -> ${a}: short token`);
+      assert.equal(placeNamed(a), null, `${q} -> ${a}: place`);
+      const carriesAll = typed.split(" ").every((w) => a.includes(w.replace(/(ies|es|s)$/, "")));
+      assert.ok(head(a) !== head(typed) || carriesAll, `${q} -> ${a}: sibling`);
+    }
+  }
+  assert.ok(!expandTitleQuery("physical therapist").includes("pt"));
+  assert.ok(!expandTitleQuery("paralegal").includes("portugal"));
+  assert.ok(!expandTitleQuery("product manager").includes("technical program manager"));
 });
 
 test("a different occupation is not a synonym: speech therapist does not expand to audiologist", () => {
