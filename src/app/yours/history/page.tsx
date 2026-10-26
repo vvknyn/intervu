@@ -101,7 +101,7 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
         <Link
             href={href}
             data-testid="history-row"
-            className="grid rounded-none bg-transparent px-[var(--list-inset)] pt-4 transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live"
+            className="grid rounded-none bg-transparent px-[var(--list-inset)] pt-4 transition-colors duration-150 hover:bg-surface-hover focus-visible:inset-outline-2 focus-visible:outline-live"
         >
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
                 <div className="min-w-0">
