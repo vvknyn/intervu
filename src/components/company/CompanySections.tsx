@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { CompanyCadenceStrip, cadenceStripHasContent } from "@/components/company/CompanyCadenceStrip";
+import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
 import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { SectionTitle } from "@/components/ui/heading";
@@ -9,7 +9,7 @@ import { PAY_SCOPE, type CompanyFacts, type Distribution } from "@/lib/companies
 import type { SectionId } from "@/lib/companies/company-sections";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { listedOnPostings, listedOnRoles, statedOfTotal } from "@/lib/companies/facts-copy";
-import { exhaustHiringRecord, trackingStartedInWindow } from "@/lib/companies/hiring-record";
+import { cadenceStripHasContent, exhaustHiringRecord, trackingStartedInWindow } from "@/lib/companies/hiring-record";
 import { categoryLabel } from "@/lib/companies/machine-token";
 import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";

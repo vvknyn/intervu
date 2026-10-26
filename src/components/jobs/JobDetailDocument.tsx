@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
 import { getCompanyRailAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
-import { READING_MEASURE } from "@/components/ui/prose";
+import { DOCUMENT_MEASURE } from "@/components/ui/prose";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -13,6 +13,7 @@ import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { ApplyButtonIcon, fetchRelatedJobs, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
+import { HiringRecordChart } from "@/components/jobs/HiringRecordChart";
 import { useCompanyHiringRecord } from "@/components/jobs/use-company-hiring-record";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { DotSeparated } from "@/components/ui/dot-separated";
@@ -107,7 +108,8 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
                             minWidthClassName="min-w-[90px]"
                         />
                     )}
-                    {hiringRecord && <p data-testid="job-detail-hiring-record" className="basis-full text-sm text-muted-foreground">{hiringRecord}</p>}
+                    {hiringRecord?.sentence && <p data-testid="job-detail-hiring-record" className="basis-full text-sm text-muted-foreground">{hiringRecord.sentence}</p>}
+                    <HiringRecordChart record={hiringRecord} />
                 </div>
             )}
             {cleanedCompany && (
@@ -531,11 +533,11 @@ export function JobDetailDocument({
         <div data-testid="job-detail-posting" className="py-4">
             <h2 className="mb-2 text-sm font-semibold text-foreground">About this role</h2>
             {blocks.length > 0 ? (
-                <div className={READING_MEASURE}>
+                <div className={DOCUMENT_MEASURE}>
                     <FormattedJobDescription description={job.description} headingLevel={3} />
                 </div>
             ) : (
-                <p className={`${READING_MEASURE} text-base leading-normal text-foreground`}>
+                <p className={`${DOCUMENT_MEASURE} text-base leading-normal text-foreground`}>
                     No description was captured for this role.{" "}
                     {job.apply_url ? `Use ${applyButtonLabel(signedOut)} to read the full details on the employer's site.` : "Try the original posting for full details."}
                 </p>

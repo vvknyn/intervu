@@ -1,4 +1,4 @@
-import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { eventDate } from "@/lib/format";
 import { buildH1bSentence, buildWarnSentence } from "@/lib/companies/exhaust";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 
