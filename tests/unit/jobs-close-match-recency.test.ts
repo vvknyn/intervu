@@ -85,9 +85,18 @@ describe("preferNewerAmongCloseMatches — the pure reorder", () => {
         assert.deepEqual([...ids(out)].sort(), [...ids(page)].sort());
     });
 
-    it("never groups across federated tiers — separate queries, incomparable scores", () => {
-        const page = [hit("strict-old", 70, { tier: 1 }), hit("whole-new", 1, { tier: 2 })];
-        assert.deepEqual(ids(preferNewerAmongCloseMatches(page, "data analyst")), ["strict-old", "whole-new"]);
+    it("never groups across federated queries — separate queries, incomparable scores, even inside one tier", () => {
+        const at = (position: number, tier: 1 | 2): Partial<PublicJob> => ({ tier, _queryPosition: position } as Partial<PublicJob>);
+        // a whole-document hit vs a typed hit, and (both tier 1) a title-alias hit vs a typed hit
+        for (const [q, title] of [["data analyst", "Data Analyst"], ["physical therapist", "Physiotherapist"], ["software engineer", "Software Engineer"]]) {
+            const across = [hit("strict-old", 70, { title, ...at(0, 1) }), hit("whole-new", 1, { title, ...at(1, 2) })];
+            assert.deepEqual(ids(preferNewerAmongCloseMatches(across, q)), ["strict-old", "whole-new"], `${q}: tiers`);
+            const alias = [hit("typed-old", 70, { title, ...at(0, 1) }), hit("alias-new", 1, { title, ...at(2, 1) })];
+            assert.deepEqual(ids(preferNewerAmongCloseMatches(alias, q)), ["typed-old", "alias-new"], `${q}: alias query`);
+            const same = [hit("old", 70, { title, ...at(2, 1) }), hit("new", 1, { title, ...at(2, 1) })];
+            assert.deepEqual(ids(preferNewerAmongCloseMatches(same, q)), ["new", "old"], `${q}: one query still groups`);
+            assert.ok(preferNewerAmongCloseMatches(same, q).every((h) => !("_queryPosition" in h)), "the query position never leaves the server");
+        }
     });
 
     it("keeps the rerank's relevance tiers: a weaker title-coverage score never jumps a stronger one, however new", () => {
@@ -216,8 +225,22 @@ describe("searchMeili — details are requested for ranking checks, never return
         assert.equal(queries.length, 2);
         assert.ok(queries.every((qb) => qb.showRankingScoreDetails === true), JSON.stringify(queries));
         assert.deepEqual(ids(result.hits), ["s-new", "s-old"]);
-        assert.ok(result.hits.every((h) => !hasDetails(h) && !("_federation" in h)));
+        assert.ok(result.hits.every((h) => !hasDetails(h) && !("_federation" in h) && !("_queryPosition" in h)));
     });
+
+    for (const [q, sort] of [["quux therapist", "newest"], ["quux engineer", "salary_desc"]] as const) {
+        it(`${q} / ${sort}: the query position never reaches the client under an explicit sort either`, async () => {
+            await primeNonCompanyIntent(q);
+            const rawHits = [
+                { ...hit("a", 1, { salary_max: 200_000 }), _federation: { queriesPosition: 0 } },
+                { ...hit("b", 5, { salary_max: 100_000 }), _federation: { queriesPosition: 0 } },
+            ];
+            installMock((c) => (c.url.endsWith("/multi-search") ? { hits: rawHits, estimatedTotalHits: 2 } : { estimatedTotalHits: 2 }));
+            const result = await searchMeili({ q, sort, limit: 20, offset: 0 });
+            assert.deepEqual(ids(result.hits), ["a", "b"]);
+            assert.ok(result.hits.every((h) => !hasDetails(h) && !("_queryPosition" in h)));
+        });
+    }
 
     // Résumé-fit ranking is not a server sort (`JobSearchParams.sort` has no
     // "fit"): the client re-sorts the page by fit score (ranked.ts), so it

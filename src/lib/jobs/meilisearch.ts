@@ -970,11 +970,18 @@ export function buildSearchBody(
   };
 }
 
-/** Relevance weight of a title-alias query: under the typed words' own matches (100), over whole-document ones (1). */
+/** Relevance weight of a title-alias query: under the typed words' own matches (100), over whole-document ones (`WHOLE_DOCUMENT_WEIGHT`). */
 const TITLE_ALIAS_WEIGHT = 10;
 const TITLE_ALIAS_QUERY_CAP = 8;
 const TYPED_WEIGHT = 100;
-const WHOLE_DOCUMENT_WEIGHT = 1;
+/**
+ * Weight multiplies a hit's ranking score (Meilisearch `federationOptions.weight`: "a multiplicative factor applied to
+ * the ranking score for hits from this query", any positive number, default 1.0;
+ * https://www.meilisearch.com/docs/reference/api/multi-search). Every tier-1 weight is at least `ALIAS` x `UNKNOWN`
+ * = 5 and every tier-2 weight at most this, so a tier-1 hit outranks a tier-2 hit unless its score falls below
+ * 0.002 (0.01 / 5): the divider is structural, under Relevance and under an explicit sort alike.
+ */
+const WHOLE_DOCUMENT_WEIGHT = 0.01;
 /** Weight multiplier for the unknown-inclusive query pair in `runTieredRetrieval`. */
 const UNKNOWN_TIER_WEIGHT = 0.5;
 
@@ -1164,8 +1171,9 @@ async function applySortIntegrityGuard(
 ): Promise<JobSearchResult> {
   const mode = resolveEffectiveSort(p);
   if (mode === "relevance") return result;
-  const delivered = (r: JobSearchResult): JobSearchResult => ({ ...r, hits: r.hits.map(withoutRankingScoreDetails) });
-  if (isSortedWithinGroups(result.hits, mode)) return delivered(result);
+  const delivered = (r: JobSearchResult): JobSearchResult => ({ ...r, hits: r.hits.map(withoutEngineFields) });
+  const typed = wantsScoreDetails(p);
+  if (isSortedWithinGroups(result.hits, mode, typed)) return delivered(result);
 
   // The retry is a second engine request: its time is counted with the first.
   const retried = await runSearch();
@@ -1174,7 +1182,7 @@ async function applySortIntegrityGuard(
     engineMs: sumDefined(result.engineMs, retried.engineMs),
     engineCalls: sumDefined(result.engineCalls, retried.engineCalls),
   };
-  if (!isSortedWithinGroups(retry.hits, mode)) {
+  if (!isSortedWithinGroups(retry.hits, mode, typed)) {
     console.warn("[jobs-search] sort-integrity: engine returned an unsorted page twice, delivered as sent", { q: p.q, mode });
   }
   return delivered(retry);
@@ -1184,7 +1192,7 @@ async function applySortIntegrityGuard(
  * Tiered retrieval for a bare role query (`isBareRoleQuery`): ONE federated
  * `/multi-search` blending tier 1 (strict title/company/tags scope, weight
  * 100 — byte-identical to `buildSearchBody(params, false, "all", {})`, the
- * pre-existing strict pass) ahead of tier 2 (whole-document, weight 1) into
+ * pre-existing strict pass) ahead of tier 2 (whole-document, `WHOLE_DOCUMENT_WEIGHT`) into
  * a single deduplicated pool. Meilisearch's federation dedupes hits by
  * document id and unions the totals into `estimatedTotalHits` — verified
  * live (leg 7 A2-A5): the union total, strict-scope hits ranked first under
@@ -1219,7 +1227,7 @@ async function applySortIntegrityGuard(
  */
 /**
  * The federated queries of a bare role query's tiered retrieval, in `queriesPosition` order. Known-value matches
- * lead (tier weights 100 / 1). When a filter admits un-derived rows (unknown-inclusive-facets.ts), the same two
+ * lead (`TYPED_WEIGHT` / `WHOLE_DOCUMENT_WEIGHT`). When a filter admits un-derived rows (unknown-inclusive-facets.ts), the same two
  * scopes rerun with those rows included at half weight, so they rank after the known ones; federation dedupes by
  * id keeping the best-weighted copy. Pure: the request is the decision, `runTieredRetrieval` only sends it.
  */
@@ -1281,6 +1289,7 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
     (body.hits ?? []).map(({ _federation, ...hit }) => ({
       ...hit,
       tier: specs[_federation?.queriesPosition ?? -1]?.tier ?? 2,
+      _queryPosition: _federation?.queriesPosition,
     })),
   );
   return {
@@ -2078,15 +2087,16 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string, no
 const CLOSE_MATCH_RULES = ["words", "typo", "proximity", "attributeRank"] as const;
 
 type RankingScoreDetails = Partial<Record<string, { score?: number }>>;
-type HitWithRankingDetails = PublicJob & { _rankingScoreDetails?: RankingScoreDetails };
+/** `_queryPosition`: which federated query returned the hit (`runTieredRetrieval`); server-only, like the details. */
+type HitWithRankingDetails = PublicJob & { _rankingScoreDetails?: RankingScoreDetails; _queryPosition?: number };
 
 /** Stable key of a hit's close-match group, or `null` when the engine sent no details for it. */
 function closeMatchKey(hit: HitWithRankingDetails, ctx: RelevanceRerankContext): string | null {
   const details = hit._rankingScoreDetails;
   if (!details) return null;
   return JSON.stringify([
-    // Federated tiers are separate queries; their scores are not comparable.
-    hit.tier ?? 0,
+    // Federated queries are separate; their scores are not comparable (a title-alias query is tier 1 too).
+    hit._queryPosition ?? 0,
     ...CLOSE_MATCH_RULES.map((rule) => details[rule]?.score ?? null),
     ...relevanceTierKey(hit, ctx),
   ]);
@@ -2096,9 +2106,9 @@ function postedTsOrOldest(job: PublicJob): number {
   return typeof job.posted_ts === "number" && Number.isFinite(job.posted_ts) ? job.posted_ts : Number.NEGATIVE_INFINITY;
 }
 
-function withoutRankingScoreDetails(hit: PublicJob): PublicJob {
-  if (!("_rankingScoreDetails" in hit)) return hit;
-  const { _rankingScoreDetails: _details, ...rest } = hit as HitWithRankingDetails;
+function withoutEngineFields(hit: PublicJob): PublicJob {
+  if (!("_rankingScoreDetails" in hit) && !("_queryPosition" in hit)) return hit;
+  const { _rankingScoreDetails: _details, _queryPosition: _position, ...rest } = hit as HitWithRankingDetails;
   return rest;
 }
 
@@ -2113,7 +2123,7 @@ function withoutRankingScoreDetails(hit: PublicJob): PublicJob {
  * searches — `rankingScoreDetails` in `buildSearchBody`).
  *
  * Hits that tie on `CLOSE_MATCH_RULES` (so differ only in word position and
- * exactness), come from the same federated tier, and share the rerank's
+ * exactness), come from the same federated query, and share the rerank's
  * relevance tier (`relevanceTierKey`) form one group. Each group keeps the
  * page slots it already holds and refills them newest `posted_ts` first
  * (stable). Nothing else moves: no hit changes page, so pagination and
@@ -2126,7 +2136,7 @@ function withoutRankingScoreDetails(hit: PublicJob): PublicJob {
  * is the point: those still order hits that are NOT close matches. A hit
  * with no details (a lane, the domain post-filter scan) stays where it is.
  *
- * Always returns hits WITHOUT `_rankingScoreDetails` — the engine's scoring
+ * Always returns hits WITHOUT `_rankingScoreDetails` and `_queryPosition` — the engine's scoring
  * never leaves the server.
  */
 export function preferNewerAmongCloseMatches(hits: PublicJob[], q?: string): PublicJob[] {
@@ -2147,7 +2157,7 @@ export function preferNewerAmongCloseMatches(hits: PublicJob[], q?: string): Pub
       ordered[slot] = newestFirst[i];
     });
   }
-  return ordered.map(withoutRankingScoreDetails);
+  return ordered.map(withoutEngineFields);
 }
 
 /** The three location fields a parsed place can constrain. */

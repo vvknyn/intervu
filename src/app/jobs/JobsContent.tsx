@@ -2853,10 +2853,9 @@ export function JobsContent({
     }, [matchScores, fitActive, loading, renderedClusters, placeNotes]);
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
-    // after clustering, positions no longer line up 1:1. Every member of one
-    // cluster shares the same title, so — since results already arrive
-    // ranked with the "titled it" block first — a cluster can never straddle
-    // the seam: it's entirely on one side or the other. This finds the first
+    // after clustering, positions no longer line up 1:1. A cluster never straddles the
+    // seam: `clusterJobs` keys on the hit's tier as well as its title and company, so a
+    // cluster is entirely on one side or the other. This finds the first
     // clustered row whose best-ranked member's original index reaches the
     // seam, i.e. the same insertion point `firstMentionIndex` already chose,
     // translated into cluster-array coordinates. `seamIndex <= 0` (no seam,
@@ -6272,7 +6271,7 @@ export function JobsContent({
                                                     className="mb-1 pt-4 pb-1 text-xs text-muted-foreground"
                                                 >
                                                     {displayHits.some((h) => h.tier !== undefined)
-                                                        ? tieredSeamSummary(seamIndex, total, result?.hits ?? [])
+                                                        ? tieredSeamSummary(seamIndex, result ?? { total: 0, hits: [] })
                                                         : sortScopedSeam
                                                           ? seamSummarySorted(seamIndex)
                                                           : seamSummary(seamIndex, total, displayHits.length)}

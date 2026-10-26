@@ -95,20 +95,26 @@ type HitWithTypoScore = PublicJob & { _rankingScoreDetails?: { typo?: { score?: 
  * `sort` — `searchCutoffMs` can interrupt a slow search and return partial results with the sort only PARTIALLY
  * applied (8 order-restarts in one 40-hit "newest" page, 2026-08-14).
  *
- * `typo` sits ahead of `sort` in `rankingRules` (JOBS_INDEX_SETTINGS), so the engine legitimately restarts the order
- * where the typo count changes. The engine's own typo score is the evidence: a pair whose two scores differ is a
- * bucket boundary, not disorder. A hit without details compares as the same bucket. Ties are allowed
- * (`compareJobsBySort` returning 0): bulk-ingested documents share one posted_ts millisecond.
+ * `typo` sits ahead of `sort` in `rankingRules` (JOBS_INDEX_SETTINGS), so for a typed query the engine legitimately
+ * restarts the order where a hit's typo score gets WORSE. That is the only excused break: a typo score that gets
+ * better further down the list is disorder. A typed query's pair where either hit has no score details (a path that
+ * did not ask for them) cannot be told from a typo restart, so it is not judged: no retry. A browse has no typo rule
+ * in play (`typed` false), so its pairs are compared directly. Ties are allowed (`compareJobsBySort` returning 0):
+ * bulk-ingested documents share one posted_ts millisecond.
  */
-export function isSortedWithinGroups(hits: PublicJob[], mode: JobSortMode): boolean {
+export function isSortedWithinGroups(hits: PublicJob[], mode: JobSortMode, typed: boolean): boolean {
     const lastOfGroup = new Map<number, HitWithTypoScore>();
     for (const hit of hits as HitWithTypoScore[]) {
         const group = hit.tier ?? 0;
         const previous = lastOfGroup.get(group);
         lastOfGroup.set(group, hit);
         if (!previous) continue;
-        const [a, b] = [previous._rankingScoreDetails?.typo?.score, hit._rankingScoreDetails?.typo?.score];
-        if (a !== undefined && b !== undefined && a !== b) continue;
+        if (typed) {
+            const [a, b] = [previous._rankingScoreDetails?.typo?.score, hit._rankingScoreDetails?.typo?.score];
+            if (a === undefined || b === undefined) continue;
+            if (b < a) continue;
+            if (b > a) return false;
+        }
         if (compareJobsBySort(previous, hit, mode) > 0) return false;
     }
     return true;

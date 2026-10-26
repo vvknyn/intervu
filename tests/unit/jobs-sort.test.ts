@@ -133,7 +133,7 @@ describe('isSortedWithinGroups', () => {
         const a = mkJob({ id: 'a', posted_at: '2026-01-05T00:00:00Z' });
         const b = mkJob({ id: 'b', posted_at: '2026-01-05T00:00:00Z' });
         const c = mkJob({ id: 'c', posted_at: '2026-01-04T00:00:00Z' });
-        assert.equal(isSortedWithinGroups([a, b, c], 'newest'), true);
+        assert.equal(isSortedWithinGroups([a, b, c], 'newest', false), true);
     });
 
     it('flags an out-of-order newest page — the sort-integrity defect this guard exists for', () => {
@@ -142,15 +142,15 @@ describe('isSortedWithinGroups', () => {
         const newerAgain = mkJob({ id: 'c', posted_at: '2026-01-06T00:00:00Z' });
         // newest-first with an order-restart in the middle — exactly the shape
         // `searchCutoffMs` produced on a partially-applied sort.
-        assert.equal(isSortedWithinGroups([newer, older, newerAgain], 'newest'), false);
+        assert.equal(isSortedWithinGroups([newer, older, newerAgain], 'newest', false), false);
     });
 
     it('checks salary_desc order too, not just newest', () => {
         const high = mkJob({ id: 'a', salary_max: 200_000 });
         const low = mkJob({ id: 'b', salary_max: 100_000 });
         const higher = mkJob({ id: 'c', salary_max: 250_000 });
-        assert.equal(isSortedWithinGroups([high, low], 'salary_desc'), true);
-        assert.equal(isSortedWithinGroups([high, low, higher], 'salary_desc'), false);
+        assert.equal(isSortedWithinGroups([high, low], 'salary_desc', false), true);
+        assert.equal(isSortedWithinGroups([high, low, higher], 'salary_desc', false), false);
     });
 
     it('checks each group on its own: a page that restarts at the divider is sorted, a broken group is not', () => {
@@ -158,21 +158,39 @@ describe('isSortedWithinGroups', () => {
         const b = { ...mkJob({ id: 'b', posted_at: '2026-01-04T00:00:00Z' }), tier: 1 as const };
         const c = { ...mkJob({ id: 'c', posted_at: '2026-01-09T00:00:00Z' }), tier: 2 as const };
         const d = { ...mkJob({ id: 'd', posted_at: '2026-01-02T00:00:00Z' }), tier: 2 as const };
-        assert.equal(isSortedWithinGroups([a, b, c, d], 'newest'), true);
-        assert.equal(isSortedWithinGroups([b, c, a, d], 'newest'), false, 'b then a are both above the divider, out of order');
+        assert.equal(isSortedWithinGroups([a, b, c, d], 'newest', false), true);
+        assert.equal(isSortedWithinGroups([b, c, a, d], 'newest', false), false, 'b then a are both above the divider, out of order');
     });
 
-    it('an out-of-order pair is excused only when the engine scored a different typo count for them', () => {
-        const withTypo = (id: string, at: string, score: number) =>
-            ({ ...mkJob({ id, posted_at: at }), _rankingScoreDetails: { typo: { score } } }) as PublicJob;
-        const older = withTypo('a', '2026-01-01T00:00:00Z', 1);
-        assert.equal(isSortedWithinGroups([older, withTypo('b', '2026-01-09T00:00:00Z', 0.5)], 'newest'), true);
-        assert.equal(isSortedWithinGroups([older, withTypo('b', '2026-01-09T00:00:00Z', 1)], 'newest'), false);
+    describe('a typed query (typo before sort in the ranking rules)', () => {
+        const hit = (id: string, at: string, typo?: number, tier: 1 | 2 = 1) =>
+            ({ ...mkJob({ id, posted_at: at }), tier, ...(typo === undefined ? {} : { _rankingScoreDetails: { typo: { score: typo } } }) }) as PublicJob;
+
+        it('excuses a restart only where the typo score gets WORSE', () => {
+            const older = hit('a', '2026-01-01T00:00:00Z', 1);
+            assert.equal(isSortedWithinGroups([older, hit('b', '2026-01-09T00:00:00Z', 0.5)], 'newest', true), true);
+            assert.equal(isSortedWithinGroups([older, hit('b', '2026-01-09T00:00:00Z', 1)], 'newest', true), false);
+        });
+
+        it('a typo score that gets BETTER further down is disorder, whatever the dates', () => {
+            const worse = hit('a', '2026-01-09T00:00:00Z', 0.5);
+            assert.equal(isSortedWithinGroups([worse, hit('b', '2026-01-01T00:00:00Z', 1)], 'newest', true), false);
+        });
+
+        it('judges nothing it cannot read: a pair with no score details never fails the page', () => {
+            const newerNoDetails = hit('b', '2026-01-09T00:00:00Z');
+            assert.equal(isSortedWithinGroups([hit('a', '2026-01-01T00:00:00Z', 1), newerNoDetails], 'newest', true), true);
+            assert.equal(isSortedWithinGroups([hit('a', '2026-01-01T00:00:00Z'), hit('b', '2026-01-09T00:00:00Z', 1)], 'newest', true), true);
+        });
+
+        it('a browse has no typo rule in play, so a pair without details is compared', () => {
+            assert.equal(isSortedWithinGroups([hit('a', '2026-01-01T00:00:00Z'), hit('b', '2026-01-09T00:00:00Z')], 'newest', false), false);
+        });
     });
 
     it('an empty or single-hit page is trivially sorted', () => {
-        assert.equal(isSortedWithinGroups([], 'newest'), true);
-        assert.equal(isSortedWithinGroups([mkJob({ id: 'a' })], 'newest'), true);
+        assert.equal(isSortedWithinGroups([], 'newest', false), true);
+        assert.equal(isSortedWithinGroups([mkJob({ id: 'a' })], 'newest', false), true);
     });
 });
 

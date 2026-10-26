@@ -212,7 +212,7 @@ test("wiring: aliases become title-only federated queries, capped at 8", async (
     for (const s of specs) {
       assert.deepEqual(s.query.attributesToSearchOn, ["title"]);
       assert.notEqual(s.query.q, q);
-      assert.ok(s.query.federationOptions.weight > 1 && s.query.federationOptions.weight < 100);
+      assert.ok(s.query.federationOptions.weight > 1 && s.query.federationOptions.weight < 100); // under the typed hits, over the whole-document ones
       assert.equal(s.tier, 1); // another name for the job is a title match, above the divider
     }
   }
