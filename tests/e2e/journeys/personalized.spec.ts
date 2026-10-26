@@ -705,7 +705,9 @@ test("a short résumé's list still holds roles in its own line whose postings l
   await expect(listRow(page, french.id)).toHaveCount(0);
   await expect(page.getByTestId("list-notice")).toHaveCount(0);
   await expect(page.getByTestId("result-line")).toHaveText("4 roles · ranked by fit");
-  await expect(page.getByTestId("list-left-out")).toHaveText("Left out of the 4 roles found: 1 asking for something your résumé doesn't show");
+  // Ranked lower, not cut: no "N left out" disclosure for the French requirement. The guest preview
+  // stops at three rows, so that role is the one behind the sign-in gate.
+  await expect(page.getByTestId("ranked-disclosure")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

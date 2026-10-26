@@ -5,8 +5,17 @@ import { expect, test } from './fixtures';
  * An unstable dependency (a fresh array or object each render) shows up as a render loop, "Maximum
  * update depth", or server actions nobody triggered, none of which tsc, unit tests or a screenshot see.
  * Commits are counted through a stub of React's DevTools hook.
+ *
+ * The window opens after the page has actually gone quiet, not on a fixed clock. A saturated dev
+ * server (the full journey run, and only the 390 layout) was still landing the first search and the
+ * deferred AuthKit/PostHog mounts after 9s, so a 9s clock counted that startup burst — 6 commits on
+ * a lighter pass, 25–39 when the server was busiest. Bisecting 75598f92, #1143, #1147 and #1149 at
+ * 390 with a 6× CPU throttle showed 0 commits in the old window at every one of those commits, so
+ * none of them added a loop. A real loop never stays quiet, and the bound on the quiet window stays 5.
  */
-const SETTLE_MS = 9_000;
+const QUIET_GAP_MS = 2_000;
+const QUIET_POLL_MS = 250;
+const SETTLE_DEADLINE_MS = 45_000;
 const IDLE_MS = 10_000;
 const MAX_COMMITS = 5;
 
@@ -15,7 +24,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         test.use({ viewport });
 
         test('a settled search page is idle', { tag: ['@J-ALERTS-52'] }, async ({ page }) => {
-            test.setTimeout(90_000);
+            test.setTimeout(120_000);
             await page.addInitScript(() => {
                 const w = window as unknown as { __commits: number; __REACT_DEVTOOLS_GLOBAL_HOOK__: unknown };
                 w.__commits = 0;
@@ -40,11 +49,24 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
             page.on('pageerror', (e) => errors.push(e.message));
 
             await page.goto(`/jobs?q=product%20manager${process.env.IDLE_CHURN ? '&__churn=1' : ''}`, { waitUntil: 'domcontentloaded' });
-            await page.waitForTimeout(SETTLE_MS);
-            const before = await page.evaluate(() => (window as unknown as { __commits: number }).__commits);
+            const commitsNow = () => page.evaluate(() => (window as unknown as { __commits: number }).__commits);
+            const settleStarted = Date.now();
+            let last = await commitsNow();
+            let quietFor = 0;
+            while (Date.now() - settleStarted < SETTLE_DEADLINE_MS && quietFor < QUIET_GAP_MS) {
+                await page.waitForTimeout(QUIET_POLL_MS);
+                const now = await commitsNow();
+                if (now === last) quietFor += QUIET_POLL_MS;
+                else {
+                    quietFor = 0;
+                    last = now;
+                }
+            }
+            expect(quietFor, 'the page went quiet (a render loop never does)').toBeGreaterThanOrEqual(QUIET_GAP_MS);
+            const before = last;
             const actionsBefore = actions.length;
             await page.waitForTimeout(IDLE_MS);
-            const commits = (await page.evaluate(() => (window as unknown as { __commits: number }).__commits)) - before;
+            const commits = (await commitsNow()) - before;
 
             expect(commits, 'React commits in 10 s idle').toBeLessThan(MAX_COMMITS);
             expect(actions.length - actionsBefore, 'server actions in 10 s idle').toBe(0);
