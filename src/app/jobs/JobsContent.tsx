@@ -5180,7 +5180,7 @@ export function JobsContent({
                                 them read as one more divider in a stack of
                                 three on a phone (2026-10-02 polish pass). */}
                             {atRest ? (
-                            <div className="mx-auto max-w-[960px] pb-2.5 pt-1.5 text-center">
+                            <div className={cn(cappedContentClass, "pb-2.5 pt-1.5 text-center")}>
                                 <p className="mb-0.5 text-xs font-semibold text-live">
                                     Live from employer career pages
                                 </p>
@@ -5257,8 +5257,7 @@ export function JobsContent({
                         // second border the moment a query ran — the snap 1c
                         // set out to remove. This well only renders below lg
                         // once a search runs (the header docks it from lg).
-                        // page-scale-allow: the at-rest front door is a centred 960px search column
-                        atRest ? "rounded-none mx-auto w-full max-w-[960px] lg:max-w-7xl" : "w-full",
+                        atRest ? cn("rounded-none", cappedContentClass) : "w-full",
                     )}
                 >
                     {/* A3 (front-door redesign): the live count renders once,
@@ -5289,7 +5288,7 @@ export function JobsContent({
                             e.preventDefault();
                             submitSearch(queryDraft);
                         }}
-                        className="flex items-center gap-2 sm:flex-wrap sm:justify-center sm:gap-2.5"
+                        className="flex items-center gap-2 sm:flex-wrap sm:gap-2.5"
                     >
                         {/* `bg-surface`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
@@ -5314,9 +5313,6 @@ export function JobsContent({
                                 // Precedent: PR #540 fixed the identical defect on
                                 // the toolbar section with w-full; fixed there, not
                                 // here — see the section's className above.
-                                // Cap: sm:max-w-[42rem] bounds how wide flex-1 may
-                                // grow now that the row actually has room to give.
-                                "sm:max-w-[42rem]",
                             )}>
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
@@ -5474,9 +5470,8 @@ export function JobsContent({
                                 // `bg-muted` band — instead of the full-bleed,
                                 // filled strip a live query still gets.
                                 atRest
-                                    // page-scale-allow: the at-rest front door is a centred 960px search column
-                                    ? "mx-auto mt-3 w-full max-w-[960px] py-2"
-                                    : "mt-3 w-full min-w-0 bg-muted py-2 lg:px-0.5 lg:py-1.5"
+                                    ? cn(cappedContentClass, "mt-3 py-2")
+                                    : cn(cappedContentClass, "mt-3 w-full min-w-0 bg-muted py-2 lg:px-0.5 lg:py-1.5")
                             ),
                     )}
                 >
@@ -5654,7 +5649,9 @@ export function JobsContent({
                     pristine gate — so the rest of the centered hero can't
                     disagree with this piece about whether it's showing. */}
                 {atRest && showSearchHome && (
-                    <FrontDoorFieldLinks onSelectQuery={submitSearch} />
+                    <div className={cappedContentClass}>
+                        <FrontDoorFieldLinks onSelectQuery={submitSearch} />
+                    </div>
                 )}
                 {/* The front door (no job rows until there's a reason):
                     the week's live count, the visitor's last search, and
@@ -5662,17 +5659,19 @@ export function JobsContent({
                     Visitors with no résumé get the résumé band here, or at the top of the list once rows show. */}
                 {frontDoorAtRest && (
                     <>
-                        <FrontDoorWeekCount
-                            suppressLocationDefault={locationDefaultSuppressed}
-                            onShow={() => panelPostedBucket("7d")}
-                        />
-                        <div className="mx-auto mt-4 w-full max-w-[960px] empty:hidden">
+                        <div className={cappedContentClass}>
+                            <FrontDoorWeekCount
+                                suppressLocationDefault={locationDefaultSuppressed}
+                                onShow={() => panelPostedBucket("7d")}
+                            />
+                        </div>
+                        <div className={cn("mt-4 empty:hidden", cappedContentClass)}>
                             <FrontDoorReturnCard
                                 recentQuery={recentSearches[0] ?? ""}
                                 onRerun={submitSearch}
                             />
                         </div>
-                        {resumeBandEl && <div className="mx-auto mt-6 w-full max-w-[960px]">{resumeBandEl}</div>}
+                        {resumeBandEl && <div className={cn("mt-6", cappedContentClass)}>{resumeBandEl}</div>}
                         {resumeOnFile === true && !fitActive && !fitResolving && (
                             <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit()} />
                         )}
@@ -5720,7 +5719,9 @@ export function JobsContent({
                     </div>
                 )}
                 {searchIntent && (
-                <div className={cn(
+                <div
+                    data-testid="jobs-results-frame"
+                    className={cn(
                     headerDockActive
                         ? "pt-[var(--jobs-bar-content-gap)] pb-[var(--jobs-bar-content-gap)]"
                         : "mt-4",

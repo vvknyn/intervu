@@ -56,7 +56,7 @@ export function TopBar() {
     const navBadges = useNavBadgeCounts();
     // The header's ONE nav: every product destination as an underline tab.
     const navTabs = NAV_TABS.filter((t) => {
-        // Signed out there is no product nav (sign-in / create-account instead).
+        // Signed out there is no product nav (Sign in instead).
         if (!user) return false;
         return true;
     });
@@ -221,19 +221,6 @@ export function TopBar() {
                                 className={cn("text-muted-foreground", CHROME_FOCUS_VISIBLE)}
                             >
                                 {AUTH_CTA_LABEL}
-                            </Button>
-                            <Button
-                                // control-type-allow: the bar's one primary button shares the docked search field's 44px lg step
-                                size="lg"
-                                type="button"
-                                data-testid="topbar-create-account"
-                                onClick={() => {
-                                    setAuthTab("signup");
-                                    setAuthPopoverOpen(true);
-                                }}
-                                className={CHROME_FOCUS_VISIBLE}
-                            >
-                                {/* signup-gate-exempt: header entry point (gate id header), not an in-content gate */}Create account
                             </Button>
                         </>
                     )}

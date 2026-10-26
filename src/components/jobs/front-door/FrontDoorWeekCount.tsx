@@ -39,7 +39,7 @@ export function FrontDoorWeekCount({
     if (!line) return null;
 
     return (
-        <div className="mx-auto mt-3 max-w-[960px] text-center">
+        <div className="mt-3 w-full text-left">
             <button
                 type="button"
                 data-testid="front-door-week-count"

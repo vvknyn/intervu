@@ -117,13 +117,14 @@ test("a password shorter than the rule is stopped on the form, with the rule sho
   expect(posts, "nothing was sent: no token or rate-limit slot spent").toHaveLength(0);
 });
 
-test("a refused signup in the header's Create account dialog shows its message at the top, scrolled into view, on every press", { tag: ["@J-AUTH-53"] }, async ({ page }) => {
-  // The incident's own path: a visitor on a search, header Create account, a refusal. The message
+test("a refused signup in the header auth dialog shows its message at the top, scrolled into view, on every press", { tag: ["@J-AUTH-53"] }, async ({ page }) => {
+  // The incident's own path: a visitor on a search, header Sign in → signup tab, a refusal. The message
   // used to render under the button, below the fold of the scrolled dialog on a phone, unseen.
   await stubPassingTurnstile(page);
   await page.goto("/jobs?q=Remote+Frontend+Developer");
-  await page.getByTestId("topbar-create-account").click();
+  await page.getByTestId("topbar-signin").click();
   const dialog = page.getByRole("dialog").filter({ has: page.getByTestId("auth-submit-button") });
+  await dialog.getByRole("tab", { name: "Create account" }).click();
   await fillSignup(dialog, LONG_ENOUGH_PASSWORD);
 
   const submit = dialog.getByTestId("auth-submit-button");
