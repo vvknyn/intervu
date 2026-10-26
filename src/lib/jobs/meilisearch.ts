@@ -37,6 +37,7 @@ import { titlePastSenior, withinSenior } from "./role-level";
 import { payPlace } from "./pay-place";
 import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause, salaryMinClause } from "./unknown-inclusive-facets";
+import { expandTitleQuery } from "./title-aliases";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
@@ -966,6 +967,31 @@ export function buildSearchBody(
   };
 }
 
+/** Federation weight of a title-alias query: under tier 1 (100, any real match), over tier 2 (1, any partial match). */
+const TITLE_ALIAS_WEIGHT = 10;
+const TITLE_ALIAS_QUERY_CAP = 8;
+
+/**
+ * Title-only queries for the other names of the typed occupation ("speech therapist" -> "speech-language
+ * pathologist", "slp", ...; `expandTitleQuery`). They widen the TITLE match only and sit between the tiers, so the
+ * typed title's own matches lead, then the same occupation under its other names, then partial whole-document
+ * matches. Tier 2 provenance: `tier1Total` counts the typed query's matches, so these sit after the seam.
+ * Known-value and unknown-inclusive variants follow `runTieredRetrieval`'s pairing (half weight for the latter).
+ */
+export function titleAliasSpecs(p: JobSearchParams) {
+  const aliases = expandTitleQuery(p.q ?? "").slice(1, 1 + TITLE_ALIAS_QUERY_CAP);
+  const details = resolveEffectiveSort(p) === "relevance" ? { rankingScoreDetails: true } : {};
+  const query = (q: string, opts: BuildSearchBodyOpts, weight: number) => {
+    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody({ ...p, q }, false, "all", { ...details, titleScoped: true, ...opts });
+    return { tier: 2 as const, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
+  };
+  return aliases.flatMap((alias) => {
+    const known = query(alias, { knownOnly: true }, TITLE_ALIAS_WEIGHT);
+    const inclusive = query(alias, {}, TITLE_ALIAS_WEIGHT * UNKNOWN_TIER_WEIGHT);
+    return JSON.stringify(inclusive.query.filter) !== JSON.stringify(known.query.filter) ? [known, inclusive] : [known];
+  });
+}
+
 /**
  * One limit-0 Meilisearch count pass — `buildSearchBody`'s body for `p`,
  * pinned to `limit: 0, offset: 0`, POSTed through the shared `meiliFetch`
@@ -1188,6 +1214,7 @@ export function buildTieredQuerySpecs(p: JobSearchParams) {
   const specs = [query({ knownOnly: true }, 100, 1), query({ wholeDocument: true, knownOnly: true }, 1, 2)];
   const inclusive = [query({}, UNKNOWN_TIER_WEIGHT * 100, 1), query({ wholeDocument: true }, UNKNOWN_TIER_WEIGHT, 2)];
   if (JSON.stringify(inclusive[0].query.filter) !== JSON.stringify(specs[0].query.filter)) specs.push(...inclusive);
+  specs.push(...titleAliasSpecs(p));
   return specs;
 }
 
