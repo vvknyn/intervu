@@ -241,7 +241,7 @@ export interface ScopedHost {
  */
 export const NO_PERSONAL_DATA_HOSTS: Readonly<Record<string, ScopedHost>> = {
   "www.google.com": { files: ["src/lib/companies/logo-proxy.ts"], reason: "src/lib/companies/logo-proxy.ts:11,38 fetches the favicon server-side; the URL carries only the company domain and no visitor IP, headers or cookies are forwarded." },
-  "velai.app": { files: ["src/components/mock/CompletenessMock.tsx", "src/lib/agent/config.ts", "src/lib/billing/stripe-client.ts", "src/lib/posthog-options.ts"], reason: "our own site address: stripe-client.ts sends it to Stripe as the app label, agent/config.ts uses it as the default MCP issuer id, posthog-options.ts uses it as the base when cleaning page addresses, CompletenessMock.tsx shows it in sample text; nothing is sent to anyone." },
+  "velai.app": { files: ["src/components/mock/CompletenessMock.tsx", "src/lib/agent/config.ts", "src/lib/billing/stripe-client.ts"], reason: "our own site address: stripe-client.ts sends it to Stripe as the app label, agent/config.ts uses it as the default MCP issuer id, CompletenessMock.tsx shows it in sample text; nothing is sent to anyone." },
 };
 
 /** Addresses in src, each tied to the files it appears in, that are only a link the user clicks, a namespace or schema id, a docs reference, a placeholder or sample value. Never requested by us or by the page on its own. */

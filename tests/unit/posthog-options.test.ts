@@ -135,6 +135,11 @@ test("addresses lose query string and hash, whatever the key, and keep path and 
   assert.equal(withoutQueryAndHash("/reset-password?token=abc123"), "/reset-password");
   assert.equal(withoutQueryAndHash("/co/acme#openings"), "/co/acme");
   assert.equal(withoutQueryAndHash("https://velai.app/jobs"), "https://velai.app/jobs");
+  assert.equal(withoutQueryAndHash("https://velai.app?q=x"), "https://velai.app/");
+  assert.equal(withoutQueryAndHash("https://example.com/a b?q=x#h"), "https://example.com/a%20b");
+  assert.equal(withoutQueryAndHash("/jobs/?q=x"), "/jobs/");
+  assert.equal(withoutQueryAndHash("/jobs#a?b"), "/jobs");
+  assert.equal(withoutQueryAndHash("//evil.example/x?q=1"), "//evil.example/x?q=1");
   assert.equal(withoutQueryAndHash("what is this? #1 job"), "what is this? #1 job");
   assert.equal(withoutQueryAndHash("q=nurse is not an address"), "q=nurse is not an address");
 
