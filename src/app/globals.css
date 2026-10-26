@@ -789,6 +789,18 @@ body:has([data-shell="bleed"]) {
   }
 }
 
+/* State indicator drawn inside the box that paints ABOVE the box's own descendants.
+   `inset-outline-N` is an N px solid outline pulled in by N px (layout box unchanged);
+   pair it with an `outline-<token>` colour. Use it, not `ring-inset`, for any
+   selected/focused row whose children can paint a border or background to the
+   row's edge: an inset box-shadow paints before its in-flow descendants, so a
+   child's divider covered the selected /jobs row's ring (2026-10-25). */
+@utility inset-outline-* {
+  outline-style: solid;
+  outline-width: calc(--value(integer) * 1px);
+  outline-offset: calc(--value(integer) * -1px);
+}
+
 @utility ctl-sm {
   --ctl-h: var(--control-h-sm);
   --ctl-text: var(--control-text-sm);
