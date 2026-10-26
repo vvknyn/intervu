@@ -1869,7 +1869,7 @@ export function seamSummary(seamIndex: number, total: number, hitsLength: number
 export function tieredSeamSummary(shownAbove: number, total: number, loaded: PublicJob[]): string {
     const below = Math.max(total - loaded.filter((hit) => hit.tier === 1).length, 0);
     const lead = shownAbove === 1 ? "1 role matches" : `${shownAbove.toLocaleString()} roles match`;
-    return `${lead} every word in the title, company or keywords, or a title for the same job · ${below.toLocaleString()} more have them elsewhere in the posting`;
+    return `${lead} by title, company or keywords · ${below.toLocaleString()} more mention it elsewhere in the posting`;
 }
 
 /**

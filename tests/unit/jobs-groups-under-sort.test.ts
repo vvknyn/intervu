@@ -78,17 +78,17 @@ describe("the divider's label tells the truth about both sides", () => {
         const loaded = [...Array.from({ length: 11 }, (_, i) => hit(`a${i}`, 1)), ...Array.from({ length: 20 }, (_, i) => hit(`b${i}`, 2))];
         assert.equal(
             tieredSeamSummary(11, 119, loaded),
-            "11 roles match every word in the title, company or keywords, or a title for the same job · 108 more have them elsewhere in the posting",
+            "11 roles match by title, company or keywords · 108 more mention it elsewhere in the posting",
         );
     });
 
     it("'hide viewed' shrinks what is shown above, never the count below", () => {
         const loaded = [...Array.from({ length: 11 }, (_, i) => hit(`a${i}`, 1)), hit("b", 2)];
-        assert.match(tieredSeamSummary(9, 119, loaded), /^9 roles match .* · 108 more have them/);
+        assert.match(tieredSeamSummary(9, 119, loaded), /^9 roles match .* · 108 more mention it/);
     });
 
     it("reads as singular for one role", () => {
-        assert.match(tieredSeamSummary(1, 6, [hit("a", 1), hit("b", 2)]), /^1 role matches every word/);
+        assert.match(tieredSeamSummary(1, 6, [hit("a", 1), hit("b", 2)]), /^1 role matches by title, company or keywords/);
     });
 
     it("never prints a negative count", () => {
