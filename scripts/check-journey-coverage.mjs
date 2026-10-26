@@ -35,9 +35,46 @@ function run(cwd, { blockExit }) {
   process.exit(blockExit);
 }
 
+function hookRespond(permissionDecision, reason) {
+  // The PreToolUse runner parses stdout as JSON. Human text stays on stderr.
+  process.stdout.write(`${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision,
+      permissionDecisionReason: reason,
+    },
+  })}\n`);
+}
+
 if (process.argv.includes("--claude-hook")) {
-  const payload = JSON.parse(readFileSync(0, "utf8") || "{}");
-  if (isGatedCommand(payload.tool_input?.command ?? "")) run(payload.cwd || process.cwd(), { blockExit: 2 });
+  let payload;
+  try {
+    payload = JSON.parse(readFileSync(0, "utf8") || "{}");
+  } catch (e) {
+    hookRespond("deny", `journey coverage hook received invalid stdin JSON: ${e.message}`);
+    process.exit(2);
+  }
+  if (!isGatedCommand(payload.tool_input?.command ?? "")) process.exit(0);
+  const cwd = payload.cwd || process.cwd();
+  let verdict;
+  try {
+    verdict = evaluateJourneyCoverage(readRange(cwd));
+  } catch (e) {
+    const reason = `journey coverage gate could not run: ${e.message}`;
+    console.error(reason);
+    hookRespond("deny", reason);
+    process.exit(2);
+  }
+  if (verdict.ok) {
+    const reason = `journey coverage gate: pass (${verdict.reason})`;
+    console.error(reason);
+    hookRespond("allow", reason);
+    process.exit(0);
+  }
+  const text = failureText(verdict, parseCatalog(readFileSync(`${cwd}/tests/journeys/CATALOG.md`, "utf8")));
+  console.error(text);
+  hookRespond("deny", text);
+  process.exit(2);
 } else {
   run(process.cwd(), { blockExit: 1 });
 }
