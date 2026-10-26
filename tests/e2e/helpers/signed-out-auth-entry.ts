@@ -11,11 +11,7 @@ export async function clickVisibleSignIn(page: Page): Promise<void> {
   await trigger.click();
 }
 
-/** Non-lean marketing routes — TopBar ghost Sign in + green Create account. */
+/** Non-lean marketing routes — TopBar's one quiet Sign in (its popover has the Create account tab). */
 export function marketingTopBarSignIn(page: Page): Locator {
   return page.getByTestId('topbar-signin');
-}
-
-export function marketingTopBarCreateAccount(page: Page): Locator {
-  return page.getByTestId('topbar-create-account');
 }

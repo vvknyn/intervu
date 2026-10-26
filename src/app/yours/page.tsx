@@ -19,14 +19,14 @@ import { addManualGuestPursuit, listGuestPursuits, removeGuestPursuit, updateGue
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
-import { countAppliedSince, matchesTrackerSearch, parseTrackerStage, trackerStatusLabel, trackerStatusPatch } from "@/lib/pursuits/tracker-display";
+import { countAppliedSince, countOpenPursuits, matchesTrackerSearch, parseTrackerStage, trackerStatusLabel, trackerStatusPatch } from "@/lib/pursuits/tracker-display";
 import {
     TRACKER_EMPTY_DESCRIPTION,
     TRACKER_EMPTY_TITLE,
     TRACKER_EXPORT_CSV_LABEL,
     TRACKER_FILTER_EMPTY,
     TRACKER_PAGE_SUBCOPY,
-    TRACKER_PAGE_TITLE,
+    trackerPageHeading,
     TRACKER_PRIMARY_CTA,
 } from "@/lib/pursuits/tracker-voice-copy";
 import {
@@ -45,13 +45,13 @@ import { posterInlinePanelClassName } from "@/components/layout/route-loading";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 
-function TrackerHeader({ actions }: { actions?: React.ReactNode }) {
+function TrackerHeader({ actions, openCount = 0 }: { actions?: React.ReactNode; openCount?: number }) {
     return (
         <PageHeader
             fullWidth
             sticky={false}
             size="display"
-            title={TRACKER_PAGE_TITLE}
+            title={trackerPageHeading(openCount)}
             description={TRACKER_PAGE_SUBCOPY}
             actions={actions}
         />
@@ -324,6 +324,7 @@ function YoursContent() {
             fullWidth
             header={
                 <TrackerHeader
+                    openCount={countOpenPursuits(pursuits)}
                     actions={
                         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
                             <Button

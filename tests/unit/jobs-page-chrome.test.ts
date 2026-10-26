@@ -168,15 +168,15 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(src, /<LandingUspSection/);
     });
 
-    it("signed-out TopBar: one Sign in + Create account pair on every surface; one auth system", () => {
+    it("signed-out TopBar: one quiet Sign in on every surface; one auth system", () => {
         const src = readFileSync(TOPBAR, "utf8");
         const start = src.indexOf('authChrome === "pending"');
         assert.notStrictEqual(start, -1, "auth chrome branch not found in TopBar");
         const authBlock = src.slice(start, src.indexOf("<AuthPopover"));
         assert.match(authBlock, /topbar-signin/);
-        assert.match(authBlock, /topbar-create-account/);
+        assert.doesNotMatch(authBlock, /topbar-create-account/);
         assert.doesNotMatch(src, /topbar-alerts-cta/);
-        assert.doesNotMatch(authBlock, /leanSurface/, "the auth pair does not vary by surface");
+        assert.doesNotMatch(authBlock, /leanSurface/, "the auth entry does not vary by surface");
         // The defect this replaced was a SECOND auth component rendering its
         // own session check and its own button beside the popover's, so the
         // two could disagree on screen. Naming the old component here would
