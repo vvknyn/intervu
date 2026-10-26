@@ -142,7 +142,7 @@ export interface ResumeEducation {
     degree: string;
     institution: string;
     year?: string;
-    /** Typed by the person — never inferred/extracted from an upload. */
+    /** As printed on the résumé ("GPA: 3.8") or typed by the person — never inferred. */
     gpa?: string;
     honours?: string[];
     coursework?: string[];

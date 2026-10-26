@@ -110,8 +110,9 @@ export async function extractPDFTextInBrowser(
             return { text: scanText, scanned: true };
         }
 
+        // A run with a tab in it is a cell gap (pdf-text-lines.ts) and stays one.
         const cleanedText = rawText
-            .replace(/[ \t]+/g, " ")
+            .replace(/[ \t]+/g, (run) => (run.includes("\t") ? "\t" : " "))
             .replace(/\n{3,}/g, "\n\n")
             .trim();
 

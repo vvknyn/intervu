@@ -35,6 +35,11 @@ export function tidyOcrText(text: string): string {
         .replace(OCR_BULLET_RE, "• ")
         // "Certificate Ill", "Level lV": the engine's l for I in a Roman numeral after a level word.
         .replace(/\b(Certificate|Cert\.?|Level|Grade|Class|Part|Stage|Tier)\s+([IVXl]{1,4})\b/g, (_, word: string, numeral: string) => `${word} ${numeral.replace(/l/g, "I")}`)
+        // A printed comma or middot between skills often comes back as «, », * or +.
+        // Line-start marks are already bullets; these are the ones left between words.
+        .replace(/[«»]/g, ", ")
+        .replace(/(^|[^\S\n])[*+](?=[^\S\n])/g, "$1,")
+        .replace(/[ \t]*\|+[ \t]*$/gm, "")
         .replace(/[ \t]+/g, " ")
         .replace(/\n{3,}/g, "\n\n")
         .trim();

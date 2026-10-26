@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { extractText } from "unpdf";
 import { extractPDFTextInBrowser } from "../../src/lib/local-ai/extract-in-browser";
 import { pdfPageText, type PdfTextItem } from "../../src/lib/local-ai/pdf-text-lines";
-import { resumeDataFromPlainText } from "../../src/lib/resume/structure-resume-text";
+import { isResumeBoundaryLine, resumeDataFromPlainText } from "../../src/lib/resume/structure-resume-text";
 import { unwrapHardWrappedLines } from "../../src/lib/resume/unwrap-lines";
 import { WRAPPED_RESUME, buildWrappedResumePdf } from "../fixtures/wrapped-resume-pdf";
 
@@ -36,9 +36,9 @@ describe("PDF extraction keeps paragraphs and bullets whole", () => {
         assert.ok(lines.includes(WRAPPED_RESUME.summary), "summary is one line");
         assert.ok(lines.includes(WRAPPED_RESUME.skills), "skills list is one line");
         for (const bullet of WRAPPED_RESUME.bullets) assert.ok(lines.includes(`• ${bullet}`), `bullet is one line: ${bullet.slice(0, 30)}`);
-        // Headings, the role line with its right-aligned dates, and the lines after them stay apart.
+        // Headings, the role line with its right-aligned dates (a cell across the gap), and the lines after them stay apart.
         assert.ok(lines.includes("SUMMARY") && lines.includes("EXPERIENCE") && lines.includes("EDUCATION"));
-        assert.ok(lines.includes(`${WRAPPED_RESUME.role} ${WRAPPED_RESUME.dates}`));
+        assert.ok(lines.includes(`${WRAPPED_RESUME.role}\t${WRAPPED_RESUME.dates}`));
         assert.ok(lines.includes(WRAPPED_RESUME.education));
     });
 
@@ -101,6 +101,14 @@ describe("PDF extraction keeps paragraphs and bullets whole", () => {
             item("CORE COMPETENCIES", 50, 635),
         ]);
         assert.deepEqual(text.split("\n"), [`${full} continues mid-sentence.`, full, "Experience", full, "CORE COMPETENCIES"]);
+    });
+
+    it("never joins a degree onto the school's full line above it, at upload or when read back", () => {
+        const school = words(100, "Institute");
+        const degree = "Bachelors in Sociology and Mass Communication";
+        assert.deepEqual(pdfPageText([item(school, 50, 700), item(degree, 50, 687)]).split("\n"), [school, degree]);
+        const stored = [school, "continues mid-sentence", school, "and carries on", school, degree];
+        assert.deepEqual(unwrapHardWrappedLines(stored, isResumeBoundaryLine), [`${school} continues mid-sentence`, `${school} and carries on`, school, degree]);
     });
 
     it("joins a bullet whose first line mentions a date range: it is not a dated role line", () => {

@@ -1,0 +1,22 @@
+Rajesh Kumar
+Welder Fabricator
+Pune, Maharashtra
+Mobile: 98220 55501
+Email: rajesh.kumar@example.com
+
+Work Experience:
+Senior Welder at Deccan Steel Fabricators, Pune
+June 2020 till date
+TIG and MIG welding of stainless steel pressure vessels.
+Reading fabrication drawings and marking plates.
+
+Welder at Sahyadri Engineering Works, Chakan
+2015 to 2020
+Arc welding of structural frames for warehouses.
+
+Educational Qualification:
+ITI Welder, Government Industrial Training Institute, Aundh, 2015
+SSC, Maharashtra State Board, 2013
+
+Skills:
+TIG Welding, MIG Welding, Arc Welding, Blueprint Reading, Gas Cutting, Grinding

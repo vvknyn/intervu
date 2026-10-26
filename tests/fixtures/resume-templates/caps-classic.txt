@@ -1,0 +1,23 @@
+MARCUS OYELARAN
+Senior Data Analyst
+Leeds, UK | marcus.oyelaran@example.com | +44 7700 900123
+
+PROFESSIONAL SUMMARY
+Data analyst with eight years turning messy operational data into weekly decisions for retail and logistics teams.
+
+PROFESSIONAL EXPERIENCE
+Senior Data Analyst | Harrowgate Logistics | Leeds | Mar 2021 – Present
+• Built the depot performance dashboard used by 40 site managers every Monday.
+• Cut the weekly reporting cycle from two days to three hours with dbt models.
+
+Data Analyst | Kestrel Retail Group | Manchester | Jun 2017 – Feb 2021
+• Forecast store demand for 120 branches and reduced stockouts by 18%.
+
+Junior Analyst | Ambleside Insurance | York | Sep 2015 – May 2017
+• Maintained the claims data mart and monthly loss reports.
+
+EDUCATION
+BSc Mathematics | University of Leeds | 2015
+
+SKILLS
+SQL, Python, dbt, Tableau, Power BI, Forecasting, Excel, Snowflake
