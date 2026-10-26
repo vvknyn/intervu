@@ -20,7 +20,7 @@ export function Dismissible({ onDismiss, dismissTestId, children }: { onDismiss:
                 aria-label="Dismiss"
                 data-testid={dismissTestId}
                 onClick={onDismiss}
-                className="ctl-sm ctl-button ctl-square mt-[3px] inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="ctl-sm ctl-button ctl-square mt-0.75 inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
                 <X size={16} weight="bold" aria-hidden />
             </button>
