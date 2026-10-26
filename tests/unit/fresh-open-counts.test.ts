@@ -90,31 +90,46 @@ describe("fetchRelatedCompanies", () => {
     assert.equal(relatedHeading(f), "Also hiring in Germany");
   });
   describe("industry rung", () => {
-    const wd = (...industries: string[]) => ({ wikidataIndustries: [{ label: "x", industries }] });
+    const item = (label: string, ...industries: string[]) => ({ label, industries });
+    const entry = (domain: string, memo: number, ...items: ReturnType<typeof item>[]) => ({ ...co(domain, memo), ...(items.length && { wikidataIndustries: items }) });
     const dir = [
-      { ...co("self.com", 10), ...wd("logistics", "Freight") },
-      { ...co("haul.io", 5), ...wd("freight") },
-      { ...co("shipall.com", 3), ...wd("Logistics", "freight") },
-      { ...co("bakery.com", 99), ...wd("food") },
-      { ...co("plain.com", 50) },
+      entry("self.com", 10, item("self", "logistics", "freight")),
+      entry("haul.io", 5, item("haul", "freight")),
+      entry("shipall.com", 3, item("shipall", "Logistics", "freight")),
+      entry("bakery.com", 99, item("bakery", "food")),
+      entry("split.com", 70, item("split", "logistics"), item("split", "retail")),
+      entry("plain.com", 50),
     ];
     const noSearch = async () => { throw new Error("industry rung must not search"); };
-    const run = (f: CompanyFacts, d = dir) => fetchRelatedCompanies(f, noSearch, async () => d, async () => new Map());
-    const mixOnly = (domain: string, countries?: string) => ({ identity: { domain }, mix: countries ? { countries: { buckets: [{ value: countries }] } } : {} }) as unknown as CompanyFacts;
-    it("lists companies sharing an industry, most shared first, with no search, when there is no skill or tech", async () => {
-      const r = await run(mixOnly("self.com", "Germany"));
-      assert.deepEqual(r!.companies.map((c) => c.domain), ["shipall.com", "haul.io"]);
+    const facts = (domain: string, country = "Germany") => ({ identity: { domain, name: domain.split(".")[0] }, mix: { countries: { buckets: [{ value: country }] } } }) as unknown as CompanyFacts;
+    const run = (f: CompanyFacts, d: ReturnType<typeof entry>[] = dir) => fetchRelatedCompanies(f, noSearch, async () => d, async () => new Map());
+    it("names the first industry a peer has and lists only companies that have it, most shared first", async () => {
+      const r = await run(facts("self.com"));
       assert.equal(relatedHeading(r!.facet), "Other Logistics companies hiring");
+      assert.deepEqual(r!.companies.map((c) => c.domain), ["shipall.com"]);
+    });
+    it("excludes a company that shares only a secondary label, and one whose items disagree on the label", async () => {
+      const r = await run(facts("self.com"));
+      assert.ok(!r!.companies.some((c) => ["haul.io", "split.com"].includes(c.domain)));
+    });
+    it("moves to the next label when the first has no peer", async () => {
+      const r = await run(facts("niche.com"), [entry("niche.com", 1, item("niche", "tugboats", "food")), ...dir]);
+      assert.equal(relatedHeading(r!.facet), "Other Food companies hiring");
+      assert.deepEqual(r!.companies.map((c) => c.domain), ["bakery.com"]);
     });
     it("gives two same-country companies different lists", async () => {
-      const d = [...dir, { ...co("oven.com", 1), ...wd("Food") }];
-      const a = await run(mixOnly("self.com", "Germany"), d);
-      const b = await run(mixOnly("bakery.com", "Germany"), d);
+      const a = await run(facts("self.com"));
+      const b = await run(facts("bakery.com"), [...dir, entry("oven.com", 1, item("oven", "Food"))]);
       assert.deepEqual(b!.companies.map((c) => c.domain), ["oven.com"]);
       assert.notDeepEqual(a!.companies.map((c) => c.domain), b!.companies.map((c) => c.domain));
     });
+    it("skips to the country when the company's own items disagree", async () => {
+      const mixed = entry("mixed.com", 1, item("mixed", "logistics"), item("mixed", "retail"));
+      const r = await fetchRelatedCompanies(facts("mixed.com"), async () => ({ hits: [{ company_domain: "bakery.com" }] }) as never, async () => [mixed, ...dir], async () => new Map());
+      assert.deepEqual(r!.facet, { key: "location_country", value: "Germany" });
+    });
     it("falls to the country when the company has no industries", async () => {
-      const r = await fetchRelatedCompanies(mixOnly("plain.com", "Germany"), search, set, async () => new Map());
+      const r = await fetchRelatedCompanies(facts("plain.com"), search, set, async () => new Map());
       assert.deepEqual(r!.facet, { key: "location_country", value: "Germany" });
     });
   });

@@ -5,6 +5,7 @@ import type { OpenCount } from "./open-count";
 import type { CompanyFacts } from "./company-facts";
 import { searchJobs } from "@/lib/jobs/search";
 import { categoryLabel } from "./machine-token";
+import { pickWikidata } from "./exhaust";
 import type { FacetKey, JobSearchParams, JobSearchResult } from "@/lib/jobs/types";
 
 export const RELATED_LIMIT = 6;
@@ -36,33 +37,50 @@ export type RelatedFacet = { key: FacetKey | "industry"; value: string };
 
 const industryKey = (label: string) => label.trim().toLowerCase();
 
-/** The distinct Wikidata industry labels of a directory entry, keyed case-insensitively to the first spelling. */
-function industriesOf(c: { wikidataIndustries?: readonly WikidataItem[] }): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const label of c.wikidataIndustries?.flatMap((i) => i.industries) ?? []) if (industryKey(label)) out.set(industryKey(label), label);
-  return out;
-}
+/** The industry related companies share, and one hit per industry label each peer shares with this company. */
+export interface IndustryPeers { value: string; hitDomains: string[] }
 
-/** The rungs tried in order; the first with a value is the fact related companies share. `industries` are this company's own directory labels. */
-const FACET_LADDER: readonly { key: RelatedFacet["key"]; top: (facts: CompanyFacts, industries: ReadonlyMap<string, string>) => string | undefined }[] = [
-  { key: "must_have_skills", top: (f) => f.mix.skills?.buckets[0]?.value },
-  { key: "tech_stack", top: (f) => f.mix.tech?.buckets[0]?.value },
-  { key: "industry", top: (_, i) => [...i.values()][0] && categoryLabel([...i.values()][0]!) },
-  { key: "location_country", top: (f) => f.mix.countries?.buckets[0]?.value },
-];
-
-/** The fact related companies share: the top stamped skill, else the top tech, else the company's first Wikidata industry, else the top country. */
-export function relatedFacet(facts: CompanyFacts, industries: ReadonlyMap<string, string> = new Map()): RelatedFacet | null {
-  for (const { key, top } of FACET_LADDER) {
-    const value = top(facts, industries);
-    if (value) return { key, value };
+/**
+ * Pure: this company's industries are those of the Wikidata item the page itself uses (`pickWikidata`, as the sector does),
+ * none when the items disagree. The named industry is the first of them that a peer also has; a peer qualifies only when
+ * EVERY Wikidata item on its entry lists that label, so an ambiguous identity can never make the heading false.
+ * Null when no label has a peer.
+ */
+export function industryPeers(
+  items: readonly WikidataItem[],
+  displayName: string,
+  indexable: readonly IndexableCompanyDomain[],
+  self: string,
+): IndustryPeers | null {
+  const own = pickWikidata(items, displayName, (i) => (i.industries.length ? i.industries : null))?.value ?? [];
+  const ownKeys = new Set(own.map(industryKey));
+  const sharedByAll = (c: IndexableCompanyDomain) => {
+    const lists = (c.wikidataIndustries ?? []).map((i) => new Set(i.industries.map(industryKey)));
+    return lists.length ? [...ownKeys].filter((k) => lists.every((l) => l.has(k))) : [];
+  };
+  const peers = indexable.filter((c) => c.domain !== self).map((c) => ({ domain: c.domain, shared: sharedByAll(c) }));
+  for (const label of own) {
+    const named = peers.filter((p) => p.shared.includes(industryKey(label)));
+    if (named.length) return { value: categoryLabel(label), hitDomains: named.flatMap((p) => p.shared.map(() => p.domain)) };
   }
   return null;
 }
 
-/** One entry per industry label `self` shares with each other company, so `buildRelatedCompanies` ranks by shared industries. */
-export function industryHitDomains(self: ReadonlyMap<string, string>, indexable: readonly (IndexableCompanyDomain)[]): string[] {
-  return indexable.flatMap((c) => [...industriesOf(c).keys()].filter((k) => self.has(k)).map(() => c.domain));
+/** The rungs tried in order; the first with a value is the fact related companies share. */
+const FACET_LADDER: readonly { key: RelatedFacet["key"]; top: (facts: CompanyFacts, industry: string | undefined) => string | undefined }[] = [
+  { key: "must_have_skills", top: (f) => f.mix.skills?.buckets[0]?.value },
+  { key: "tech_stack", top: (f) => f.mix.tech?.buckets[0]?.value },
+  { key: "industry", top: (_, industry) => industry },
+  { key: "location_country", top: (f) => f.mix.countries?.buckets[0]?.value },
+];
+
+/** The fact related companies share: the top stamped skill, else the top tech, else the named Wikidata industry (see `industryPeers`), else the top country. */
+export function relatedFacet(facts: CompanyFacts, industry?: string): RelatedFacet | null {
+  for (const { key, top } of FACET_LADDER) {
+    const value = top(facts, industry);
+    if (value) return { key, value };
+  }
+  return null;
 }
 
 /** The heading states the fact the list is built on, never a relationship the data does not establish. */
@@ -104,11 +122,12 @@ export async function fetchRelatedCompanies(
 ): Promise<RelatedCompanies | null> {
   try {
     const set = await indexable();
-    const own = industriesOf(set.find((c) => c.domain === facts.identity.domain) ?? {});
-    const facet = relatedFacet(facts, own);
+    const self = set.find((c) => c.domain === facts.identity.domain);
+    const industry = industryPeers(self?.wikidataIndustries ?? [], facts.identity.name, set, facts.identity.domain);
+    const facet = relatedFacet(facts, industry?.value);
     if (!facet) return null;
     const hitDomains = facet.key === "industry"
-      ? industryHitDomains(own, set)
+      ? industry!.hitDomains
       : (await search({ facets: { [facet.key]: [facet.value] }, limit: 200, hideGhosts: false })).hits.map((j) => j.company_domain ?? "");
     const selected = buildRelatedCompanies(hitDomains, set, facts.identity.domain);
     const companies = withFreshCounts(selected, await readCounts(selected.map((c) => c.domain)));
