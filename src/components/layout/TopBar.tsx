@@ -14,7 +14,7 @@ import { PlanEndingNotice } from "@/components/layout/PlanEndingNotice";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
 import { SolidBadge } from "@/components/ui/badge";
-import { chipVariants, ChipDismiss } from "@/components/ui/chip";
+import { chipVariants, ChipDismiss, CHIP_SCROLL_ROW } from "@/components/ui/chip";
 import { TabItem, TabNav } from "@/components/ui/tabs";
 import { NAV_TABS, RESUME_TAB } from "@/components/layout/nav-tabs";
 import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
@@ -233,8 +233,8 @@ export function TopBar() {
             {/* Second row — active filters only. */}
             {docked && (
                 <div data-region="band" className="hidden lg:block">
-                    {/* Wrap instead of horizontal scroll; chips never truncate. */}
-                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip">
+                    {/* One scrolling line (CHIP_SCROLL_ROW); chips never truncate or wrap. */}
+                    <div className={cn("shell-row box-border w-full min-h-[var(--jobs-filter-row-h)]", CHIP_SCROLL_ROW)}>
                         {docked && (
                             <>
                                 <button
@@ -260,7 +260,7 @@ export function TopBar() {
                                 <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
                                 {docked.chips.length > 0 && (
                                     <>
-                                        <div data-testid="topbar-docked-active-filters" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+                                        <div data-testid="topbar-docked-active-filters" className="flex shrink-0 items-center gap-2">
                                             {docked.chips.map((chip) => (
                                                 <span
                                                     key={chip.key}
@@ -281,7 +281,7 @@ export function TopBar() {
                                 )}
                                 <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
                                 <div className="min-w-0 flex-1" aria-hidden />
-                                <div data-testid="topbar-docked-save-search" className="flex min-w-0 max-w-full flex-wrap items-center gap-2" />
+                                <div data-testid="topbar-docked-save-search" className="flex min-w-0 max-w-full items-center gap-2" />
                                 <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
                                 <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />
                             </>

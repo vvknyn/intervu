@@ -10,6 +10,12 @@ import { cn } from "@/lib/utils";
  *  so one ch token rendered two widths. */
 export const READING_MEASURE = "max-w-[28rem]";
 
+/** The measure of a job description, a document read inside a pane: 52rem ~ 105
+ *  characters of 16px text, LinkedIn's line length. Wider than READING_MEASURE
+ *  (an article column) because the pane is the measure; the pane's own width
+ *  caps it on narrower screens. */
+export const DOCUMENT_MEASURE = "max-w-[52rem]";
+
 export function Prose({ className, ...props }: React.ComponentProps<"article">) {
   return (
     <article

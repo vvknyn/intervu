@@ -1,4 +1,4 @@
-import type { CompanyExhaust, IntegrityFacts } from "./exhaust";
+import type { CadenceFacts, CompanyExhaust, ExhaustSection, IntegrityFacts } from "./exhaust";
 import { formatCount } from "@/lib/format";
 
 /**
@@ -67,4 +67,24 @@ export function hiringRecordSentence(facts: IntegrityFacts, nowMs: number): stri
  */
 export function exhaustHiringRecord(exhaust: CompanyExhaust | null | undefined, nowMs: number): string | null {
   return exhaust?.integrity ? hiringRecordSentence(exhaust.integrity.data, nowMs) : null;
+}
+
+/** Whether `CompanyCadenceStrip` draws anything (see `verdictBandHasContent`); the one rule for /co and job pages. */
+export function cadenceStripHasContent(
+  cadence: ExhaustSection<CadenceFacts> | undefined,
+): cadence is NonNullable<ExhaustSection<CadenceFacts>> {
+  return !!cadence && cadence.data.weeks.length > 0;
+}
+
+/** What a job page draws of the employer's record: the sentence (it carries "closed") and the weekly opened bars. */
+export interface HiringRecordView {
+  sentence: string | null;
+  cadence: ExhaustSection<CadenceFacts>;
+}
+
+/** The sentence and the weekly bars from one box read; null when it has neither (a cadence without weeks draws nothing). */
+export function exhaustHiringRecordView(exhaust: CompanyExhaust | null | undefined, nowMs: number): HiringRecordView | null {
+  const sentence = exhaustHiringRecord(exhaust, nowMs);
+  const cadence = cadenceStripHasContent(exhaust?.cadence) ? exhaust.cadence : null;
+  return sentence || cadence ? { sentence, cadence } : null;
 }

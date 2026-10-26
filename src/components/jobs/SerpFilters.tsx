@@ -16,6 +16,7 @@ import {
     TOP_N,
     YEARS_EXPERIENCE_PRESETS,
     distributionTaggedShare,
+    taggedShareCaption,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
 
@@ -28,7 +29,7 @@ export const DATE_POSTED_SHORT_LABELS: Partial<Record<PostedBucket, string>> = {
     older: "Older than 90 days",
 };
 
-export function facetOptions(
+function facetOptions(
     distribution: FacetDistribution | undefined,
     selected: string[],
     key: FacetKey,
@@ -106,14 +107,12 @@ export function parseSalaryMinDraft(draft: string): number | null {
  * filters on a floor. Local draft state so typing doesn't fight the
  * controlled `salaryMin` prop on every keystroke; commits on blur/Enter,
  * and stays in sync when a preset click changes `salaryMin` externally.
- * Exported so both SerpFilters' own Salary group and FacetBar's Salary chip
- * (a presentation of this same filter, not a second one) mount it.
  */
 /** Error copy shows only what the digit keypad (inputMode="numeric") can type;
  *  the parser still accepts "120k" / "$120,000" from a desktop keyboard or paste. */
 export const SALARY_MIN_ERROR = "Enter an amount like 120000.";
 
-export function SalaryCustomMinInput({
+function SalaryCustomMinInput({
     salaryMin,
     onSalaryMin,
 }: {
@@ -302,8 +301,8 @@ export function SerpFilters({
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
             ? `Hide possibly stale (−${ghostHiddenCount.toLocaleString()})`
             : "Hide possibly stale";
-    const workShare = distributionTaggedShare(distribution?.work_type, resultTotal ?? 0);
-    const visaShare = distributionTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0);
+    const workCaption = taggedShareCaption(distributionTaggedShare(distribution?.work_type, resultTotal ?? 0), "work");
+    const visaCaption = taggedShareCaption(distributionTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0), "visa");
 
     return (
         <>
@@ -350,7 +349,7 @@ export function SerpFilters({
                     resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
-                    caption={workShare != null ? `work mode is tagged on ~${Math.round(workShare * 100)}% of roles` : undefined}
+                    caption={workCaption}
                 />
 
                 <FacetGroup
@@ -382,12 +381,12 @@ export function SerpFilters({
                             target), matching the old sibling <p>'s behavior. */}
                         <span className="flex flex-col gap-0.5">
                             <span>Sponsors visas</span>
-                            {visaShare != null && (
+                            {visaCaption && (
                                 <span
                                     onClick={(e) => e.stopPropagation()}
                                     className="text-xs leading-snug text-muted-foreground"
                                 >
-                                    sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
+                                    {visaCaption}
                                 </span>
                             )}
                         </span>

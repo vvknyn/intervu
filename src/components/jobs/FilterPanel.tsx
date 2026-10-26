@@ -172,27 +172,9 @@ export function facetKeyLabel(key: FacetKey): string {
     );
 }
 
-/**
- * The active filters a caller has to name for itself, because the FacetBar
- * has no control for them (`facetBarRepresents`, FacetBar.tsx). Splitting on
- * ":" recovers the facet key from an `activeFilterEntries` entry key
- * (`"location_country:Bangalore"`); non-facet entries ("salaryMin",
- * "visaOnly", …) have no colon and compare whole.
- *
- * Pure and generic over the entry shape so the toolbar can pass its own
- * already-hoisted `activeEntries` rather than recomputing, and so this is
- * testable without rendering anything.
- */
-export function entriesNeedingOwnChip<T extends { key: string }>(
-    entries: readonly T[],
-    represented: ReadonlySet<string>,
-): T[] {
-    return entries.filter((e) => !represented.has(e.key.split(":")[0]));
-}
-
-/** Chip text for one such entry. A facet entry names its key ("Location ·
- *  Bangalore") because with no dropdown on the bar nothing else on screen
- *  says WHICH filter the value belongs to; the non-facet entries already
+/** Chip text for one active entry. A facet entry names its key ("Location ·
+ *  Bangalore") because nothing else on the chip says WHICH filter the value
+ *  belongs to; the non-facet entries already
  *  read as complete phrases ("Sponsors visas"), so they're left alone. */
 export function chipLabelForEntry(entry: { key: string; label: string }): string {
     const [head, ...rest] = entry.key.split(":");
@@ -501,6 +483,24 @@ export function distributionTaggedShare(
     if (!dist) return null;
     const tagged = Object.entries(dist).reduce((sum, [k, v]) => sum + (k === "unknown" ? 0 : v), 0);
     return taggedShare(tagged, resultTotal);
+}
+
+const TAGGED_SHARE_COPY = {
+    work: { lead: "work mode is tagged on", subject: "work mode" },
+    visa: { lead: "sponsorship info exists on", subject: "sponsorship info" },
+} as const;
+
+/**
+ * The one caption for a sparse filter ("how many of these roles carry this
+ * data"), so no facet can print "~0% of roles": none tagged says so, under
+ * half a percent says "under 1%", anything else is "~N%". `undefined` (no
+ * caption) when the share is `null`, same as `distributionTaggedShare`.
+ */
+export function taggedShareCaption(share: number | null, kind: keyof typeof TAGGED_SHARE_COPY): string | undefined {
+    if (share === null) return undefined;
+    const { lead, subject } = TAGGED_SHARE_COPY[kind];
+    if (share === 0) return `no roles here list ${subject}`;
+    return `${lead} ${share < 0.005 ? "under 1%" : `~${Math.round(share * 100)}%`} of roles`;
 }
 
 /**

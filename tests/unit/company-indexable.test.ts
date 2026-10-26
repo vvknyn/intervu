@@ -12,6 +12,7 @@ import { buildCompanyFacts, type CompanyFacts } from "@/lib/companies/company-fa
 import {
   buildCompanyPageMetadata,
   companyMetaDescription,
+  companyMetaTitle,
   openCountText,
   sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
@@ -28,6 +29,12 @@ process.env.MEILISEARCH_HOST = "https://meili.test";
  *  depends on a role's contents, so they stay deliberately empty. */
 function roles(n: number): PublicJob[] {
   return Array.from({ length: n }, (_, i) => ({ id: `job-${i}` })) as unknown as PublicJob[];
+}
+
+/** N roles last checked `ageDays` before `nowMs`, for the freshness-dependent copy. */
+function checkedRoles(n: number, nowMs: number, ageDays: number): PublicJob[] {
+  const at = new Date(nowMs - ageDays * 86_400_000).toISOString();
+  return roles(n).map((j) => ({ ...j, ghost_checked_at: at }) as PublicJob);
 }
 
 /** Facts for a company whose box/facet data is as given: a stated country and
@@ -166,15 +173,41 @@ describe("/co/[slug] presentation — numbers the page can actually back", () =>
     assert.equal(openCountText({ openCount: 12, openCountIsLowerBound: false }), "12");
   });
 
-  it("says 'at least' in the meta description when the count is a floor", () => {
-    assert.match(
-      companyMetaDescription(company({ openCount: 200, openCountIsLowerBound: true })),
-      /has at least 200 live, verified open roles/,
-    );
-    assert.match(
-      companyMetaDescription(company({ jobs: roles(12), openCount: 12 })),
-      /has 12 live, verified open roles/,
-    );
+  const NOW = Date.parse("2026-10-26T12:00:00Z");
+  const fresh = (n: number, over: Partial<CompanyPageData> = {}) =>
+    company({ name: "Orbital Widgets", nowMs: NOW, jobs: checkedRoles(n, NOW, 0), openCount: n, ...over });
+  const stale = (n: number, over: Partial<CompanyPageData> = {}) =>
+    company({ name: "Orbital Widgets", nowMs: NOW, jobs: checkedRoles(n, NOW, 40), openCount: n, ...over });
+
+  it("says 'at least' in the meta description when the count is a floor, fresh", () => {
+    assert.match(companyMetaDescription(fresh(200, { openCountIsLowerBound: true })), /has at least 200 live, verified open roles/);
+    assert.match(companyMetaDescription(fresh(12)), /has 12 live, verified open roles/);
+  });
+
+  it("a stale company's meta description and title drop 'live'/'verified' and give the last-checked date", () => {
+    const meta = companyMetaDescription(stale(12));
+    assert.doesNotMatch(meta, /live|verified/i);
+    assert.match(meta, /^Orbital Widgets has 12 open roles listed on Velai, last checked Sep\s16,\s2026, screened/);
+    assert.doesNotMatch(companyMetaTitle(stale(12)), /live|verified/i);
+    assert.match(companyMetaTitle(fresh(12)), /Live verified jobs/);
+  });
+
+  it("a stale lower-bound count keeps 'at least' and no freshness claim", () => {
+    const meta = companyMetaDescription(stale(200, { openCountIsLowerBound: true }));
+    assert.match(meta, /has at least 200 open roles listed/);
+    assert.doesNotMatch(meta, /live|verified/i);
+  });
+
+  it("roles with no check stamp claim no freshness and no date", () => {
+    const meta = companyMetaDescription(company({ name: "Orbital Widgets", jobs: roles(1), openCount: 1 }));
+    assert.match(meta, /^Orbital Widgets has 1 open role listed on Velai, screened/);
+  });
+
+  it("the zero-roles line claims no freshness", () => {
+    const meta = companyMetaDescription(fresh(0, { jobs: [] }));
+    assert.doesNotMatch(meta, /live|verified/i);
+    assert.match(meta, /Orbital Widgets/);
+    assert.doesNotMatch(companyMetaTitle(fresh(0, { jobs: [] })), /^$/);
   });
 
   it("knows when the fetched sample covers only a window, not the whole employer", () => {
