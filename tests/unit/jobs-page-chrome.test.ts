@@ -163,26 +163,20 @@ describe("jobs page chrome guards", () => {
         assert.match(actionsSrc, /const DEFAULT_BROWSE_LIMIT = 20;/);
     });
 
-    it("FacetBar is not gated behind !showLandingMarketing", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.doesNotMatch(src, /!showLandingMarketing\s*&&\s*\(\s*\n?\s*<FacetBar/);
-        assert.doesNotMatch(src, /!showLandingMarketing\s*&&\s*<FacetBar/);
-    });
-
     it("does not render LandingUspSection on the page", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.doesNotMatch(src, /<LandingUspSection/);
     });
 
-    it("signed-out TopBar: one Sign in + Create account pair on every surface; one auth system", () => {
+    it("signed-out TopBar: one quiet Sign in on every surface; one auth system", () => {
         const src = readFileSync(TOPBAR, "utf8");
         const start = src.indexOf('authChrome === "pending"');
         assert.notStrictEqual(start, -1, "auth chrome branch not found in TopBar");
         const authBlock = src.slice(start, src.indexOf("<AuthPopover"));
         assert.match(authBlock, /topbar-signin/);
-        assert.match(authBlock, /topbar-create-account/);
+        assert.doesNotMatch(authBlock, /topbar-create-account/);
         assert.doesNotMatch(src, /topbar-alerts-cta/);
-        assert.doesNotMatch(authBlock, /leanSurface/, "the auth pair does not vary by surface");
+        assert.doesNotMatch(authBlock, /leanSurface/, "the auth entry does not vary by surface");
         // The defect this replaced was a SECOND auth component rendering its
         // own session check and its own button beside the popover's, so the
         // two could disagree on screen. Naming the old component here would
@@ -233,12 +227,9 @@ describe("jobs page chrome guards", () => {
         assert.doesNotMatch(splash, /text-\[11px\]/);
     });
 
-    it("sort segments portal into the docked TopBar filter row", () => {
+    it("Sort is no longer portalled into the docked TopBar: it lives on the results line", () => {
         const page = readFileSync(PAGE, "utf8");
-        const topbar = readFileSync(TOPBAR, "utf8");
-        assert.match(topbar, /data-testid="topbar-docked-sort"/);
-        assert.match(page, /topbar-docked-sort/);
-        assert.match(page, /createPortal\(\s*sortEl/);
+        assert.doesNotMatch(page, /topbar-docked-sort|createPortal\(\s*sortEl/);
     });
 
     it("browse-by-field portals into the docked TopBar filter row", () => {
@@ -253,10 +244,8 @@ describe("jobs page chrome guards", () => {
         // search panel (`savedSearchControl`) — not `savedSearchControl`
         // alone, so a résumé-less guest sees the entry even when
         // `canSaveSearch` is false and `savedSearchControl` is null.
-        assert.match(page, /createPortal\(savedSearchMountEl/);
-        assert.match(page, /savedSearchMountEl\s*=\s*rankByFitEl \|\| savedSearchControl/);
+        assert.doesNotMatch(page, /savedSearchMountEl|topbar-docked-save-search/);
         assert.match(topbar, /data-testid="topbar-docked-clear-filters"/);
-        assert.match(topbar, /data-testid="topbar-docked-save-search"/);
         const dockedRow = topbar.slice(
             topbar.indexOf('data-testid="topbar-docked-filters-toggle"'),
             topbar.indexOf('data-testid="topbar-docked-extras"'),
@@ -363,14 +352,14 @@ describe("jobs page chrome guards", () => {
 
     it("deduplicates save search when the toolbar row is showing", () => {
         const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /!showJobsToolbarRow && savedSearchControl/);
+        assert.doesNotMatch(src, /!showJobsToolbarRow && savedSearchControl/);
+        assert.match(src, /\{savedSearchControl\}/);
     });
 
-    it("mounts FacetBar as the in-page applied-chip rail, not FilterChipsRow", () => {
+    it("has no facet dropdown bar: Filters is the one entry point", () => {
         const src = readFileSync(PAGE, "utf8");
         const toolbar = src.slice(src.indexOf('data-testid="jobs-toolbar"'), src.indexOf('data-testid="active-filter-row"'));
-        assert.match(toolbar, /facetBarEl/);
-        assert.doesNotMatch(toolbar, /<FilterChipsRow/);
+        assert.doesNotMatch(toolbar, /facetBarEl|<FilterChipsRow/);
     });
 
     it("mounts the filter toolbar before Browse by field on the landing", () => {

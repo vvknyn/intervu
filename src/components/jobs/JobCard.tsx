@@ -36,6 +36,7 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
+import { Badge } from "@/components/ui/badge";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
 import { formatCardPlace, presentJob } from "@/lib/presentation";
@@ -150,6 +151,9 @@ export function JobCard({
     const hires = hiresNoteOf(matchScore);
     // A plain "Remote" reads "Remote (Canada)" when its posting limits it to a place its fields leave out (remote-scope.ts).
     const scope = remoteScope(job);
+    const shownPlace = withRemoteScope(place, scope);
+    // A tooltip may only add what the row does not show: the posting's own words for a scope, or a raw location that reads differently from the formatted place.
+    const placeTitle = scope ? `The posting says: “${scope.quote}”` : job.location && job.location !== shownPlace ? job.location : undefined;
     // A4 (soft-surfaces): the row's only "active" signal is the ABSENCE of
     // an exceptionMark — "review"/"ghost"/"relisted" verdicts surface via
     // `exceptionMark` above (rowExceptionMark, the single chokepoint for
@@ -273,7 +277,6 @@ export function JobCard({
                     floating beside it (2026-10-02). */}
                 <div
                     data-testid="job-row-meta"
-                    title={[presented.company.name, locationKnown && withRemoteScope(place, scope)].filter(Boolean).join(" · ")}
                     className="mt-1 line-clamp-2 text-left text-sm text-muted-foreground"
                 >
                     <DotSeparated
@@ -302,8 +305,8 @@ export function JobCard({
                                 <span>{presented.company.name}</span>
                             ),
                             locationKnown && (
-                                <span data-testid="job-location" title={scope ? `The posting says: “${scope.quote}”` : job.location ?? undefined}>
-                                    {withRemoteScope(place, scope)}
+                                <span data-testid="job-location" title={placeTitle}>
+                                    {shownPlace}
                                 </span>
                             ),
                         ]}
@@ -318,7 +321,8 @@ export function JobCard({
                     the facts (instead of a second row) is what keeps the
                     comfortable row inside the rulebook's 96-112px band. */}
                 {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0 || hires) && (
-                    <div className="mt-1 flex flex-wrap items-baseline text-sm text-muted-foreground">
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                        <span>
                         <MetaLine
                             items={[
                                 ...factChips.map((c) => (
@@ -327,13 +331,6 @@ export function JobCard({
                                     </span>
                                 )),
                                 hires && <HiresInWord note={hires} />,
-                                // "New" reads the SAME 7-day `classifyPostingFreshness`
-                                // window everything else on the row already uses.
-                                freshness.kind === "fresh" && (
-                                    <span data-testid="freshness-badge" className="font-semibold text-muted-foreground">
-                                        New
-                                    </span>
-                                ),
                                 // "+N location(s)"/"+N opening(s)" joins the same
                                 // flowing meta line as plain text (rulebook item k)
                                 // instead of a boxed chip — still the cluster
@@ -353,6 +350,9 @@ export function JobCard({
                                 ),
                             ]}
                         />
+                        </span>
+                        {/* "New" (the row's one 7-day freshness rule) as a quiet squared hairline chip. */}
+                        {freshness.kind === "fresh" && <NewMark />}
                     </div>
                 )}
                 {reasonLine && (
@@ -399,5 +399,14 @@ export function JobCard({
             </span>
             </div>
         </div>
+    );
+}
+
+/** The row's "New" mark as a squared hairline chip: `Badge` (the word primitive) boxed. */
+function NewMark() {
+    return (
+        <Badge data-testid="freshness-badge" className="mono-data rounded-none border border-border-subtle px-1.5 py-0.5 font-normal leading-none text-muted-foreground">
+            New
+        </Badge>
     );
 }

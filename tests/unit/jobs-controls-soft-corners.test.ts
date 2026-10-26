@@ -94,7 +94,7 @@ describe("jobs header and filter band", () => {
     it("TopBar filter band keeps --jobs-filter-row-h", () => {
         const topBar = readFileSync(TOP_BAR, "utf8");
         const bandRow =
-            topBar.match(/data-region="band"[\s\S]*?<div className="shell-row[^"]*"/)?.[0] ?? "";
+            topBar.match(/data-region="band"[\s\S]*?<div className=\{cn\("shell-row[^"]*"/)?.[0] ?? "";
         assert.ok(bandRow.length > 0, "band row not found");
         assert.match(
             bandRow,

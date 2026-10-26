@@ -1,9 +1,10 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { ArrowSquareOut, X } from "@phosphor-icons/react";
+import { ArrowSquareOut } from "@phosphor-icons/react";
 import { BrandMark, HEADER_MARK_SRC } from "@/components/brand/BrandMark";
 import { Button } from "@/components/ui/button";
+import { Dismissible } from "@/components/ui/dismissible";
 import {
     CHROME_EXTENSION_NAME,
     CHROME_EXTENSION_STORE_URL,
@@ -55,19 +56,12 @@ export function ExtensionTile({ className }: { className?: string }) {
             data-testid="extension-tile"
             data-variant="band"
             className={cn(
-                "surface-paper flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-border bg-surface-postcard px-3 py-2 text-surface-postcard-foreground",
+                "surface-paper rounded-panel border border-border bg-surface-postcard px-3 py-2 text-surface-postcard-foreground",
                 className,
             )}
         >
-            <BrandMark src={HEADER_MARK_SRC} className="h-6 w-6 shrink-0" pixelSize={24} />
-            <p className="min-w-[14rem] flex-1 text-sm">{CHROME_EXTENSION_NAME} checks the role before you apply</p>
-            <Button asChild size="sm" className="shrink-0">
-                {ADD_TO_CHROME_LINK}
-            </Button>
-            <button
-                type="button"
-                aria-label="Dismiss"
-                onClick={() => {
+            <Dismissible
+                onDismiss={() => {
                     try {
                         localStorage.setItem(EXTENSION_BAND_DISMISSED_KEY, "1");
                     } catch {
@@ -76,10 +70,17 @@ export function ExtensionTile({ className }: { className?: string }) {
                     bandDismissedThisVisit = true;
                     bandListeners.forEach((cb) => cb());
                 }}
-                className="ctl-md ctl-button ctl-square inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-                <X size={16} weight="bold" aria-hidden />
-            </button>
+                <div className="flex items-start gap-3">
+                    <BrandMark src={HEADER_MARK_SRC} className="mt-1 h-6 w-6 shrink-0" pixelSize={24} />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+                        <p className="min-w-[12rem] flex-1 text-sm">{CHROME_EXTENSION_NAME} checks the role before you apply</p>
+                        <Button asChild size="sm" className="shrink-0">
+                            {ADD_TO_CHROME_LINK}
+                        </Button>
+                    </div>
+                </div>
+            </Dismissible>
         </section>
     );
 }

@@ -77,28 +77,17 @@ for (const path of ["/", "/jobs", "/jobs?q=engineer"]) {
 }
 
 // The mobile project is 390 wide; the common narrower phones are 375 and 360,
-// and 320 is the narrowest still in use. There the toolbar fits only because
-// the posted chip drops its "Posted · " (still read out by screen readers).
+// and 320 is the narrowest still in use. There the toolbar fits because it is
+// one Filters pill plus a sideways-scrolling chip row.
 for (const width of [375, 360, 320]) {
     for (const path of ["/jobs", "/jobs?q=engineer"]) {
         test(`on a ${width}px phone no wrapping row on ${path} strands its last control`, { tag: ["@J-NAV-41"] }, async ({ page }, testInfo) => {
             test.skip(testInfo.project.name !== "mobile", "a phone width");
             await page.setViewportSize({ width, height: 800 });
             await openBoard(page, path);
-            const posted = page.getByTestId("facet-chip-posted").first();
-            await expect(posted).toBeVisible();
+            // One "Filters" pill is the only filter entry; the chip row scrolls sideways.
+            await expect(page.getByTestId("filters-toggle")).toBeVisible();
             expect(await strandedControls(page)).toEqual([]);
-            await expect(posted).toHaveAccessibleName(/^Posted · Past 3 months$/);
-            // What's on screen: text whose element is wider than sr-only's 1px.
-            const shown = await posted.evaluate((el) => {
-                const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-                let out = "";
-                for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-                    if ((n.parentElement?.getBoundingClientRect().width ?? 0) > 1) out += n.textContent;
-                }
-                return out.trim();
-            });
-            expect(shown).toBe("Past 3 months");
         });
     }
 }

@@ -2,28 +2,8 @@ import React from "react";
 import { SectionTitle } from "@/components/ui/heading";
 import { eventTypeLabel, humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent, CompanyChangeEventEvidence } from "@/lib/companies/types";
+import { eventDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-/**
- * "Aug 15, 2026" from an ISO-8601 stamp — same rules as the news card's
- * `articleDate` (always show the year; render in UTC so a viewer-local render
- * can't roll the date back a day). Returns null on an unparseable stamp so the
- * caller omits the line instead of printing "Invalid Date".
- *
- * The year matters more here than anywhere else on the page: "hiring has
- * stalled" reads as a statement about *now*, and a bare "Aug 15" on a
- * two-year-old freeze would be the page's most misleading line.
- */
-export function eventDate(iso: string): string | null {
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return null;
-  return new Date(ms).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 /** "14 May – 11 Jun 2026" from two calendar dates. Rendered in UTC and parsed
  *  from the plain `YYYY-MM-DD` the API sends, so the window a reader sees is

@@ -146,6 +146,15 @@ export const SIGNUP_GATE_ID_BY_REASON: Record<AuthGateReason, SignupGateId> = {
     generic: "generic",
 };
 
+/**
+ * The header's one auth entry (Sign in). Its popover carries a signup tab, so a
+ * signup finished there must report gate "header": record a "topbar" attempt,
+ * unless a gate attempt is already open (that earlier door keeps `first`).
+ */
+export function beginHeaderGateAttempt(storage: GateAttemptStorage, returnTo?: string): GateAttempt {
+    return readGateAttempt(storage) ?? beginGateAttempt(storage, { reason: "topbar", originSurface: "topbar", returnTo });
+}
+
 /** Shared payload fields for auth funnel events. */
 export interface GateAttemptEventFields {
     /** Gate the visitor last engaged before converting (from `last_gate_reason`). */

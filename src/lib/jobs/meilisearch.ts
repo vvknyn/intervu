@@ -37,6 +37,7 @@ import { titlePastSenior, withinSenior } from "./role-level";
 import { payPlace } from "./pay-place";
 import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause, salaryMinClause } from "./unknown-inclusive-facets";
+import { expandTitleQuery } from "./title-aliases";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
@@ -950,7 +951,7 @@ export function buildSearchBody(
     // Requiring every word is the honest default; `searchMeili` runs one
     // whole-document expand pass (`wholeDocument`) only after a strict/scoped
     // pass returns zero — never word-dropping (`matchingStrategy: "last"`),
-    // except tier 2 of `runTieredRetrieval`, which is weighted below tier 1.
+    // under any sort (Vivek 2026-10-26: every word, every sort).
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
@@ -964,6 +965,31 @@ export function buildSearchBody(
     ...(p.id ? {} : { attributesToRetrieve: [...JOB_LIST_ATTRIBUTES_TO_RETRIEVE] }),
     ...(opts?.rankingScoreDetails ? { showRankingScoreDetails: true } : {}),
   };
+}
+
+/** Federation weight of a title-alias query: under tier 1 (100, any real match), over tier 2 (1, any partial match). */
+const TITLE_ALIAS_WEIGHT = 10;
+const TITLE_ALIAS_QUERY_CAP = 8;
+
+/**
+ * Title-only queries for the other names of the typed occupation ("speech therapist" -> "speech-language
+ * pathologist", "slp", ...; `expandTitleQuery`). They widen the TITLE match only and sit between the tiers, so the
+ * typed title's own matches lead, then the same occupation under its other names, then partial whole-document
+ * matches. Tier 2 provenance: `tier1Total` counts the typed query's matches, so these sit after the seam.
+ * Known-value and unknown-inclusive variants follow `runTieredRetrieval`'s pairing (half weight for the latter).
+ */
+export function titleAliasSpecs(p: JobSearchParams) {
+  const aliases = expandTitleQuery(p.q ?? "").slice(1, 1 + TITLE_ALIAS_QUERY_CAP);
+  const details = resolveEffectiveSort(p) === "relevance" ? { rankingScoreDetails: true } : {};
+  const query = (q: string, opts: BuildSearchBodyOpts, weight: number) => {
+    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody({ ...p, q }, false, "all", { ...details, titleScoped: true, ...opts });
+    return { tier: 2 as const, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
+  };
+  return aliases.flatMap((alias) => {
+    const known = query(alias, { knownOnly: true }, TITLE_ALIAS_WEIGHT);
+    const inclusive = query(alias, {}, TITLE_ALIAS_WEIGHT * UNKNOWN_TIER_WEIGHT);
+    return JSON.stringify(inclusive.query.filter) !== JSON.stringify(known.query.filter) ? [known, inclusive] : [known];
+  });
 }
 
 /**
@@ -1170,24 +1196,30 @@ async function applySortIntegrityGuard(
 /** Weight multiplier for the unknown-inclusive query pair in `runTieredRetrieval`. */
 const UNKNOWN_TIER_WEIGHT = 0.5;
 
-async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
+/**
+ * The federated queries of a bare role query's tiered retrieval, in `queriesPosition` order. Known-value matches
+ * lead (tier weights 100 / 1). When a filter admits un-derived rows (unknown-inclusive-facets.ts), the same two
+ * scopes rerun with those rows included at half weight, so they rank after the known ones; federation dedupes by
+ * id keeping the best-weighted copy. Pure: the request is the decision, `runTieredRetrieval` only sends it.
+ */
+export function buildTieredQuerySpecs(p: JobSearchParams) {
   // Relevance order only: the details feed `preferNewerAmongCloseMatches`.
   const rankingScoreDetails = resolveEffectiveSort(p) === "relevance";
   const details = rankingScoreDetails ? { rankingScoreDetails } : {};
   const query = (opts: BuildSearchBodyOpts, weight: number, tier: 1 | 2) => {
-    // Tier 2 (whole document) drops trailing words: a partial match ranks below a full one
-    // (tier 1 weight) instead of disappearing. Ruling 2026-10-22, "return all search results
-    // ranked by relevance and fit". Decided here so both the known and unknown pairs agree.
-    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, opts.wholeDocument ? "last" : "all", { ...details, ...opts });
+    // Every word, every sort (Vivek 2026-10-26): tier 2 widens the fields searched, never the words dropped.
+    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, "all", { ...details, ...opts });
     return { tier, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
   };
-  // Known-value matches lead (tier weights 100 / 1). When a filter admits
-  // un-derived rows (unknown-inclusive-facets.ts), the same two scopes rerun
-  // with those rows included at half weight, so they rank after the known
-  // ones; federation dedupes by id keeping the best-weighted copy.
   const specs = [query({ knownOnly: true }, 100, 1), query({ wholeDocument: true, knownOnly: true }, 1, 2)];
   const inclusive = [query({}, UNKNOWN_TIER_WEIGHT * 100, 1), query({ wholeDocument: true }, UNKNOWN_TIER_WEIGHT, 2)];
   if (JSON.stringify(inclusive[0].query.filter) !== JSON.stringify(specs[0].query.filter)) specs.push(...inclusive);
+  specs.push(...titleAliasSpecs(p));
+  return specs;
+}
+
+async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
+  const specs = buildTieredQuerySpecs(p);
 
   const federatedBody = {
     federation: {

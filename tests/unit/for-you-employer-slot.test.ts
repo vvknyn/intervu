@@ -183,10 +183,7 @@ describe('the deck\'s count says roles and employers', () => {
         assert.equal(formatRolesAtEmployers(1, 1), '1 role');
         assert.equal(formatRolesAtEmployers(3, 1), '3 roles at 1 employer');
         assert.equal(formatRolesAtEmployers(1234, 600), '1,234 roles at 600 employers');
-        assert.equal(formatDeckShowingLine(12, 'fit', 7), '12 roles · ranked by fit');
-        assert.equal(formatDeckShowingLine(8, 'fit', 8), '8 roles · ranked by fit');
-        assert.equal(formatDeckShowingLine(8, 'fit'), '8 roles · ranked by fit');
-        assert.equal(formatDeckShowingLine(3, 'older', 1), '3 roles fit your résumé at 1 employer · all posted over 30 days ago');
-        assert.equal(formatDeckShowingLine(5, 'near', 2), '5 closest roles at 2 employers · each a weaker fit');
+        assert.equal(formatDeckShowingLine(12), '12 roles · ranked by fit');
+        assert.equal(formatDeckShowingLine(8), '8 roles · ranked by fit');
     });
 });

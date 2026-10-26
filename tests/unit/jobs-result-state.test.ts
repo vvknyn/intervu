@@ -10,6 +10,7 @@ import {
     resolveEmptySearchState,
     resolveJobsRenderMode,
     resolveJobsResultsPanel,
+    holdSavedSearchAbovePanel,
     resolveEndOfListState,
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
@@ -704,6 +705,41 @@ describe('resolveJobsResultsPanel', () => {
         assert.equal(panel({ isSerpAsk: true, notConnected: true, blockingError: true, loading: true }), 'serp-ask');
         assert.equal(panel({ notConnected: true, blockingError: true, loading: true }), 'not-connected');
         assert.equal(panel({ blockingError: true, loading: true }), 'error');
+    });
+});
+
+describe('holdSavedSearchAbovePanel', () => {
+    const step = (panel: Parameters<typeof holdSavedSearchAbovePanel>[0], held: boolean) =>
+        holdSavedSearchAbovePanel(panel, held);
+
+    it('the first splash mounts nothing, then an empty panel does, and the next splash keeps that same row', () => {
+        const first = step('loading', false);
+        assert.equal(first.show, false);
+        const empty = step('empty', first.held);
+        assert.equal(empty.show, true);
+        const refetch = step('loading', empty.held);
+        assert.equal(refetch.show, true, 'a support-probe refetch must not remount the row');
+        assert.equal(step('empty', refetch.held).show, true);
+    });
+
+    it('a list and the splash that follows it leave the above-panel row off', () => {
+        const list = step('list', false);
+        assert.equal(list.show, false);
+        assert.equal(list.held, false);
+        const splash = step('loading', list.held);
+        assert.equal(splash.show, false);
+        assert.equal(step('list', splash.held).show, false);
+    });
+
+    it('a settled non-list panel turns the hold on, and a later list turns it off', () => {
+        for (const panel of ['serp-ask', 'not-connected', 'error', 'empty'] as const) {
+            const settled = step(panel, false);
+            assert.equal(settled.show, true, panel);
+            assert.equal(settled.held, true, panel);
+        }
+        const back = step('list', true);
+        assert.equal(back.show, false);
+        assert.equal(back.held, false);
     });
 });
 

@@ -1,19 +1,10 @@
 /**
  * Primary nav — frozen coherent chrome:
- * Jobs · Résumé · Tracker · (desktop: Résumé & AI) · Account on mobile bar
+ * Jobs · Résumé · Tracker · Account on mobile bar
  * Research / Trends live in the footer.
  */
 import type { ComponentType } from "react";
 import { FileText, Kanban, MagnifyingGlass, UserCircle } from "@phosphor-icons/react";
-
-/**
- * Live counters a nav tab can carry. A tab DECLARES which counter it wants;
- * the nav bars resolve the number. Neither bar may test a tab's href or label
- * to decide whether to draw a badge — that would make "which tab has a count"
- * a fact spread across the two bars instead of one stated here, and the two
- * would drift the moment a second tab wanted one.
- */
-export type NavBadge = "pursuits";
 
 export type NavTab = {
     label: string;
@@ -24,7 +15,6 @@ export type NavTab = {
     tourSelector?: string;
     icon?: ComponentType;
     variant?: "cta";
-    badge?: NavBadge;
     title?: string;
     /** Set `false` to keep a tab out of MobileTabBar's fixed bottom bar while
      *  it stays in the desktop nav — the bar filters on this field alone
@@ -69,9 +59,9 @@ function AccountIcon() {
     return <UserCircle size={20} aria-hidden />;
 }
 
-/** Résumé nav label — "Add résumé" until connected, then "Résumé & AI". */
+/** Résumé nav label — "Add résumé" until connected, then "Résumé". */
 export function resumeTabLabel(resumeConnected: boolean): string {
-    return resumeConnected ? "Résumé & AI" : "Add résumé";
+    return resumeConnected ? "Résumé" : "Add résumé";
 }
 
 /** The ONE résumé entry in the nav: /resume (the AI pairing at /connect lives in Settings). */
@@ -102,10 +92,6 @@ export const NAV_TABS: NavTab[] = [
         testId: "topbar-tracker",
         match: (p) => p.startsWith("/yours"),
         icon: TrackerIcon,
-        // The tracked count used to sit in the /jobs filter toolbar as a chip
-        // linking here. It was never a filter — it narrowed nothing — so it
-        // now rides on the destination it was already pointing at.
-        badge: "pursuits",
     },
 ];
 

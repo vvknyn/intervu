@@ -312,7 +312,7 @@ export function SavedSearchesPanel({
                                 }}
                                 className={cn(
                                     compact
-                                        ? "max-w-[8rem] truncate text-xs text-foreground underline underline-offset-2 hover:no-underline"
+                                        ? "max-w-[14rem] truncate text-sm text-muted-foreground transition-colors hover:text-foreground hover:underline"
                                         : "max-w-[10rem] truncate text-xs text-foreground hover:underline",
                                 )}
                             >
@@ -322,7 +322,7 @@ export function SavedSearchesPanel({
                         return (
                         <li key={s.id} className={cn(
                             compact
-                                ? "inline-flex items-center gap-1"
+                                ? "inline-flex items-center gap-1 text-sm text-muted-foreground"
                                 : "inline-flex ctl-lg items-center gap-1 rounded-pill bg-muted px-2.5",
                         )}>
                             {terms ? (
@@ -369,7 +369,7 @@ export function SavedSearchesPanel({
                                 type="button"
                                 data-testid="saved-search-remove"
                                 onClick={() => void removeSaved(s)}
-                                className="text-muted-foreground hover:text-foreground ml-0.5"
+                                className="ml-1.5 inline-flex size-8 items-center justify-center text-muted-foreground hover:text-foreground"
                                 aria-label={`Remove saved search ${label}`}
                             >
                                 <X />

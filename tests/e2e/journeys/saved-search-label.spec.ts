@@ -50,7 +50,7 @@ async function openTooltip(page: Page, target: Locator) {
 test.describe('saved-search chip label — pointer device', () => {
     test.use({ viewport: { width: 1440, height: 900 } });
 
-    test('labels, tooltip on hover and focus, no tooltip when the label shows everything', { tag: ['@J-ALERTS-49'] }, async ({ page }, info) => {
+    test('labels, tooltip on hover and focus, no tooltip when the label shows everything', { tag: ['@J-ALERTS-53'] }, async ({ page }, info) => {
         test.skip(info.project.name === 'mobile', 'hover needs a pointer; the touch test covers the phone');
         await openWithSavedSearches(page);
         await expect(chip(page, 'Résumé keywords')).toBeVisible();
@@ -89,7 +89,7 @@ test.describe('saved-search chip label — pointer device', () => {
 test.describe('saved-search chip label — touch', () => {
     test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-    test('terms are reachable without hover', { tag: ['@J-ALERTS-50'] }, async ({ page }, info) => {
+    test('terms are reachable without hover', { tag: ['@J-ALERTS-54'] }, async ({ page }, info) => {
         await openWithSavedSearches(page);
         await expect(chip(page, 'Résumé keywords')).toBeVisible();
         const triggers = page.getByTestId('saved-search-terms-trigger');

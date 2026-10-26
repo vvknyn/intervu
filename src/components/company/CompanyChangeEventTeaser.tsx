@@ -2,7 +2,8 @@ import React from "react";
 import { eventTypeLabel, humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent } from "@/lib/companies/types";
 import { cn } from "@/lib/utils";
-import { directionStyle, eventDate } from "@/components/company/CompanyChangeEvents";
+import { directionStyle } from "@/components/company/CompanyChangeEvents";
+import { eventDate } from "@/lib/format";
 
 /**
  * One public line from the change-event ledger — a hook for followers to unlock
