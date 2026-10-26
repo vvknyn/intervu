@@ -950,7 +950,7 @@ export function buildSearchBody(
     // Requiring every word is the honest default; `searchMeili` runs one
     // whole-document expand pass (`wholeDocument`) only after a strict/scoped
     // pass returns zero — never word-dropping (`matchingStrategy: "last"`),
-    // except tier 2 of `runTieredRetrieval`, which is weighted below tier 1.
+    // under any sort (Vivek 2026-10-26: every word, every sort).
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
@@ -1170,24 +1170,29 @@ async function applySortIntegrityGuard(
 /** Weight multiplier for the unknown-inclusive query pair in `runTieredRetrieval`. */
 const UNKNOWN_TIER_WEIGHT = 0.5;
 
-async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
+/**
+ * The federated queries of a bare role query's tiered retrieval, in `queriesPosition` order. Known-value matches
+ * lead (tier weights 100 / 1). When a filter admits un-derived rows (unknown-inclusive-facets.ts), the same two
+ * scopes rerun with those rows included at half weight, so they rank after the known ones; federation dedupes by
+ * id keeping the best-weighted copy. Pure: the request is the decision, `runTieredRetrieval` only sends it.
+ */
+export function buildTieredQuerySpecs(p: JobSearchParams) {
   // Relevance order only: the details feed `preferNewerAmongCloseMatches`.
   const rankingScoreDetails = resolveEffectiveSort(p) === "relevance";
   const details = rankingScoreDetails ? { rankingScoreDetails } : {};
   const query = (opts: BuildSearchBodyOpts, weight: number, tier: 1 | 2) => {
-    // Tier 2 (whole document) drops trailing words: a partial match ranks below a full one
-    // (tier 1 weight) instead of disappearing. Ruling 2026-10-22, "return all search results
-    // ranked by relevance and fit". Decided here so both the known and unknown pairs agree.
-    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, opts.wholeDocument ? "last" : "all", { ...details, ...opts });
+    // Every word, every sort (Vivek 2026-10-26): tier 2 widens the fields searched, never the words dropped.
+    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, "all", { ...details, ...opts });
     return { tier, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
   };
-  // Known-value matches lead (tier weights 100 / 1). When a filter admits
-  // un-derived rows (unknown-inclusive-facets.ts), the same two scopes rerun
-  // with those rows included at half weight, so they rank after the known
-  // ones; federation dedupes by id keeping the best-weighted copy.
   const specs = [query({ knownOnly: true }, 100, 1), query({ wholeDocument: true, knownOnly: true }, 1, 2)];
   const inclusive = [query({}, UNKNOWN_TIER_WEIGHT * 100, 1), query({ wholeDocument: true }, UNKNOWN_TIER_WEIGHT, 2)];
   if (JSON.stringify(inclusive[0].query.filter) !== JSON.stringify(specs[0].query.filter)) specs.push(...inclusive);
+  return specs;
+}
+
+async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
+  const specs = buildTieredQuerySpecs(p);
 
   const federatedBody = {
     federation: {
