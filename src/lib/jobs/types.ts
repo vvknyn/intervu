@@ -185,9 +185,9 @@ export interface PublicJob {
   report_count?: number | null;
   /**
    * Per-hit provenance from a federated tiered-retrieval pass
-   * (`runTieredRetrieval`, meilisearch.ts): 1 = strict-scope query
-   * (title/company/tags), 2 = whole-document query. Derived from that hit's
-   * own `_federation.queriesPosition` (0 → 1, 1 → 2) before `_federation` is
+   * (`runTieredRetrieval`, meilisearch.ts): 1 = above the divider (every
+   * typed word in title/company/tags, or a title alias), 2 = below it (whole-document query).
+   * Derived from that hit's own `_federation.queriesPosition` before `_federation` is
    * stripped off the wire shape — the seam between tiers is placed from this
    * field, never from a carried count, so it survives client-side filtering
    * (e.g. "hide viewed") without drifting onto the wrong row. Undefined under

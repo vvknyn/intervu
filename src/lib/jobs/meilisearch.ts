@@ -31,7 +31,7 @@ import { sanitizeContentPhrases } from "./for-you/content-phrases";
 import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
 import { normalizePublicJobs } from "./normalize-public-job";
 import { sanitizeTimestamp } from "./posting-freshness";
-import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
+import { buildMeiliSort, compareJobsBySort, isSortedWithinGroups, resolveEffectiveSort } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import { titlePastSenior, withinSenior } from "./role-level";
 import { payPlace } from "./pay-place";
@@ -330,7 +330,7 @@ export const JOBS_INDEX_SETTINGS = {
   // incident: 8 order-restarts in one 40-hit "newest" page). Raising the
   // budget shrinks how often a search gets cut off mid-sort; it does not
   // eliminate the class, so the FE sort-integrity guard (searchMeili,
-  // isPageSorted/compareJobsBySort in sort.ts) covers whatever still slips
+  // isSortedWithinGroups in sort.ts) covers whatever still slips
   // through.
   searchCutoffMs: 5000,
 };
@@ -479,11 +479,14 @@ export interface BuildSearchBodyOpts extends BuildFilterOpts {
   titleScoped?: boolean;
   /** Expand pass: whole-document retrieval; the caller picks the `matchingStrategy`. */
   wholeDocument?: boolean;
-  /** Ask for `_rankingScoreDetails` on every hit — only the relevance-sorted
-   *  typed search sets this, for `preferNewerAmongCloseMatches` below, which
-   *  also strips the details before any hit leaves `searchMeili`. */
+  /** Ask for `_rankingScoreDetails` on every hit — every typed search sets this (`wantsScoreDetails`): Relevance
+   *  feeds `preferNewerAmongCloseMatches` below, an explicit sort feeds `applySortIntegrityGuard`'s typo-bucket
+   *  read. Both strip the details before any hit leaves `searchMeili`. */
   rankingScoreDetails?: boolean;
 }
+
+/** A typed search reads the engine's score details; a browse has no words, so no typo buckets to read. */
+const wantsScoreDetails = (p: JobSearchParams) => Boolean((p.q ?? "").trim());
 
 /** TRANSITIONAL: live index may lack `company_domain` in filterableAttributes. */
 let companyDomainFilterUnsupported = false;
@@ -967,27 +970,56 @@ export function buildSearchBody(
   };
 }
 
-/** Federation weight of a title-alias query: under tier 1 (100, any real match), over tier 2 (1, any partial match). */
+/** Relevance weight of a title-alias query: under the typed words' own matches (100), over whole-document ones (`WHOLE_DOCUMENT_WEIGHT`). */
 const TITLE_ALIAS_WEIGHT = 10;
 const TITLE_ALIAS_QUERY_CAP = 8;
+const TYPED_WEIGHT = 100;
+/**
+ * Weight multiplies a hit's ranking score (Meilisearch `federationOptions.weight`: "a multiplicative factor applied to
+ * the ranking score for hits from this query", any positive number, default 1.0;
+ * https://www.meilisearch.com/docs/reference/api/multi-search). Every tier-1 weight is at least `ALIAS` x `UNKNOWN`
+ * = 5 and every tier-2 weight at most this, so a tier-1 hit outranks a tier-2 hit unless its score falls below
+ * 0.002 (0.01 / 5): the divider is structural, under Relevance and under an explicit sort alike.
+ */
+const WHOLE_DOCUMENT_WEIGHT = 0.01;
+/** Weight multiplier for the unknown-inclusive query pair in `runTieredRetrieval`. */
+const UNKNOWN_TIER_WEIGHT = 0.5;
+
+/**
+ * The federation weights of one search. Federation merges queries by their weighted rule scores, then by the sort
+ * value: queries with different weights form bands (each keeping its own sort order inside), queries with equal
+ * weights merge by the sort value (Meilisearch 1.45.2, probed). The two groups on each side of the divider are
+ * therefore the only weight step under an explicit sort, so the user's order holds inside each group and across
+ * pages; Relevance keeps known-before-unknown and typed-before-alias as further steps.
+ */
+export function federationWeights(p: JobSearchParams) {
+  const explicitSort = resolveEffectiveSort(p) !== "relevance";
+  return {
+    typed: TYPED_WEIGHT,
+    wholeDocument: WHOLE_DOCUMENT_WEIGHT,
+    alias: explicitSort ? TYPED_WEIGHT : TITLE_ALIAS_WEIGHT,
+    unknownFactor: explicitSort ? 1 : UNKNOWN_TIER_WEIGHT,
+  };
+}
 
 /**
  * Title-only queries for the other names of the typed occupation ("speech therapist" -> "speech-language
- * pathologist", "slp", ...; `expandTitleQuery`). They widen the TITLE match only and sit between the tiers, so the
- * typed title's own matches lead, then the same occupation under its other names, then partial whole-document
- * matches. Tier 2 provenance: `tier1Total` counts the typed query's matches, so these sit after the seam.
- * Known-value and unknown-inclusive variants follow `runTieredRetrieval`'s pairing (half weight for the latter).
+ * pathologist", "slp", ...; `expandTitleQuery`). They widen the TITLE match only. A title that is another name for
+ * the job is a title match: tier 1, above the divider. Under Relevance the typed words' own matches lead and these
+ * follow, then the whole-document ones; under an explicit sort they merge with the typed matches by that sort.
+ * Known-value and unknown-inclusive variants follow `runTieredRetrieval`'s pairing.
  */
 export function titleAliasSpecs(p: JobSearchParams) {
   const aliases = expandTitleQuery(p.q ?? "").slice(1, 1 + TITLE_ALIAS_QUERY_CAP);
-  const details = resolveEffectiveSort(p) === "relevance" ? { rankingScoreDetails: true } : {};
+  const details = wantsScoreDetails(p) ? { rankingScoreDetails: true } : {};
+  const { alias: aliasWeight, unknownFactor } = federationWeights(p);
   const query = (q: string, opts: BuildSearchBodyOpts, weight: number) => {
     const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody({ ...p, q }, false, "all", { ...details, titleScoped: true, ...opts });
-    return { tier: 2 as const, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
+    return { tier: 1 as const, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
   };
   return aliases.flatMap((alias) => {
-    const known = query(alias, { knownOnly: true }, TITLE_ALIAS_WEIGHT);
-    const inclusive = query(alias, {}, TITLE_ALIAS_WEIGHT * UNKNOWN_TIER_WEIGHT);
+    const known = query(alias, { knownOnly: true }, aliasWeight);
+    const inclusive = query(alias, {}, aliasWeight * unknownFactor);
     return JSON.stringify(inclusive.query.filter) !== JSON.stringify(known.query.filter) ? [known, inclusive] : [known];
   });
 }
@@ -1110,26 +1142,28 @@ async function searchWithDomainPostFilter(
  *  Only a true query miss (`shouldRelaxSearch`: non-empty `q`, zero hits)
  *  triggers one expand pass — still `matchingStrategy: "all"`, unscoped — merged
  *  onto strict hits and flagged `widened` when extras land. */
+function sumDefined(a: number | undefined, b: number | undefined): number | undefined {
+  return a === undefined && b === undefined ? undefined : (a ?? 0) + (b ?? 0);
+}
+
 /**
  * Sort-integrity chokepoint for `searchMeili`. `searchCutoffMs`
  * (`JOBS_INDEX_SETTINGS`) can interrupt a slow search under embed-batch/
  * indexing load and hand back partial results with the explicit `sort` only
  * PARTIALLY applied — a "FRESHEST" page that restarts its own order mid-list
  * (8 restarts observed in one 40-hit page, 2026-08-14 incident). Never render
- * an order we didn't verify: check the page against the sort it was asked
- * for, retry the identical search once (the degradation is transient — a
- * healthy retry takes ~40ms), and if the retry is STILL unsorted, re-sort
- * locally rather than ship disorder under a sort label. `runSearch` is
- * whatever produced `result` — strict pass, relaxed "last" pass, or the
- * `searchWithDomainPostFilter` path all funnel through this one call in
- * `searchMeili`, so one guard covers all three. Relevance mode is untouched:
- * there is no engine-decided order to verify. Explicit sorts verify the
- * whole page with `isPageSorted`.
+ * an order we didn't verify: check EVERY hit of the page against the sort it
+ * was asked for, inside each group (`isSortedWithinGroups`), and retry the
+ * identical search once (the degradation is transient — a healthy retry takes
+ * ~40ms). If the retry is STILL out of order the page is returned as the
+ * engine sent it, with a warning: a local re-sort could only fix this one
+ * page, and the next page would then start from the engine's order. The
+ * ranking-score details the check reads never leave this function.
+ * `runSearch` is whatever produced `result` — strict pass, relaxed "last"
+ * pass, or the `searchWithDomainPostFilter` path all funnel through this one
+ * call in `searchMeili`. Relevance mode is untouched: there is no
+ * engine-decided order to verify.
  */
-function sumDefined(a: number | undefined, b: number | undefined): number | undefined {
-  return a === undefined && b === undefined ? undefined : (a ?? 0) + (b ?? 0);
-}
-
 async function applySortIntegrityGuard(
   result: JobSearchResult,
   p: JobSearchParams,
@@ -1137,8 +1171,9 @@ async function applySortIntegrityGuard(
 ): Promise<JobSearchResult> {
   const mode = resolveEffectiveSort(p);
   if (mode === "relevance") return result;
-  const verifiable = (hits: PublicJob[]) => sortVerifiableHits(hits, mode, p.q);
-  if (isPageSorted(verifiable(result.hits), mode)) return result;
+  const delivered = (r: JobSearchResult): JobSearchResult => ({ ...r, hits: r.hits.map(withoutEngineFields) });
+  const typed = wantsScoreDetails(p);
+  if (isSortedWithinGroups(result.hits, mode, typed)) return delivered(result);
 
   // The retry is a second engine request: its time is counted with the first.
   const retried = await runSearch();
@@ -1147,20 +1182,17 @@ async function applySortIntegrityGuard(
     engineMs: sumDefined(result.engineMs, retried.engineMs),
     engineCalls: sumDefined(result.engineCalls, retried.engineCalls),
   };
-  if (isPageSorted(verifiable(retry.hits), mode)) return retry;
-
-  console.warn("[jobs-search] sort-integrity: engine returned unsorted page, re-sorted locally", {
-    q: p.q,
-    mode,
-  });
-  return { ...retry, hits: [...retry.hits].sort((a, b) => compareJobsBySort(a, b, mode)) };
+  if (!isSortedWithinGroups(retry.hits, mode, typed)) {
+    console.warn("[jobs-search] sort-integrity: engine returned an unsorted page twice, delivered as sent", { q: p.q, mode });
+  }
+  return delivered(retry);
 }
 
 /**
  * Tiered retrieval for a bare role query (`isBareRoleQuery`): ONE federated
  * `/multi-search` blending tier 1 (strict title/company/tags scope, weight
  * 100 — byte-identical to `buildSearchBody(params, false, "all", {})`, the
- * pre-existing strict pass) ahead of tier 2 (whole-document, weight 1) into
+ * pre-existing strict pass) ahead of tier 2 (whole-document, `WHOLE_DOCUMENT_WEIGHT`) into
  * a single deduplicated pool. Meilisearch's federation dedupes hits by
  * document id and unions the totals into `estimatedTotalHits` — verified
  * live (leg 7 A2-A5): the union total, strict-scope hits ranked first under
@@ -1193,26 +1225,25 @@ async function applySortIntegrityGuard(
  * fallback to the old scoped-pass mechanism on failure — a federation error
  * surfaces like any other Meilisearch error.
  */
-/** Weight multiplier for the unknown-inclusive query pair in `runTieredRetrieval`. */
-const UNKNOWN_TIER_WEIGHT = 0.5;
-
 /**
  * The federated queries of a bare role query's tiered retrieval, in `queriesPosition` order. Known-value matches
- * lead (tier weights 100 / 1). When a filter admits un-derived rows (unknown-inclusive-facets.ts), the same two
+ * lead (`TYPED_WEIGHT` / `WHOLE_DOCUMENT_WEIGHT`). When a filter admits un-derived rows (unknown-inclusive-facets.ts), the same two
  * scopes rerun with those rows included at half weight, so they rank after the known ones; federation dedupes by
  * id keeping the best-weighted copy. Pure: the request is the decision, `runTieredRetrieval` only sends it.
  */
 export function buildTieredQuerySpecs(p: JobSearchParams) {
-  // Relevance order only: the details feed `preferNewerAmongCloseMatches`.
-  const rankingScoreDetails = resolveEffectiveSort(p) === "relevance";
-  const details = rankingScoreDetails ? { rankingScoreDetails } : {};
+  const details = wantsScoreDetails(p) ? { rankingScoreDetails: true } : {};
+  const weights = federationWeights(p);
   const query = (opts: BuildSearchBodyOpts, weight: number, tier: 1 | 2) => {
     // Every word, every sort (Vivek 2026-10-26): tier 2 widens the fields searched, never the words dropped.
     const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, "all", { ...details, ...opts });
     return { tier, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
   };
-  const specs = [query({ knownOnly: true }, 100, 1), query({ wholeDocument: true, knownOnly: true }, 1, 2)];
-  const inclusive = [query({}, UNKNOWN_TIER_WEIGHT * 100, 1), query({ wholeDocument: true }, UNKNOWN_TIER_WEIGHT, 2)];
+  const specs = [query({ knownOnly: true }, weights.typed, 1), query({ wholeDocument: true, knownOnly: true }, weights.wholeDocument, 2)];
+  const inclusive = [
+    query({}, weights.typed * weights.unknownFactor, 1),
+    query({ wholeDocument: true }, weights.wholeDocument * weights.unknownFactor, 2),
+  ];
   if (JSON.stringify(inclusive[0].query.filter) !== JSON.stringify(specs[0].query.filter)) specs.push(...inclusive);
   specs.push(...titleAliasSpecs(p));
   return specs;
@@ -1258,6 +1289,7 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
     (body.hits ?? []).map(({ _federation, ...hit }) => ({
       ...hit,
       tier: specs[_federation?.queriesPosition ?? -1]?.tier ?? 2,
+      _queryPosition: _federation?.queriesPosition,
     })),
   );
   return {
@@ -1324,7 +1356,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       // post-filter path above is deliberately excluded — those are
       // `board`/`companyDomain` browses that are ALREADY constrained to one
       // employer, so company-scoping the query text would add nothing.
-      const rankingScoreDetails = resolveEffectiveSort(params) === "relevance";
+      const rankingScoreDetails = wantsScoreDetails(params);
       const runPass = async (wholeDocument = false): Promise<JobSearchResult> => {
         const post = (legacy: boolean) =>
           meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
@@ -2055,15 +2087,16 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string, no
 const CLOSE_MATCH_RULES = ["words", "typo", "proximity", "attributeRank"] as const;
 
 type RankingScoreDetails = Partial<Record<string, { score?: number }>>;
-type HitWithRankingDetails = PublicJob & { _rankingScoreDetails?: RankingScoreDetails };
+/** `_queryPosition`: which federated query returned the hit (`runTieredRetrieval`); server-only, like the details. */
+type HitWithRankingDetails = PublicJob & { _rankingScoreDetails?: RankingScoreDetails; _queryPosition?: number };
 
 /** Stable key of a hit's close-match group, or `null` when the engine sent no details for it. */
 function closeMatchKey(hit: HitWithRankingDetails, ctx: RelevanceRerankContext): string | null {
   const details = hit._rankingScoreDetails;
   if (!details) return null;
   return JSON.stringify([
-    // Federated tiers are separate queries; their scores are not comparable.
-    hit.tier ?? 0,
+    // Federated queries are separate; their scores are not comparable (a title-alias query is tier 1 too).
+    hit._queryPosition ?? 0,
     ...CLOSE_MATCH_RULES.map((rule) => details[rule]?.score ?? null),
     ...relevanceTierKey(hit, ctx),
   ]);
@@ -2073,9 +2106,9 @@ function postedTsOrOldest(job: PublicJob): number {
   return typeof job.posted_ts === "number" && Number.isFinite(job.posted_ts) ? job.posted_ts : Number.NEGATIVE_INFINITY;
 }
 
-function withoutRankingScoreDetails(hit: PublicJob): PublicJob {
-  if (!("_rankingScoreDetails" in hit)) return hit;
-  const { _rankingScoreDetails: _details, ...rest } = hit as HitWithRankingDetails;
+function withoutEngineFields(hit: PublicJob): PublicJob {
+  if (!("_rankingScoreDetails" in hit) && !("_queryPosition" in hit)) return hit;
+  const { _rankingScoreDetails: _details, _queryPosition: _position, ...rest } = hit as HitWithRankingDetails;
   return rest;
 }
 
@@ -2090,7 +2123,7 @@ function withoutRankingScoreDetails(hit: PublicJob): PublicJob {
  * searches — `rankingScoreDetails` in `buildSearchBody`).
  *
  * Hits that tie on `CLOSE_MATCH_RULES` (so differ only in word position and
- * exactness), come from the same federated tier, and share the rerank's
+ * exactness), come from the same federated query, and share the rerank's
  * relevance tier (`relevanceTierKey`) form one group. Each group keeps the
  * page slots it already holds and refills them newest `posted_ts` first
  * (stable). Nothing else moves: no hit changes page, so pagination and
@@ -2103,7 +2136,7 @@ function withoutRankingScoreDetails(hit: PublicJob): PublicJob {
  * is the point: those still order hits that are NOT close matches. A hit
  * with no details (a lane, the domain post-filter scan) stays where it is.
  *
- * Always returns hits WITHOUT `_rankingScoreDetails` — the engine's scoring
+ * Always returns hits WITHOUT `_rankingScoreDetails` and `_queryPosition` — the engine's scoring
  * never leaves the server.
  */
 export function preferNewerAmongCloseMatches(hits: PublicJob[], q?: string): PublicJob[] {
@@ -2124,7 +2157,7 @@ export function preferNewerAmongCloseMatches(hits: PublicJob[], q?: string): Pub
       ordered[slot] = newestFirst[i];
     });
   }
-  return ordered.map(withoutRankingScoreDetails);
+  return ordered.map(withoutEngineFields);
 }
 
 /** The three location fields a parsed place can constrain. */

@@ -3,7 +3,7 @@ import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
 import { checkFreshness, latestCheckAt } from "@/lib/jobs/badges";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
-import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
+import type { GhostBadge, GhostChecked, JobSearchResult, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 import { capitalizeWords } from "@/lib/text-case";
 import { FUNCTION_WORDS } from "@/lib/geo/common-words";
@@ -1857,6 +1857,20 @@ export function seamSummary(seamIndex: number, total: number, hitsLength: number
     const n = Math.max(remaining, 0);
     const { noun, verb } = titledNounVerb(seamIndex);
     return `${seamIndex.toLocaleString()} ${noun} ${verb} titled this · ${n.toLocaleString()} more mention it`;
+}
+
+/**
+ * The seam line for a tiered result (`runTieredRetrieval`): above it, every hit has all the typed words in its title,
+ * company or keywords, or a title that is another name for the job; below it, every hit has all of them somewhere
+ * else in the posting. `shownAbove` is the count the reader sees (after "hide viewed"). The hits below are counted
+ * from the whole result, not from what is loaded: the groups are merged one after the other, so once the first hit
+ * below the divider is loaded every hit above it is too, and `total - loadedAbove` is exactly the hits below.
+ */
+export function tieredSeamSummary(shownAbove: number, result: Pick<JobSearchResult, "total" | "hits">): string {
+    // `result.total`, never `resolveHeadlineTotal`: the headline policy may report the strict count.
+    const below = Math.max(result.total - result.hits.filter((hit) => hit.tier === 1).length, 0);
+    const lead = shownAbove === 1 ? "1 role matches" : `${shownAbove.toLocaleString()} roles match`;
+    return `${lead} by title, company or keywords · ${below.toLocaleString()} more mention it elsewhere in the posting`;
 }
 
 /**

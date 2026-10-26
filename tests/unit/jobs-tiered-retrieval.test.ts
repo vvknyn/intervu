@@ -9,7 +9,7 @@
  * Fix (`runTieredRetrieval`, meilisearch.ts): a bare role query
  * (`isBareRoleQuery`) now issues ONE federated Meilisearch `/multi-search`
  * blending tier 1 (strict title/company/tags, weight 100) and tier 2
- * (whole-document, weight 1) into a single deduplicated pool — precision
+ * (whole-document, weight 0.01) into a single deduplicated pool — precision
  * (tier 1 ranked first) and recall (the union as the pool) are two
  * mechanisms, not one knob. `tier1Total` — the seam a client uses to rank/
  * label tier-1 hits ahead of the mention-only remainder — comes from a
@@ -121,8 +121,10 @@ function installRoutedMock(opts: {
     return calls;
 }
 
-describe("runTieredRetrieval — federated multi-search for bare role queries", () => {
-    it("(a) federated request shape: federation.limit/offset, strict query first (weight 100, title/company/tags), whole-document second (weight 1, unscoped), no per-query facets/limit/offset", async () => {
+// Each case replaces global fetch. Node runs tests in a file concurrently, so one case's
+// multi-search body was landing in another's call list (4 queries seen where this file expects 2).
+describe("runTieredRetrieval — federated multi-search for bare role queries", { concurrency: false }, () => {
+    it("(a) federated request shape: federation.limit/offset, strict query first (weight 100, title/company/tags), whole-document second (weight 0.01, unscoped), no per-query facets/limit/offset", async () => {
         const q = "quux engineer"; // not in the title alias graph: exactly the two tier queries
         await primeNonCompanyIntent(q);
         const calls = installRoutedMock({ federatedTotal: 2231, countTotal: 589 });
@@ -142,7 +144,7 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
         assert.ok(!("limit" in strict) && !("offset" in strict) && !("facets" in strict), JSON.stringify(strict));
 
         assert.ok(!("attributesToSearchOn" in whole), JSON.stringify(whole));
-        assert.equal(whole.federationOptions.weight, 1);
+        assert.equal(whole.federationOptions.weight, 0.01);
         assert.equal(strict.matchingStrategy, "all", "tier 1 requires every word");
         assert.equal(whole.matchingStrategy, "all", "tier 2 widens the fields, never drops words");
         assert.ok(!("limit" in whole) && !("offset" in whole) && !("facets" in whole), JSON.stringify(whole));
@@ -289,7 +291,7 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
             await searchMeili({ q, ...extra });
             const { queries } = calls.find((c) => c.url.endsWith("/multi-search"))!.body;
             assert.equal(queries.length, 4);
-            assert.deepEqual(queries.map((x: any) => x.federationOptions.weight), [100, 1, 50, 0.5]);
+            assert.deepEqual(queries.map((x: any) => x.federationOptions.weight), [100, 0.01, 50, 0.005]);
             assert.deepEqual(queries.map((x: any) => x.matchingStrategy), ["all", "all", "all", "all"]);
             const unknownMarker = /IS NULL|NOT EXISTS/;
             assert.ok(!unknownMarker.test(queries[0].filter.join()) && !unknownMarker.test(queries[1].filter.join()), "known pair is strict");

@@ -91,6 +91,23 @@ describe("clusterJobs", () => {
     });
 });
 
+describe("clusterJobs across the divider of a tiered result", () => {
+    for (const [title, company] of [["Speech Language Pathologist", "Kindred"], ["Physiotherapist", "Acme Inc."], ["Software Engineer", "Globex"]]) {
+        it(`${title}: the same title and company on both sides stays two cards, one per side`, () => {
+            const above = job({ title, company, tier: 1 });
+            const below = job({ title, company, tier: 2 });
+            const another = job({ title, company, tier: 1 });
+            const clusters = clusterJobs([above, below, another]);
+            assert.equal(clusters.length, 2);
+            assert.deepEqual(clusters.map((c) => [c.primary.id, c.variants.length]), [[above.id, 1], [below.id, 0]]);
+        });
+    }
+
+    it("a result with no tiers clusters as before", () => {
+        assert.equal(clusterJobs([job({ title: "Welder", company: "Acme" }), job({ title: "Welder", company: "Acme" })]).length, 1);
+    });
+});
+
 describe("clusterToggleLabel", () => {
     // Prod bug: 3 distinct ZoomInfo reqs, same title+company+city, rendered
     // "+2 locations" — false, the variants add zero new locations. The pill

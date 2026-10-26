@@ -103,7 +103,7 @@ describe("searchMeili sort-integrity guard — newest (the incident)", () => {
         mock.reset();
     });
 
-    it("re-sorts locally and warns when the retry is STILL unsorted — at most one retry per call", async () => {
+    it("delivers the engine's order and warns when the retry is STILL unsorted — never a one-page local re-sort, at most one retry per call", async () => {
         let calls = 0;
         const warnings: unknown[][] = [];
         mock.method(console, "warn", (...args: unknown[]) => {
@@ -117,7 +117,7 @@ describe("searchMeili sort-integrity guard — newest (the incident)", () => {
 
         const result = await searchMeili({ sort: "newest" });
 
-        assert.deepEqual(result.hits.map((h) => h.id), ["c", "a", "b"], "locally re-sorted into correct newest order");
+        assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"], "as the engine sent it: a re-sort would fix this page and nothing after it");
         assert.equal(calls, 2, "at most one retry — never a third fetch chasing a still-degraded engine");
         assert.ok(
             warnings.some((args) => String(args[0]).includes("sort-integrity")),
@@ -219,22 +219,17 @@ describe("searchMeili sort-integrity guard — salary_desc (a mode the 2026-08-1
 });
 
 /**
- * 2026-08-14: `typo` now sits ahead of `sort` in `rankingRules`
- * (JOBS_INDEX_SETTINGS, meilisearch.ts), so an explicit-sort + non-empty-q
- * search can legitimately restart its date/salary order at the boundary
- * between the 0-typo bucket and a looser typo-admit bucket — that restart
- * is the new rule order working as intended, NOT the searchCutoffMs
- * partial-sort disorder the guard above exists to catch. These pin the
- * guard's invariant: check sortedness on the TITLED subsequence only
- * (`sortVerifiableHits`, sort.ts) when an explicit sort + query would
- * interleave titled vs mention hits, and keep the original whole-page
- * check when it wouldn't (empty q, or relevance).
- * Retrieval for a real query is title/company/tags-scoped by default
- * (`titleFirstScoped`, `buildSearchBody`) — whole-document only on the
- * relax pass or an empty browse query.
+ * `typo` sits ahead of `sort` in `rankingRules` (JOBS_INDEX_SETTINGS), so a typed explicit-sort search legitimately
+ * restarts its order where the typo count changes. The guard reads the engine's own typo score
+ * (`_rankingScoreDetails.typo.score`) to tell that boundary from the searchCutoffMs disorder it exists to catch,
+ * and checks EVERY hit of a group, not only the ones whose title holds the typed words.
  */
-describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary)", () => {
-    it("passes when the titled subsequence is monotonic even though the full page restarts at a typo-bucket boundary", async () => {
+const withTypo = (overrides: Partial<PublicJob> & Pick<PublicJob, "id">, typoScore: number): PublicJob =>
+    ({ ...job(overrides), _rankingScoreDetails: { typo: { score: typoScore } } }) as PublicJob;
+const inGroup = (hit: PublicJob, queriesPosition: 0 | 1): PublicJob => ({ ...hit, _federation: { queriesPosition } }) as PublicJob;
+
+describe("searchMeili sort-integrity guard — typed search (typo-bucket boundary, groups)", () => {
+    it("passes when the page restarts its order only where the engine says the typo count changed", async () => {
         mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
         await resolveCompanyIntent("engineer");
         mock.reset();
@@ -244,9 +239,9 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         // breaking the full page's newest-first order. The titled
         // subsequence [a, c] is, on its own, correctly newest-first.
         const page = [
-            job({ id: "a", title: "Engineer", posted_at: "2026-01-10T00:00:00Z" }),
-            job({ id: "b", title: "Manager", posted_at: "2026-01-15T00:00:00Z" }),
-            job({ id: "c", title: "Senior Engineer", posted_at: "2026-01-05T00:00:00Z" }),
+            withTypo({ id: "a", title: "Engineer", posted_at: "2026-01-10T00:00:00Z" }, 1),
+            withTypo({ id: "c", title: "Senior Engineer", posted_at: "2026-01-05T00:00:00Z" }, 1),
+            withTypo({ id: "b", title: "Manager", posted_at: "2026-01-15T00:00:00Z" }, 0.5),
         ];
 
         let calls = 0;
@@ -259,15 +254,55 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
 
         const result = await searchMeili({ q: "engineer", sort: "newest" });
 
-        assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"], "page returned as-is — no retry, no local re-sort");
+        assert.deepEqual(result.hits.map((h) => h.id), ["a", "c", "b"], "page returned as-is — no retry, no local re-sort");
+        assert.ok(result.hits.every((h) => !("_rankingScoreDetails" in h)), "the engine's scores never leave the server");
         // 2, not 1: a bare role query is `runTieredRetrieval`'s one federated
         // /multi-search plus one parallel tier1Total count pass — still only
         // ONE logical search pass (no retry), just 2 real fetches for it.
-        assert.equal(calls, 2, "titled subsequence [a, c] is monotonic, so the whole page is treated as sorted");
+        assert.equal(calls, 2, "the only restarts sit on typo-bucket boundaries, so the page is treated as sorted");
         mock.reset();
     });
 
-    it("still retries when the titled subsequence itself is disordered", async () => {
+    for (const q of ["physical therapist", "software engineer"]) {
+        it(`${q}: a page without score details is never judged, so it never retries`, async () => {
+            mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
+            await resolveCompanyIntent(q);
+            mock.reset();
+            const page = [
+                job({ id: "a", posted_at: "2026-01-01T00:00:00Z" }),
+                job({ id: "b", posted_at: "2026-01-09T00:00:00Z" }),
+            ];
+            let calls = 0;
+            mock.method(globalThis, "fetch", async () => {
+                calls++;
+                return jsonResponse(200, { hits: page, totalHits: 25 });
+            });
+            const result = await searchMeili({ q, sort: "newest" });
+            assert.deepEqual(result.hits.map((h) => h.id), ["a", "b"], "delivered as sent");
+            assert.equal(calls, 2, "one federated search plus its count pass: no retry");
+            mock.reset();
+        });
+
+        it(`${q}: a typo score that improves further down the page is disorder and retries`, async () => {
+            mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
+            await resolveCompanyIntent(q);
+            mock.reset();
+            const page = [
+                withTypo({ id: "a", posted_at: "2026-01-09T00:00:00Z" }, 0.5),
+                withTypo({ id: "b", posted_at: "2026-01-01T00:00:00Z" }, 1),
+            ];
+            let calls = 0;
+            mock.method(globalThis, "fetch", async () => {
+                calls++;
+                return jsonResponse(200, { hits: page, totalHits: 25 });
+            });
+            await searchMeili({ q, sort: "newest" });
+            assert.equal(calls, 4, "the retry repeats the federated search and its count pass");
+            mock.reset();
+        });
+    }
+
+    it("still retries when same-bucket hits are disordered", async () => {
         mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
         await resolveCompanyIntent("engineer");
         mock.reset();
@@ -275,9 +310,9 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         // Titled hits [a, c] are themselves OUT of newest-first order (a is
         // older than c) — a genuine disorder the scoped check must still catch.
         const unsorted = [
-            job({ id: "a", title: "Engineer", posted_at: "2026-01-05T00:00:00Z" }),
-            job({ id: "b", title: "Manager", posted_at: "2026-01-08T00:00:00Z" }),
-            job({ id: "c", title: "Senior Engineer", posted_at: "2026-01-10T00:00:00Z" }),
+            withTypo({ id: "a", title: "Engineer", posted_at: "2026-01-05T00:00:00Z" }, 1),
+            withTypo({ id: "b", title: "Manager", posted_at: "2026-01-08T00:00:00Z" }, 1),
+            withTypo({ id: "c", title: "Senior Engineer", posted_at: "2026-01-10T00:00:00Z" }, 1),
         ];
         const sorted = [unsorted[2], unsorted[1], unsorted[0]];
 
@@ -312,8 +347,8 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
 
         const result = await searchMeili({ q: "", sort: "newest" });
 
-        assert.deepEqual(result.hits.map((h) => h.id), ["c", "a", "b"], "locally re-sorted — whole-page check still applies with no query text");
-        assert.equal(calls, 2, "retry still fires: an empty q never scopes, regardless of sort mode");
+        assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"], "as sent — the whole page is still checked with no query text");
+        assert.equal(calls, 2, "retry still fires for an empty q, regardless of sort mode");
         mock.reset();
     });
 
@@ -326,9 +361,9 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
         // page's descending order; the titled subsequence [a, c] is on its
         // own correctly salary-descending.
         const page = [
-            job({ id: "a", title: "Engineer", salary_max: 150_000 }),
-            job({ id: "b", title: "Manager", salary_max: 999_999 }),
-            job({ id: "c", title: "Senior Engineer", salary_max: 100_000 }),
+            withTypo({ id: "a", title: "Engineer", salary_max: 150_000 }, 1),
+            withTypo({ id: "c", title: "Senior Engineer", salary_max: 100_000 }, 1),
+            withTypo({ id: "b", title: "Manager", salary_max: 999_999 }, 0.5),
         ];
 
         let calls = 0;
@@ -341,10 +376,56 @@ describe("searchMeili sort-integrity guard — scoped mode (typo-bucket boundary
 
         const result = await searchMeili({ q: "engineer", sort: "salary_desc" });
 
-        assert.deepEqual(result.hits.map((h) => h.id), ["a", "b", "c"]);
+        assert.deepEqual(result.hits.map((h) => h.id), ["a", "c", "b"]);
         // 2, not 1 — see the "monotonic" test above for why a no-retry pass
         // is 2 real fetches under `runTieredRetrieval`.
-        assert.equal(calls, 2, "titled subsequence [a, c] is salary-descending, so no retry fires");
+        assert.equal(calls, 2, "the only restart is a typo-bucket boundary, so no retry fires");
         mock.reset();
+    });
+});
+
+describe("searchMeili sort-integrity guard — each group is checked on its own, every hit of it", () => {
+    async function pageFor(page: PublicJob[], retryPage: PublicJob[] = page) {
+        mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
+        await resolveCompanyIntent("physical therapist");
+        mock.reset();
+        let calls = 0;
+        mock.method(globalThis, "fetch", async () => {
+            calls++;
+            return jsonResponse(200, { hits: calls <= 2 ? page : retryPage, totalHits: 25 });
+        });
+        const result = await searchMeili({ q: "physical therapist", sort: "newest" });
+        mock.reset();
+        return { result, calls };
+    }
+
+    it("passes two groups that each run newest-first even though the page restarts at the divider", async () => {
+        const { result, calls } = await pageFor([
+            inGroup(job({ id: "a", title: "Physical Therapist", posted_at: "2026-01-10T00:00:00Z" }), 0),
+            inGroup(job({ id: "b", title: "Clinical Fellow/Therapist", posted_at: "2026-01-04T00:00:00Z" }), 0),
+            inGroup(job({ id: "c", title: "Teacher", posted_at: "2026-01-09T00:00:00Z" }), 1),
+            inGroup(job({ id: "d", title: "Aide", posted_at: "2026-01-02T00:00:00Z" }), 1),
+        ]);
+        assert.equal(calls, 2, "no retry");
+        assert.deepEqual(result.hits.map((h) => [h.id, h.tier]), [["a", 1], ["b", 1], ["c", 2], ["d", 2]]);
+    });
+
+    it("catches disorder among hits whose title lacks the typed words (the old guard saw only full-title matches)", async () => {
+        const broken = [
+            inGroup(withTypo({ id: "a", title: "Clinical Fellow/Therapist", posted_at: "2026-01-02T00:00:00Z" }, 1), 0),
+            inGroup(withTypo({ id: "b", title: "Supervised Instructor", posted_at: "2026-01-08T00:00:00Z" }, 1), 0),
+        ];
+        const { calls } = await pageFor(broken);
+        assert.equal(calls, 4, "one retry, each pass being a federated search plus its count pass");
+    });
+
+    it("catches disorder inside the group below the divider", async () => {
+        const broken = [
+            inGroup(withTypo({ id: "a", title: "Physical Therapist", posted_at: "2026-01-10T00:00:00Z" }, 1), 0),
+            inGroup(withTypo({ id: "b", title: "Teacher", posted_at: "2026-01-02T00:00:00Z" }, 1), 1),
+            inGroup(withTypo({ id: "c", title: "Aide", posted_at: "2026-01-08T00:00:00Z" }, 1), 1),
+        ];
+        const { calls } = await pageFor(broken);
+        assert.equal(calls, 4);
     });
 });
