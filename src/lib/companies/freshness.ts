@@ -1,7 +1,7 @@
 import { checkFreshness, latestCheckAt } from "@/lib/jobs/badges";
 import { isStaleClear } from "@/lib/jobs/presentation";
 import type { GhostChecked } from "@/lib/jobs/types";
-import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { eventDate } from "@/lib/format";
 
 /**
  * Company-level freshness, built from the SAME predicates the role rows use

@@ -60,6 +60,6 @@ test("BoardVisitBanner renders the count through formatCorpusCount, never raw", 
 });
 
 test("SavedSearchesPanel's saved-search '+N new' chip (a second countNewSinceAction call site) also formats through formatCorpusCount", () => {
-    assert.match(SAVED_SEARCHES_SOURCE, /\+\{formatCorpusCount\(newCounts\[s\.id\]\)\}/);
+    assert.match(SAVED_SEARCHES_SOURCE, /\{formatCorpusCount\(newCounts\[s\.id\]\)\} new/);
     assert.doesNotMatch(SAVED_SEARCHES_SOURCE, />\+\{newCounts\[s\.id\]\}</);
 });

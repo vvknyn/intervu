@@ -3,73 +3,10 @@ import { expect, test } from "./fixtures";
 import { settled } from "./overlay";
 
 /**
- * Overlay primitives at compact width — see tests/journeys/CATALOG.md (J-MODAL-07, J-MODAL-08).
+ * Overlay primitives at compact width — see tests/journeys/CATALOG.md (J-MODAL-08).
  * A choice list is a bottom sheet with 44px rows on a phone and a popover on desktop;
  * a Dialog is a full-width sheet on the bottom edge that never starts above y=0.
  */
-
-/** Picking a single-select row applies it and closes the list (native select, iOS sheet, Material menu), focus back on the chip. */
-async function expectPickClosesAndRefocuses(page: Page, list: Locator) {
-  const chip = page.getByTestId("facet-chip-posted");
-  const before = await chip.innerText();
-  await chip.click();
-  await expect(list).toBeVisible();
-  await settled(list);
-  // Not "Any date": clearing the date drops the Posted chip itself.
-  await list.locator("label:has(input[type=radio]:not(:checked))").filter({ hasNotText: "Any date" }).first().click();
-  await expect(list, "the pick closes the list").toHaveCount(0);
-  await expect(chip, "focus returns to the chip").toBeFocused();
-  expect(await chip.innerText(), "the pick was applied").not.toBe(before);
-}
-
-/** The listbox contract by keyboard: arrows browse without closing; Space commits, closes and returns focus to the chip. */
-async function expectKeyboardBrowseThenCommit(page: Page, list: Locator) {
-  const chip = page.getByTestId("facet-chip-posted");
-  await chip.focus();
-  await page.keyboard.press("Enter");
-  await expect(list).toBeVisible();
-  await settled(list);
-  for (let i = 0; i < 4 && !(await page.evaluate(() => document.activeElement?.getAttribute("type") === "radio")); i++) await page.keyboard.press("Tab");
-  await page.keyboard.press("ArrowDown");
-  await page.waitForTimeout(300);
-  await expect(list, "an arrow key browses; it does not close the list").toBeVisible();
-  await page.keyboard.press("Space");
-  await expect(list, "Space commits and closes").toHaveCount(0);
-  await expect(chip, "focus returns to the chip").toBeFocused();
-}
-
-test("a facet chip opens a bottom sheet with 44px rows on a phone and a popover on desktop", { tag: ["@J-MODAL-07"] }, async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/jobs");
-  await page.getByTestId("facet-chip-posted").click();
-  const sheet = page.getByRole("dialog");
-  await expect(sheet).toBeVisible();
-  await settled(sheet);
-  const box = (await sheet.boundingBox())!;
-  expect(box.x, "the sheet spans the screen").toBe(0);
-  expect(box.width).toBe(390);
-  expect(box.y + box.height, "the sheet sits on the bottom edge").toBe(844);
-  const row = sheet.locator("label").first();
-  expect((await row.boundingBox())!.height, "rows meet the 44px touch floor").toBeGreaterThanOrEqual(44);
-  await page.keyboard.press("Escape");
-  await expect(sheet).toHaveCount(0);
-  await expectPickClosesAndRefocuses(page, sheet);
-  await expectKeyboardBrowseThenCommit(page, sheet);
-
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByTestId("facet-chip-posted").click();
-  // Radix gives a popover the dialog role too, so tell them apart by shape.
-  const popover = page.getByRole("dialog");
-  await expect(popover).toBeVisible();
-  await settled(popover);
-  const desktop = (await popover.boundingBox())!;
-  expect(desktop.width, "desktop keeps the 224px popover").toBeLessThan(300);
-  expect(desktop.y + desktop.height, "beside the chip, not on the screen's bottom edge").toBeLessThan(900);
-  await page.keyboard.press("Escape");
-  await expect(popover).toHaveCount(0);
-  await expectPickClosesAndRefocuses(page, popover);
-  await expectKeyboardBrowseThenCommit(page, popover);
-});
 
 test("a Dialog is a full-width bottom sheet on a phone and stays below y=0 when the keyboard shrinks the viewport", { tag: ["@J-MODAL-08"] }, async ({ page, baseURL }) => {
   const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");

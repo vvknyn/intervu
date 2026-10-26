@@ -135,7 +135,10 @@ export function CompanyLogo({
                 onError={() => setFailedSrc(src)}
                 onLoad={() => setLoadedSrc(src)}
                 className={cn(
-                    "h-full w-full object-contain p-1",
+                    // Natural size, capped at the tile: a 16px favicon stays a
+                    // crisp 16px centred in the tile; a 128px one shrinks to fill it.
+                    // Never h-full/w-full — that stretches a small raster into a blur.
+                    "max-h-full max-w-full object-contain p-1",
                     pendingSrc === src && (loadedSrc === src ? "fade-in-base" : "opacity-0"),
                 )}
             />

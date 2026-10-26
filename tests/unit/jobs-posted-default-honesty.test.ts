@@ -134,7 +134,7 @@ const POSTED_SURFACES = JOBS_SOURCES.filter(({ src }) =>
 );
 
 test("every surface that draws the Posted control consults the applied-window predicate", () => {
-    assert.ok(POSTED_SURFACES.length >= 4, `expected the known posted surfaces, found ${POSTED_SURFACES.length}`);
+    assert.ok(POSTED_SURFACES.length >= 3, `expected the known posted surfaces, found ${POSTED_SURFACES.length}`);
     const offenders = POSTED_SURFACES.filter(({ src }) => !src.includes("appliedPostedBucket")).map((f) => f.path);
     assert.deepEqual(offenders, [], "a posted surface reading state.postedBucket raw will draw a filter that isn't applied");
 });

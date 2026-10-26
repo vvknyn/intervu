@@ -119,9 +119,6 @@ describe('when no role from the last 30 days fits, the older roles that fit stan
         const older = olderFitsSummary(summary, 2);
         assert.deepEqual(older, { considered: 5, listed: 2, byReason: { old: 2, stretch: 1 }, older: true });
         assert.equal(formatLeftOutLine(older), 'Left out of the 5 roles found: 2 posted over 30 days ago · 1 a weaker fit');
-        assert.equal(formatDeckShowingLine(2, 'older'), '2 roles fit your résumé · all posted over 30 days ago');
-        assert.equal(formatDeckShowingLine(1, 'older'), '1 role fits your résumé · all posted over 30 days ago');
-        assert.equal(formatDeckShowingLine(2, 'near'), '2 closest roles · each a weaker fit');
         assert.equal(formatDeckShowingLine(2), '2 roles · ranked by fit');
         assert.match(OLDER_FITS_NOTICE, /No role posted in the last 30 days fits your résumé yet/);
         assert.equal(nearMissSummary(summary).older, undefined);
@@ -163,8 +160,6 @@ describe('when no role fits and no newer role is even close, the closest older r
         assert.equal(older.older, true);
         assert.equal(older.listed, 2);
         assert.deepEqual(older.byReason, { old: 3, stretch: 1 });
-        assert.equal(formatDeckShowingLine(2, 'older-near'), '2 closest roles · each a weaker fit, all posted over 30 days ago');
-        assert.equal(formatDeckShowingLine(1, 'older-near'), '1 closest role · each a weaker fit, all posted over 30 days ago');
         assert.match(OLDER_NEAR_MISS_NOTICE, /nothing posted in the last 30 days is close/);
         assert.match(OLDER_NEAR_MISS_NOTICE, /each a weaker fit, posted longer ago, and some may already be filled/);
     });

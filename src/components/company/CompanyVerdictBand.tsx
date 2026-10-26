@@ -1,4 +1,4 @@
-import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { eventDate } from "@/lib/format";
 import { KpiStat } from "@/components/jobs/job-detail-primitives";
 import { eventTypeLabel } from "@/lib/companies/events";
 import { isVerdictWindowSufficient, type ExhaustSection, type HealthFacts } from "@/lib/companies/exhaust";
