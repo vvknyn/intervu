@@ -17,7 +17,7 @@
  * ranked behind. The single-pass "expand only when title-scoped comes back
  * EMPTY" fallback these tests used to pin is gone: a bare role query now
  * always issues tier 1 (strict title/company/tags, weight 100) and tier 2
- * (whole-document, weight 1) TOGETHER as one federated `/multi-search`, so
+ * (whole-document, weight 0.01) TOGETHER as one federated `/multi-search`, so
  * the deduplicated union is always the pool regardless of how many tier-1
  * hits exist — never gated on a zero-hit miss. These tests pin the RUNTIME
  * half of that: the exact federated request shape, and that the strict pass
@@ -135,7 +135,7 @@ describe("bare-role-query tiered retrieval (runTieredRetrieval)", () => {
             !("attributesToSearchOn" in multiSearchBodies[0].queries[1]),
             `tier 2 (queries[1]) must be whole-document: ${JSON.stringify(multiSearchBodies[0].queries[1])}`,
         );
-        assert.equal(multiSearchBodies[0].queries[1].federationOptions?.weight, 1);
+        assert.equal(multiSearchBodies[0].queries[1].federationOptions?.weight, 0.01);
         assert.deepEqual(countBodies[0].attributesToSearchOn, ["title", "company", "tags"], "tier1Total counts the strict scope only");
         assert.equal(result.hits.length, 1);
         assert.equal(result.tier1Total, 1);
