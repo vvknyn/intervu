@@ -7,19 +7,20 @@ import { expect, test } from "./fixtures";
  * J-PRICING-03 accepts either state and asserts the one showing is whole.
  */
 
-test("the pricing page is one card with the monthly price and the refund promise", { tag: ["@J-PRICING-01"] }, async ({ page, diagnostics }) => {
+test("the pricing page shows Local and Private cloud side by side, with the monthly price and the refund promise", { tag: ["@J-PRICING-01"] }, async ({ page, diagnostics }) => {
   await page.goto("/pricing");
 
   await expect(page).toHaveURL(/\/pricing$/);
   await expect(page.getByTestId("pricing-page")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("One plan");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Two ways to use Velai");
+  await expect(page.getByTestId("pricing-local-card")).toContainText("Free");
 
   const card = page.getByTestId("pricing-card");
   await expect(card).toContainText("$6");
   await expect(card).toContainText("1 to 12 months");
   await expect(card).toContainText("no auto-renew");
   await expect(card).toContainText("14-day refund");
-  await expect(card).toContainText("Always free");
+  await expect(card).toContainText("Private cloud");
   await expect(card).toContainText("Each month adds");
   await expect(page.getByTestId("pricing-page")).not.toContainText(/founding|pledge/i);
   expect(diagnostics.serverErrors).toEqual([]);

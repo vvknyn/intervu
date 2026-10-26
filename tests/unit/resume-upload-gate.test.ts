@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RESUME_LOCAL_DEVICE_BANNER_LABEL } from "../../src/lib/jobs/resume-privacy-copy";
+import { RESUME_LOCAL_DEVICE_BANNER_LABEL } from "../../src/lib/privacy-modes";
 
 /**
  * /resume upload contract: a usable résumé does not require an account.

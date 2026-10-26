@@ -14,10 +14,10 @@ import {
  * /resume's signed-out empty state share résumé CTA copy from resume-cta-copy.ts.
  */
 
-test("RESUME_UPLOAD_PROMISE makes no on-device/privacy/AI claim beyond parse privacy", () => {
-    assert.doesNotMatch(RESUME_UPLOAD_PROMISE, /on-device|on device|\bAI\b/i);
-    // 4ac07706 (signed-out résumé privacy claims) states where parsing happens.
-    assert.match(RESUME_UPLOAD_PROMISE, /parse it in your browser/i);
+test("RESUME_UPLOAD_PROMISE makes only the Local-mode claims, and no AI claim", () => {
+    assert.doesNotMatch(RESUME_UPLOAD_PROMISE, /\bAI\b/);
+    // The Local points (privacy-modes.ts): where the read happens, and what a search sends.
+    assert.match(RESUME_UPLOAD_PROMISE, /we send the search only/);
 });
 
 test("RESUME_UPLOAD_SIGNIN_LINE makes no on-device/privacy/AI claim", () => {
@@ -34,7 +34,7 @@ test("FrontDoorResumeBand and /resume's signed-out empty state both import RESUM
         "utf8",
     );
     const resumePage = readFileSync(join(__dirname, "../../src/app/resume/page.tsx"), "utf8");
-    // 4ac07706 moved the strings into resume-privacy-copy.ts; resume-cta-copy re-exports them.
+    // 4ac07706 moved the strings into privacy-modes.ts; resume-cta-copy re-exports them.
     const importsFromSharedModule = /from ["']@\/lib\/jobs\/resume-(cta|privacy)-copy["']/;
     assert.match(band, importsFromSharedModule);
     assert.match(band, /FRONT_DOOR_RESUME_CARD_SUBCOPY/);
@@ -54,10 +54,10 @@ test("FrontDoorResumeBand renders card subcopy, and the sign-in value line only 
     assert.match(band, /<Button[^>]*variant="secondary"/, "the upload action is the Button primitive's secondary, not a raw button");
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
-        "Top 3 matches and why. Your résumé stays in this browser.",
+        "Top 3 matches and why. Your résumé is read in your browser and stays on this device. The file is never uploaded.",
     );
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
-        "Rank these jobs by fit. Your résumé stays on this device; a paid month saves it to your account, encrypted.",
+        "Rank these jobs by fit. Local keeps your résumé on this device; Private cloud ($6 per 30 days) saves it to your account, encrypted.",
     );
 });

@@ -1,4 +1,5 @@
 import type { FaqItem } from "@/lib/seo/jsonld";
+import { PRIVACY_FAQ_ANSWER } from "@/lib/privacy-modes";
 
 /**
  * High-intent job-search FAQ — searcher questions about how Velai compares
@@ -41,7 +42,6 @@ export const JOB_SEARCH_FAQ: FaqItem[] = [
   },
   {
     question: "Is my résumé private on Velai?",
-    answer:
-      "Yes. Velai reads your résumé file in your browser and never uploads the file. Without a paid month, your résumé stays in your browser. With one, it is saved to your account encrypted with AES-256. When AI helps read or tailor it, your name and contact details are taken out first and it runs on a sealed server that Velai can't read. Velai has no ads, never sells your data, and its analytics never record the words on your screen or what you type.",
+    answer: PRIVACY_FAQ_ANSWER,
   },
 ];

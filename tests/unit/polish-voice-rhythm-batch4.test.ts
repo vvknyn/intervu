@@ -10,7 +10,7 @@ import {
 import {
     RESUME_PAGE_HEADLINE,
     RESUME_SIGNED_OUT_EMPTY_TITLE,
-} from "../../src/lib/jobs/resume-privacy-copy";
+} from "../../src/lib/jobs/resume-cta-copy";
 import {
     TRACKER_PAGE_SUBCOPY,
     TRACKER_PRIMARY_CTA,

@@ -1,4 +1,4 @@
-import { PRIVACY_HEADLINE, PRIVACY_PROMISES } from "../../../src/lib/legal/privacy-promises";
+import { PRIVACY_HEADLINE, PRIVACY_MODES } from "../../../src/lib/privacy-modes";
 import { expect, test } from "./fixtures";
 
 /**
@@ -40,12 +40,12 @@ test("the privacy policy says account data is encrypted in our own database, not
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the privacy policy opens with Velai's résumé promises and a Your résumé section that explains each one", { tag: ["@J-CONTENT-34"] }, async ({ page, diagnostics }) => {
+test("the privacy policy opens with the two privacy modes and a Your résumé section that explains each one", { tag: ["@J-CONTENT-34"] }, async ({ page, diagnostics }) => {
   await page.goto("/privacy");
-  const promises = page.getByTestId("privacy-promises");
-  await expect(promises).toBeVisible();
-  for (const promise of PRIVACY_PROMISES) {
-    await expect(promises.locator(`[data-promise="${promise.id}"]`)).toContainText(promise.title);
+  const modes = page.getByTestId("privacy-modes");
+  await expect(modes).toBeVisible();
+  for (const mode of Object.values(PRIVACY_MODES)) {
+    await expect(modes.locator(`[data-mode="${mode.id}"]`)).toContainText(mode.name);
   }
 
   const heading = page.getByRole("heading", { name: "Your résumé", exact: true });
@@ -66,10 +66,10 @@ test("the front door says the résumé stays private in its first screen and lin
   await expect(line).toBeVisible({ timeout: 10_000 });
   await expect(line).toContainText(PRIVACY_HEADLINE);
   // The promises themselves live on the policy page, not in a band on the front door.
-  await expect(page.getByTestId("privacy-promises")).toHaveCount(0);
+  await expect(page.getByTestId("privacy-modes")).toHaveCount(0);
   await line.getByRole("link", { name: "How" }).click();
   await expect(page).toHaveURL(/\/privacy#your-resume$/);
-  await expect(page.getByTestId("privacy-promises")).toBeVisible();
+  await expect(page.getByTestId("privacy-modes")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Your résumé", exact: true })).toBeInViewport();
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);

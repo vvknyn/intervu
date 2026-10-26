@@ -9,7 +9,7 @@
  *
  * It works only from the structured résumé the account saved. A résumé saved
  * as text alone is never structured here: résumé reading stays in the
- * browser, as the privacy promises say (privacy-promises.ts). Nothing here
+ * browser, as the privacy promises say (privacy-modes.ts). Nothing here
  * calls an AI, and the search is the server's own (`searchJobs`), which never
  * writes to the search log.
  *

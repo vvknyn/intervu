@@ -5,7 +5,7 @@ import { extractText, getDocumentProxy } from "unpdf";
 import { WRAPPED_RESUME, buildWrappedResumePdf } from "../../fixtures/wrapped-resume-pdf";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { LEGACY_DOC_MESSAGE } from "../../../src/lib/resume/extract-file-text";
-import { RESUME_PAGE_SUBCOPY_SIGNED_IN } from "../../../src/lib/jobs/resume-privacy-copy";
+import { RESUME_PAGE_SUBCOPY_SIGNED_IN } from "../../../src/lib/privacy-modes";
 import { GATE_ATTEMPT_STORAGE_KEY } from "../../../src/lib/auth/gate-attempt";
 import { PENDING_ACTION_STORAGE_KEY } from "../../../src/lib/jobs/pending-actions";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";

@@ -9,7 +9,8 @@ import { PageTitle, SectionTitle } from "@/components/ui/heading";
 import { Prose, READING_MEASURE } from "@/components/ui/prose";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
-import { PAID_FEATURES } from "@/lib/jobs/resume-privacy-copy";
+import { PAID_FEATURES, PRIVACY_MODES, PRIVACY_SUMMARY } from "@/lib/privacy-modes";
+import { PrivacyModePoints } from "@/components/legal/PrivacyModes";
 import { captureEvent } from "@/lib/analytics/events";
 import { PERSONAL_EMAIL_HINT } from "@/lib/auth/auth-gate-copy";
 import {
@@ -97,26 +98,37 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
   return (
     <PageContainer data-testid="pricing-page" className="py-10">
       <p className="text-xs font-semibold text-muted-foreground">Pricing</p>
-      <PageTitle className="mt-3">One plan, {PRO_MONTHLY_PRICE} a month.</PageTitle>
-      <p className={`mt-1.5 ${READING_MEASURE} text-base text-muted-foreground`}>
-        Searching is free. A paid month covers the parts where Velai keeps or reads your résumé for you.
-      </p>
+      <PageTitle className="mt-3">Two ways to use Velai.</PageTitle>
+      <p className={`mt-1.5 ${READING_MEASURE} text-base text-muted-foreground`}>{PRIVACY_SUMMARY}</p>
 
-      <Card data-testid="pricing-card" className="mt-8 max-w-xl border border-brand">
-        <p className="text-2xl font-semibold text-foreground">
-          {PRO_MONTHLY_PRICE}
-          <span className="text-sm font-normal text-muted-foreground"> / month</span>
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">Each month is 30 days of access.</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Buy 1 to 12 months at a time. One payment, no auto-renew, no trial, and a {REFUND_DAYS}-day refund.
-        </p>
+      <div className="mt-8 grid items-start gap-6 md:grid-cols-2">
+      <Card data-testid="pricing-local-card" className="border border-border">
+        <p className="text-sm font-semibold text-foreground">{PRIVACY_MODES.local.name}</p>
+        <p className="mt-1 text-2xl font-semibold text-foreground">{PRIVACY_MODES.local.price}</p>
+        <p className="mt-1 text-sm text-muted-foreground">No account needed.</p>
 
         <p className="mt-5 text-sm font-semibold text-foreground">Always free</p>
         <FeatureList items={FREE_FEATURES} />
 
+        <p className="mt-5 text-sm font-semibold text-foreground">How it stays private</p>
+        <PrivacyModePoints mode={PRIVACY_MODES.local} className="mt-3" />
+      </Card>
+
+      <Card data-testid="pricing-card" className="border border-brand">
+        <p className="text-sm font-semibold text-foreground">{PRIVACY_MODES.cloud.name}</p>
+        <p className="mt-1 text-2xl font-semibold text-foreground">
+          {PRO_MONTHLY_PRICE}
+          <span className="text-sm font-normal text-muted-foreground"> per 30 days</span>
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Buy 1 to 12 months at a time. One payment, no auto-renew, no trial, and a {REFUND_DAYS}-day refund.
+        </p>
+
         <p className="mt-5 text-sm font-semibold text-foreground">Each month adds</p>
         <FeatureList items={PAID_FEATURES.map(upperFirst)} />
+
+        <p className="mt-5 text-sm font-semibold text-foreground">How it stays private</p>
+        <PrivacyModePoints mode={PRIVACY_MODES.cloud} className="mt-3" />
 
         {paidUntil !== null ? (
           <p data-testid="pricing-paid-until" className="mt-5 text-sm font-semibold text-foreground">
@@ -175,10 +187,10 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
         </div>
 
         <p className="mt-4 text-xs text-muted-foreground">
-          We don&apos;t sell your data or your résumé. How we handle it is in the{" "}
-          <Link href="/privacy" className="underline">privacy policy</Link>.
+          How we handle your data is in the <Link href="/privacy" className="underline">privacy policy</Link>.
         </p>
       </Card>
+      </div>
 
       <Prose className="mt-10">
         <SectionTitle>Questions</SectionTitle>

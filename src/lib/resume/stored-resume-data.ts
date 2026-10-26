@@ -14,7 +14,7 @@ import type { ResumeData } from "@/types/resume";
  *
  * Browser only: `fetchResumeData` sends the stored text and each caller
  * structures it here, because résumé parsing never runs on our servers
- * ("Résumé parsing stays on your device", resume-privacy-copy.ts).
+ * ("Résumé parsing stays on your device", privacy-modes.ts).
  */
 export function storedResumeData(resumeData: ResumeData | undefined, resumeText: unknown): ResumeData | undefined {
     if (resumeData && hasResumeContent(resumeData)) return resumeData;

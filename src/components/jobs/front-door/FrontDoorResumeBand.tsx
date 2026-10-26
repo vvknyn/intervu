@@ -17,10 +17,10 @@ import {
  * band and page.tsx's other résumé-entry surfaces (`needsResumeEntry`) can't
  * disagree about who needs the invite.
  *
- * Copy: `RESUME_UPLOAD_PROMISE` and `RESUME_UPLOAD_SIGNIN_LINE` are shared
- * with /resume's signed-out empty state (`resume-cta-copy.ts`) — see that
- * file's doc comment for why this makes NO on-device/privacy/AI claim (the
- * default upload path is server-side).
+ * Copy: the privacy line is the Local mode text from `lib/privacy-modes.ts`
+ * (the file is read in the browser and never uploaded);
+ * `RESUME_UPLOAD_SIGNIN_LINE` is shared with /resume's signed-out empty
+ * state (`resume-cta-copy.ts`).
  *
  * Requirement 5 (one filled action per screen at rest): "Upload resume" is
  * the ONLY button here — the Button primitive's `secondary` variant (brand text on a

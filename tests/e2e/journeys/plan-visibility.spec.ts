@@ -53,10 +53,10 @@ test("Settings shows the plan above the tabs: free, a gift, a paid end date, or 
   test.skip(!isLocal(baseURL), "needs the dev-only __INTERVU_E2E_AUTH__ hook, which production builds ignore");
   const until = Date.UTC(2031, 0, 15);
   const cases: { reply: unknown; shows: RegExp; link: string; never?: RegExp }[] = [
-    { reply: { plan: { status: "free" } }, shows: /^Free/, link: "See the paid month" },
-    { reply: { plan: { status: "full", until, gift: true, endsSoon: false } }, shows: /Full access through Jan 15, 2031 — a gift; you weren't charged for this time\./, link: "Add months" },
-    { reply: { plan: { status: "full", until, gift: false, endsSoon: false } }, shows: /Full access through Jan 15, 2031(?! — a gift)/, link: "Add months" },
-    { reply: { error: "Couldn't load your plan" }, shows: /Couldn't load your plan\./, link: "See pricing", never: /Free/ },
+    { reply: { plan: { status: "free" } }, shows: /^Local · Free/, link: "See the paid month" },
+    { reply: { plan: { status: "full", until, gift: true, endsSoon: false } }, shows: /Private cloud through Jan 15, 2031 — a gift; you weren't charged for this time\./, link: "Add months" },
+    { reply: { plan: { status: "full", until, gift: false, endsSoon: false } }, shows: /Private cloud through Jan 15, 2031(?! — a gift)/, link: "Add months" },
+    { reply: { error: "Couldn't load your plan" }, shows: /Couldn't load your plan\./, link: "See pricing", never: /Local/ },
   ];
   for (const c of cases) {
     await signInWithPlan(page, c.reply);

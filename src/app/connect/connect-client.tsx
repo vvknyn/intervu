@@ -20,7 +20,11 @@ import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
 import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
-import { CONNECT_FAQ_NO_MCP_NEEDED, CONNECT_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
+import { CONNECT_PRIVACY_LINE } from "@/lib/privacy-modes";
+
+/** Connect FAQ: no MCP required. */
+const CONNECT_FAQ_NO_MCP_NEEDED =
+  "No. You can search jobs, see fit bands, and use the tracker in the browser without pairing an AI assistant. Connect is optional for people who use MCP-compatible assistants.";
 import { PageTitle } from "@/components/ui/heading";
 import { READING_MEASURE } from "@/components/ui/prose";
 import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS, CONNECT_SAMPLE_PROMPTS } from "@/lib/agent/permissions-copy";

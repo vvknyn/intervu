@@ -70,7 +70,9 @@ export const PROCESSORS: readonly Processor[] = [
     receives:
       "Résumé text with your name, email, phone and links taken out, or only the lines for one job or one question. It is encrypted in your browser to the sealed server's own key and passes through our server, which cannot read it. Separately, before the first sealed request after a page loads (when a paid account imports a résumé or tailors one to a job), your browser itself contacts Tinfoil's servers (atc, github-proxy and kds-proxy at tinfoil.sh, plus the sealed server's own address) to check the sealed server is genuine, so Tinfoil sees your IP address and browser details.",
     why: "Résumé AI: reading, tailoring, drafting answers. Runs for paid accounts only.",
-    retention: UNCONFIRMED,
+    // Quoted from https://tinfoil.sh/security-and-privacy-faq, section "Data and privacy" (read Oct 25 2026).
+    retention:
+      "Tinfoil's FAQ (https://tinfoil.sh/security-and-privacy-faq, Data and privacy) says: \"We do not retain API prompt or response content after the response is returned, apart from temporary prompt caching in encrypted enclave memory.\" We have not confirmed a period for the IP address and request details it sees.",
     hosts: [],
     packages: ["tinfoil"],
   },
@@ -241,13 +243,13 @@ export interface ScopedHost {
  */
 export const NO_PERSONAL_DATA_HOSTS: Readonly<Record<string, ScopedHost>> = {
   "www.google.com": { files: ["src/lib/companies/logo-proxy.ts"], reason: "src/lib/companies/logo-proxy.ts:11,38 fetches the favicon server-side; the URL carries only the company domain and no visitor IP, headers or cookies are forwarded." },
-  "velai.app": { files: ["src/components/mock/CompletenessMock.tsx", "src/lib/agent/config.ts", "src/lib/billing/stripe-client.ts", "src/lib/posthog-options.ts"], reason: "our own site address: stripe-client.ts sends it to Stripe as the app label, agent/config.ts uses it as the default MCP issuer id, posthog-options.ts uses it as the base when cleaning page addresses, CompletenessMock.tsx shows it in sample text; nothing is sent to anyone." },
+  "velai.app": { files: ["src/components/mock/CompletenessMock.tsx", "src/lib/agent/config.ts", "src/lib/analytics/scrub-url-queries.ts", "src/lib/billing/stripe-client.ts"], reason: "our own site address: stripe-client.ts sends it to Stripe as the app label, agent/config.ts uses it as the default MCP issuer id, scrub-url-queries.ts uses it as the base when cleaning page addresses, CompletenessMock.tsx shows it in sample text; nothing is sent to anyone." },
 };
 
 /** Addresses in src, each tied to the files it appears in, that are only a link the user clicks, a namespace or schema id, a docs reference, a placeholder or sample value. Never requested by us or by the page on its own. */
 export const NOT_CONTACTED_HOSTS: Readonly<Record<string, ScopedHost>> = {
   "thesubspace.io": { files: ["src/app/about/page.tsx", "src/components/layout/Footer.tsx"], reason: "plain links to our sister product (about page, footer, blog posts); the Subspace API itself comes from an env var, see the Subspace row." },
-  "tinfoil.sh": { files: ["src/app/privacy/page.tsx"], reason: "a plain link to Tinfoil's site in the privacy page text; the sealed-AI calls are the Tinfoil row." },
+  "tinfoil.sh": { files: ["src/app/privacy/page.tsx", "src/lib/legal/processors.ts"], reason: "a plain link to Tinfoil's site in the privacy page text, and its FAQ address quoted in the Tinfoil row; the sealed-AI calls are the Tinfoil row." },
   "claude.ai": { files: ["src/lib/connect-clients.ts", "src/lib/mcp/job-handoff.ts"], reason: "job-handoff.ts builds claude.ai/new?q=... carrying the job id, title, company and location, and it is opened only when you click Continue in Claude (the browser goes there, not our server); connect-clients.ts links only to claude.ai/settings/connectors, carrying nothing." },
   "chatgpt.com": { files: ["src/lib/connect-clients.ts", "src/lib/mcp/job-handoff.ts"], reason: "job-handoff.ts builds chatgpt.com/?q=... carrying the job id, title, company and location, and it is opened only when you click Continue in ChatGPT (the browser goes there, not our server); connect-clients.ts links only to the chatgpt.com home page, carrying nothing." },
   "gemini.google.com": { files: ["src/lib/connect-clients.ts"], reason: "src/lib/connect-clients.ts:70: a link opened only when you click it." },

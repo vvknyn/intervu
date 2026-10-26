@@ -2,9 +2,15 @@ import {
     FRONT_DOOR_RESUME_CARD_SUBCOPY,
     FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
     RESUME_UPLOAD_PROMISE,
-} from "@/lib/jobs/resume-privacy-copy";
+} from "@/lib/privacy-modes";
 
 export { FRONT_DOOR_RESUME_CARD_SUBCOPY, FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN, RESUME_UPLOAD_PROMISE };
+
+/** /resume PageHeader: the one primary headline on the signed-out page. */
+export const RESUME_PAGE_HEADLINE = "One résumé unlocks your personalized job search.";
+
+/** /resume signed-out empty state: supportive h2, not a second page headline. */
+export const RESUME_SIGNED_OUT_EMPTY_TITLE = "You're one upload away.";
 
 /**
  * Shared résumé-upload CTA copy — the /jobs front door, /resume empty state,

@@ -61,8 +61,7 @@ test("rank secondary copy matches contract", () => {
 test("front door card subcopy matches contract", () => {
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
-        // 4ac07706 (signed-out résumé privacy claims) added "It stays in this browser".
-        "Top 3 matches and why. Your résumé stays in this browser.",
+        "Top 3 matches and why. Your résumé is read in your browser and stays on this device. The file is never uploaded.",
     );
 });
 
@@ -80,7 +79,7 @@ test("customize panel copy matches contract", () => {
 test("resume upload promise matches contract", () => {
     assert.equal(
         RESUME_UPLOAD_PROMISE,
-        "Upload a PDF or Word résumé. We parse it in your browser, show what we accepted, then use derived role and skill phrases to retrieve matching jobs—not your full file. Fit labels are computed after results return.",
+        "Upload a PDF or Word résumé. We show what we accepted before you use it. To find jobs we send the search only: job titles or top skills, country and seniority.",
     );
 });
 

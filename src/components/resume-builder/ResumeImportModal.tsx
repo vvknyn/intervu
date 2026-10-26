@@ -21,7 +21,7 @@ import { parseResumeLocally, type LocalParseResult } from "@/lib/local-ai/parse-
 import { ModelEnhancementStrip, type EnhancementPhase } from "./ModelEnhancementStrip";
 import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
-import { RESUME_IMPORT_PARSE_LINE, RESUME_IMPORT_SEALED_DETAIL, RESUME_IMPORT_SEALED_LINE } from "@/lib/jobs/resume-privacy-copy";
+import { PRIVACY_MODES, RESUME_IMPORT_PARSE_LINE, RESUME_IMPORT_SEALED_LINE } from "@/lib/privacy-modes";
 import { sealedAiStatus } from "@/lib/sealed-ai/client";
 import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
 import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
@@ -145,7 +145,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     // only when this server has it set up and the quick read missed something
     // ranking uses (`modelReadNeeded`); its read never reaches our servers.
     const [sealedOn, setSealedOn] = useState(false);
-    const [sealedHowOpen, setSealedHowOpen] = useState(false);
     const [engineLabel, setEngineLabel] = useState<string | null>(null);
     // Model upgrade of the quick (rules) parse — see `startEnhancement`.
     const [enhancement, setEnhancement] = useState<EnhancementPhase | null>(null);
@@ -451,27 +450,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         <div className="space-y-2 rounded-panel border border-border bg-surface-2 p-4 shadow-[var(--shadow-bevel-inset)]">
             <div className="flex items-center gap-2 text-sm font-semibold">
                 <Cpu size={16} className="text-live shrink-0" />
-                <span>Read in your browser</span>
+                <span>{PRIVACY_MODES.local.name} · {PRIVACY_MODES.local.price}</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
                 {RESUME_IMPORT_PARSE_LINE} {storageNote}
             </p>
             {sealedOn && (
                 <p className="text-xs text-muted-foreground leading-relaxed" data-testid="resume-import-model-on">
-                    {RESUME_IMPORT_SEALED_LINE}{" "}
-                    <button
-                        type="button"
-                        aria-expanded={sealedHowOpen}
-                        onClick={() => setSealedHowOpen((open) => !open)}
-                        className="font-semibold text-foreground underline underline-offset-2"
-                    >
-                        How
-                    </button>
-                </p>
-            )}
-            {sealedOn && sealedHowOpen && (
-                <p className="text-xs text-muted-foreground leading-relaxed" data-testid="resume-import-sealed-detail">
-                    {RESUME_IMPORT_SEALED_DETAIL}
+                    {RESUME_IMPORT_SEALED_LINE}
                 </p>
             )}
         </div>

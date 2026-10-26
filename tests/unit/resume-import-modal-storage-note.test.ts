@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { RESUME_IMPORT_STORAGE_NOTE, resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
+import { RESUME_IMPORT_STORAGE_NOTE, resumeImportStorageNote } from "@/lib/privacy-modes";
 
 const STORAGE_NOTE_BY_IDENTIFIER: Record<string, string> = {
     RESUME_IMPORT_STORAGE_NOTE,

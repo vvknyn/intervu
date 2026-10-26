@@ -31,7 +31,7 @@ import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { scoringPreferences } from "@/lib/agent-preferences-read";
 import { noteResumeOnFile } from "@/hooks/use-onboarding";
 import { captureEvent } from "@/lib/analytics/events";
-import { resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
+import { resumeImportStorageNote } from "@/lib/privacy-modes";
 import { isAccountPaid } from "@/lib/account/paid-status";
 import { saveResumeToAccount } from "@/lib/jobs/save-resume-to-account";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";

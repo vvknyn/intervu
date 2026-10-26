@@ -23,7 +23,7 @@ import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 import { captureEvent } from "@/lib/analytics/events";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
-import { SETTINGS_RESUME_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
+import { SETTINGS_RESUME_PRIVACY_LINE } from "@/lib/privacy-modes";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";

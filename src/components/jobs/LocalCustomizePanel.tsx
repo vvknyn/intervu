@@ -26,7 +26,7 @@ import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { CUSTOMIZE_READY_HEADER, SIGN_IN_TO_SYNC_LABEL } from "@/lib/jobs/resume-cta-copy";
-import { CUSTOMIZE_RULES_BADGE, CUSTOMIZE_SEALED_BADGE, CUSTOMIZE_SEALED_DETAIL } from "@/lib/jobs/resume-privacy-copy";
+import { CUSTOMIZE_RULES_BADGE, CUSTOMIZE_SEALED_BADGE } from "@/lib/privacy-modes";
 import { sealedAiStatus } from "@/lib/sealed-ai/client";
 
 export interface LocalCustomizePanelProps {
@@ -47,7 +47,6 @@ export function LocalCustomizePanel({
     onSignInToSync,
 }: LocalCustomizePanelProps) {
     const [draft, setDraft] = useState<TailorDraft | null>(null);
-    const [sealedHowOpen, setSealedHowOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const triggerRef = useRef<HTMLButtonElement>(null);
@@ -190,22 +189,7 @@ export function LocalCustomizePanel({
                                 <div className="flex items-center gap-1.5 text-xs text-brand font-semibold">
                                     <ShieldCheck size={16} className="shrink-0" />
                                     <span data-testid="customize-privacy-badge">{sealed ? CUSTOMIZE_SEALED_BADGE : CUSTOMIZE_RULES_BADGE}</span>
-                                    {sealed && (
-                                        <button
-                                            type="button"
-                                            aria-expanded={sealedHowOpen}
-                                            onClick={() => setSealedHowOpen((open) => !open)}
-                                            className="shrink-0 underline underline-offset-2"
-                                        >
-                                            How
-                                        </button>
-                                    )}
                                 </div>
-                                {sealed && sealedHowOpen && (
-                                    <p className="text-xs text-muted-foreground" data-testid="customize-sealed-detail">
-                                        {CUSTOMIZE_SEALED_DETAIL}
-                                    </p>
-                                )}
                                 <DialogTitle className="break-words text-base font-semibold leading-snug text-foreground">
                                     {CUSTOMIZE_READY_HEADER}
                                 </DialogTitle>

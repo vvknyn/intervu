@@ -10,17 +10,17 @@ import {
   ACCOUNT_SELF_SERVE_DELETION_FLOW,
   PUBLIC_SUPPORT_EMAIL,
 } from "@/lib/legal/public-contact";
-import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
+import { PrivacyModes } from "@/components/legal/PrivacyModes";
 import { COOKIES_DISCLOSED } from "@/lib/legal/cookies-disclosed";
 import { PROCESSORS } from "@/lib/legal/processors";
 import { LOG_ATTR_ALLOW_LIST } from "@/lib/observability/posthog-logs";
-import { PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
+import { PRIVACY_RESUME_SECTION_ID } from "@/lib/privacy-modes";
 import { PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 
 export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
 
 const TITLE = "Privacy Policy";
-const DESCRIPTION = "How Velai keeps your résumé private: read in your browser, encrypted when saved, and never sold. What we collect, why, and how you control it.";
+const DESCRIPTION = "Two ways to use Velai: Local (free) keeps your résumé on your device; Private cloud (paid) saves it encrypted and runs AI on sealed hardware. What we collect, why, and how you control it.";
 
 export const metadata: Metadata = {
   description: DESCRIPTION,
@@ -109,7 +109,7 @@ export default function PrivacyPage() {
     <LegalDocFrame testId="privacy-page">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
-        <PrivacyPromises heading="Velai's privacy promises" showPolicyLink={false} className="mb-8" />
+        <PrivacyModes className="mb-8" />
 
         <Prose>
         <p>
@@ -124,17 +124,18 @@ export default function PrivacyPage() {
           us: what Velai works with is the text and the structured résumé read from it.
         </p>
         <p>
-          Without a paid month, Velai does not save that structured résumé or send it to its servers: it is kept in
-          this browser&apos;s local storage, signed in or not. With a paid month, it is saved to your account so it follows you across devices, and it
+          In Local mode (free), Velai does not save that structured résumé or send it to its servers: it is kept in
+          this browser&apos;s local storage, signed in or not. In Private cloud (a paid month), it is saved to your account so it follows you across devices, and it
           is encrypted with AES-256 before it is stored, under a key kept on our web server rather than in the
           database. The same goes for the copies Velai keeps for you: earlier versions saved in the résumé editor,
           the résumé a role kept when you marked it applied, and tailored résumés filed on a role.
         </p>
         <p>
-          Besides you, only an AI assistant or the Velai browser extension that you connect yourself can load your
-          saved résumé, and only with a paid month. Velai never sends it to an employer: you apply on the employer&apos;s own site. No AI model on
+          Because that key sits on our web server, our server can unlock your saved résumé. It does so only to run
+          what you ask for: tailoring, daily picks, and an AI assistant or the Velai browser extension that you
+          connect yourself. Velai never sends it to an employer: you apply on the employer&apos;s own site. No AI model on
           our servers reads it. When AI helps read or tailor it, your name and contact details are taken out first
-          and the request goes, encrypted, to a sealed server that we can&apos;t read (see{" "}
+          and the request goes, encrypted, to Tinfoil&apos;s sealed hardware, which we can&apos;t read (see{" "}
           <a href="#ai-processing">AI processing</a>).
         </p>
         <p>

@@ -1,6 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { CUSTOMIZE_SEALED_BADGE } from "../../../src/lib/jobs/resume-privacy-copy";
+import { CUSTOMIZE_SEALED_BADGE } from "../../../src/lib/privacy-modes";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
@@ -230,10 +230,8 @@ test("sealed AI rewrites the matched lines in one request toward what the postin
   const dialog = await openCustomizeFor(page, WAREHOUSE_RESUME, DC_POSTING, "warehouse");
   // Three lines and the summary, in one request; it says where they go.
   await expect(dialog.getByText("Rewriting 4 parts for this posting")).toBeVisible({ timeout: 30_000 });
-  // In plain words first; where they go (Tinfoil's sealed server) is one tap away, on How.
+  // The badge is Private cloud 2 verbatim, Tinfoil's sealed hardware named in the open.
   await expect(dialog.getByTestId("customize-privacy-badge")).toHaveText(CUSTOMIZE_SEALED_BADGE);
-  await dialog.getByRole("button", { name: "How" }).click();
-  await expect(dialog.getByTestId("customize-sealed-detail")).toContainText("Tinfoil's sealed AI server");
   await page.evaluate(() => (window as unknown as { __go: () => void }).__go());
 
   const changes = dialog.getByTestId("tailor-change");

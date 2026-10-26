@@ -12,6 +12,7 @@
  */
 import { openCountText, sampleCoversAllRoles } from "@/lib/companies/presentation";
 import type { CompanyPageData } from "@/lib/companies/types";
+import { PRIVACY_MODES } from "@/lib/privacy-modes";
 
 /**
  * The ghost-flagged share as a plain sentence, e.g.
@@ -64,5 +65,5 @@ export function fitPromptTitle(loadedCount: number, partialWindow: boolean): str
  *  importer). Only an account with paid time has it saved; every other résumé, a signed-in one's too, stays on this device. */
 export function fitPromptBody(savedToAccount: boolean): string {
   const what = "Add your résumé to see how well each role here fits you, and why.";
-  return savedToAccount ? `${what} It's saved to your account, encrypted.` : `${what} It stays in this browser.`;
+  return `${what} ${PRIVACY_MODES[savedToAccount ? "cloud" : "local"].points[0]}`;
 }

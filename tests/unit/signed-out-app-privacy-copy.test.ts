@@ -6,14 +6,14 @@ import {
     RESUME_LOCAL_DEVICE_BANNER,
     RESUME_PAGE_SUBCOPY,
     RESUME_UPLOAD_PROMISE,
-} from "@/lib/jobs/resume-privacy-copy";
+} from "@/lib/privacy-modes";
 
 const ROOT = join(__dirname, "..", "..");
 
 /** Signed-out or guest-first app surfaces (user-visible copy). */
 const SIGNED_OUT_APP_COPY_FILES = [
     "src/app/resume/page.tsx",
-    "src/lib/jobs/resume-privacy-copy.ts",
+    "src/lib/privacy-modes.ts",
     "src/lib/jobs/resume-cta-copy.ts",
     "src/lib/auth/auth-gate-copy.ts",
     "src/components/resume-builder/ResumeImportModal.tsx",
@@ -56,7 +56,7 @@ describe("signed-out app surfaces — no misleading privacy absolutes", () => {
         assert.equal(scanForMisleadingAbsolutes('// comment only 100% On-Device'), null);
     });
 
-    it("corpus files (including resume-privacy-copy.ts) avoid banned absolute privacy claims", () => {
+    it("corpus files (including privacy-modes.ts) avoid banned absolute privacy claims", () => {
         for (const rel of SIGNED_OUT_APP_COPY_FILES) {
             const raw = readFileSync(join(ROOT, rel), "utf8");
             const hit = scanForMisleadingAbsolutes(raw);
@@ -69,10 +69,9 @@ describe("signed-out app surfaces — no misleading privacy absolutes", () => {
         assert.match(privacy, /do not send your full résumé file or raw résumé[\s\S]*text to Meilisearch/i);
         assert.match(privacy, /search query derived[\s\S]*from your parsed résumé/i);
 
-        assert.match(RESUME_LOCAL_DEVICE_BANNER, /derived from your résumé/i);
-        assert.match(RESUME_LOCAL_DEVICE_BANNER, /not your full résumé file/i);
-        assert.match(RESUME_UPLOAD_PROMISE, /derived role and skill phrases/i);
-        assert.match(RESUME_UPLOAD_PROMISE, /after results return/i);
+        assert.match(RESUME_LOCAL_DEVICE_BANNER, /The file is never uploaded/i);
+        assert.match(RESUME_LOCAL_DEVICE_BANNER, /we send the search only: job titles or top skills/i);
+        assert.match(RESUME_UPLOAD_PROMISE, /we send the search only/i);
         assert.doesNotMatch(RESUME_PAGE_SUBCOPY, /Strong, Good, and Stretch/i);
         assert.doesNotMatch(RESUME_PAGE_SUBCOPY, /\bFor you\b/i);
 

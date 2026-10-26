@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { RESUME_IMPORT_SEALED_LINE } from "../../../src/lib/jobs/resume-privacy-copy";
+import { RESUME_IMPORT_SEALED_LINE } from "../../../src/lib/privacy-modes";
 import { expect, test } from "./fixtures";
 
 /**
@@ -41,12 +41,8 @@ async function startImport(page: Page) {
     await page.goto("/resume");
     await page.getByTestId("resume-signed-out-upload").click();
     const dialog = page.getByRole("dialog");
-    // The plain promise first; where it goes (Tinfoil's sealed server) is one tap away, on How.
-    const promise = dialog.getByTestId("resume-import-model-on");
-    await expect(promise).toContainText(RESUME_IMPORT_SEALED_LINE);
-    await expect(promise).not.toContainText("Tinfoil");
-    await promise.getByRole("button", { name: "How" }).click();
-    await expect(dialog.getByTestId("resume-import-sealed-detail")).toContainText("Tinfoil's sealed AI server");
+    // The sealed-AI line names Tinfoil's sealed hardware (Private cloud 2) in the open, with no extra tap.
+    await expect(dialog.getByTestId("resume-import-model-on")).toContainText(RESUME_IMPORT_SEALED_LINE);
     await dialog.locator('input[type="file"]').setInputFiles({ name: "resume.txt", mimeType: "text/plain", buffer: RESUME });
     await dialog.getByTestId("resume-import-parse-primary").click();
     return dialog;

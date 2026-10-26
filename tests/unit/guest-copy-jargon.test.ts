@@ -24,7 +24,7 @@ import {
   AUTH_RETRY_HEADLINE,
 } from "../../src/lib/auth/auth-retry-copy";
 import { TRACKER_PAGE_SUBCOPY } from "../../src/lib/pursuits/tracker-voice-copy";
-import { RESUME_UPLOAD_PROMISE } from "../../src/lib/jobs/resume-privacy-copy";
+import { RESUME_UPLOAD_PROMISE } from "../../src/lib/privacy-modes";
 import {
   ELUTA_ALTERNATIVE,
   INDEED_ALTERNATIVE,

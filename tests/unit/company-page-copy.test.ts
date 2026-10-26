@@ -70,6 +70,6 @@ test("fitPromptTitle counts the roles the résumé would be scored against", () 
 });
 
 test("fitPromptBody says where the résumé is kept: saved only when the account has paid time", () => {
-  assert.match(fitPromptBody(false), /It stays in this browser\.$/);
-  assert.match(fitPromptBody(true), /It's saved to your account, encrypted\.$/);
+  assert.match(fitPromptBody(false), /stays on this device\. The file is never uploaded\.$/);
+  assert.match(fitPromptBody(true), /saved to your account, encrypted with AES-256 before it's stored\.$/);
 });

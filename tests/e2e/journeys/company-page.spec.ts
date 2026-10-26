@@ -307,7 +307,7 @@ test("a visitor with no résumé is asked which roles fit them, and adding one r
     const prompt = page.getByTestId("company-fit-prompt");
     await expect(prompt).toBeVisible({ timeout: 30_000 });
     await expect(prompt).toContainText(/^(Which of these \d+ roles|Which of the \d+ newest roles here|Does this open role) fit you\?/);
-    await expect(prompt).toContainText("It stays in this browser.");
+    await expect(prompt).toContainText("stays on this device. The file is never uploaded.");
     // Asked before the roles it is about.
     const firstRole = page.getByTestId("company-role-row").first();
     expect((await prompt.boundingBox())!.y).toBeLessThan((await firstRole.boundingBox())!.y);

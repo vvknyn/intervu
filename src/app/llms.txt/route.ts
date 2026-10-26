@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { AGENT } from "@/lib/agent/config";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { MCP_TOOL_SPECS, RECORD_BUDGET_NOTE } from "@/lib/agent/mcp-tool-specs";
-import { CONNECT_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
+import { CONNECT_PRIVACY_LINE } from "@/lib/privacy-modes";
 
 /**
  * GET /llms.txt — the agent-facing entity card, generated from the SAME

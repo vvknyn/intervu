@@ -18,16 +18,15 @@ import Link from "next/link";
 import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
 import {
-    RESUME_IMPORT_STORAGE_NOTE,
     RESUME_LOCAL_DEVICE_BANNER_BODY,
     RESUME_LOCAL_DEVICE_BANNER_LABEL,
-    RESUME_PAGE_HEADLINE,
     RESUME_PAGE_SUBCOPY,
     RESUME_PAGE_SUBCOPY_SIGNED_IN,
-    RESUME_SIGNED_OUT_EMPTY_TITLE,
     RESUME_UPLOAD_PROMISE,
     paidFeaturesSentence,
-} from "@/lib/jobs/resume-privacy-copy";
+    RESUME_IMPORT_STORAGE_NOTE,
+} from "@/lib/privacy-modes";
+import { RESUME_PAGE_HEADLINE, RESUME_SIGNED_OUT_EMPTY_TITLE } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeIntent } from "@/lib/jobs/pending-actions";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";

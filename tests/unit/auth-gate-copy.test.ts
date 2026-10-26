@@ -11,7 +11,7 @@ import {
     type AuthGateReason,
 } from "../../src/lib/auth/auth-gate-copy";
 import { SIGNUP_GATE_ID_BY_REASON } from "../../src/lib/auth/gate-attempt";
-import { RESUME_LOCAL_DEVICE_BANNER } from "../../src/lib/jobs/resume-privacy-copy";
+import { RESUME_LOCAL_DEVICE_BANNER } from "../../src/lib/privacy-modes";
 
 /** Every reason the app emits (gate-attempt.ts keys one row per `AuthGateReason`). */
 const REASONS = Object.keys(SIGNUP_GATE_ID_BY_REASON) as AuthGateReason[];
@@ -61,7 +61,7 @@ test("formatAuthGateValueLine prefixes the saved-role line and keeps the reason'
 test("résumé-step banner says where the file and the structured résumé are kept", () => {
     assert.equal(
         RESUME_LOCAL_DEVICE_BANNER,
-        "Parsed on this device. The file is read here and never uploaded. The structured result stays in this browser. Saving it to your account, encrypted, needs a paid month. To find jobs, our servers send role and skill phrases derived from your résumé to our search index, not your full résumé file, and those searches aren't logged.",
+        "Local · Free. Your résumé is read in your browser and stays on this device. The file is never uploaded. To find jobs we send the search only: job titles or top skills, country and seniority. Searches built from your résumé aren't logged, and analytics never include your résumé or how you match a job.",
     );
 });
 

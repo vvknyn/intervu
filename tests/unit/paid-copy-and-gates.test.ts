@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PAID_FEATURES, paidFeaturesSentence, RESUME_PAGE_SUBCOPY } from "../../src/lib/jobs/resume-privacy-copy";
+import { PAID_FEATURES, paidFeaturesSentence, RESUME_PAGE_SUBCOPY } from "../../src/lib/privacy-modes";
 import { createPaidStatusCache } from "../../src/lib/account/paid-status";
 import { effectiveResumeSummary } from "../../src/components/settings/effective-resume-summary";
 

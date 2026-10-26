@@ -179,7 +179,7 @@ import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorField
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { ExtensionTile } from "@/components/jobs/ExtensionTile";
 import { pickPromoBand } from "@/lib/jobs/promo-band";
-import { PRIVACY_HEADLINE, PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
+import { PRIVACY_HEADLINE, PRIVACY_RESUME_SECTION_ID } from "@/lib/privacy-modes";
 import { noteResumeOnFile } from "@/hooks/use-onboarding";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
@@ -287,7 +287,7 @@ import {
     RANK_SECONDARY_COPY,
     RESUME_UPLOAD_PROMISE,
 } from "@/lib/jobs/resume-cta-copy";
-import { resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
+import { resumeImportStorageNote } from "@/lib/privacy-modes";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
 import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel, sortTriggerLabel } from "@/lib/jobs/sort";
 import {
