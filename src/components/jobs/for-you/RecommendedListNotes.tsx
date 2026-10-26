@@ -1,18 +1,18 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { RANKED_LOWER_ANCHOR, RankedListDisclosure } from "@/components/jobs/for-you/RankedListDisclosure";
+import { RankedListDisclosure } from "@/components/jobs/for-you/RankedListDisclosure";
 import type { DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import {
     deckListKind,
     disclosureRows,
-    formatRankedLine,
+    formatLeftOutCount,
     type DisclosureRow,
     listNoticeLine,
 } from "@/lib/jobs/for-you/left-out-copy";
 
 /**
  * Under a résumé-ranked list's count: the one-line notice when the list holds the closest or the older roles, and one quiet line
- * about the rest ("Showing 236 of 368 · 122 ranked lower · 54 hidden") that opens to a row per bucket with its action and,
+ * about the roles the rules cut ("54 left out") that opens to a row per bucket with its action and,
  * last, the control for the languages postings are read in (`left-out-copy.ts` words every surface).
  */
 export function RecommendedListNotes({
@@ -30,12 +30,11 @@ export function RecommendedListNotes({
 }) {
     const kind = deckListKind(summary);
     const notice = listNoticeLine(kind);
-    const line = formatRankedLine(summary);
+    const line = formatLeftOutCount(summary);
     if (!notice && !line && !languages) return null;
     const rows = disclosureRows(summary, employers);
     const act = (row: DisclosureRow) => {
-        if (row.action?.kind === "jump") document.getElementById(RANKED_LOWER_ANCHOR)?.scrollIntoView({ behavior: "smooth", block: "start" });
-        else if (row.action?.kind === "include") onInclude(row);
+        if (row.action?.kind === "include") onInclude(row);
     };
     return (
         <div data-testid="list-notes" className="mb-3 space-y-2 px-[var(--list-inset)] text-sm text-muted-foreground">

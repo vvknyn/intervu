@@ -1,0 +1,87 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { deckListFor, withListRemovals, type DeckLeftOutSummary } from "../../src/lib/jobs/for-you/band-order";
+import { collapseByEmployer, slotOpenings } from "../../src/lib/jobs/for-you/employer-slot";
+import { deckListKind, formatHubFitLine, formatLeftOutCount, rolesInList } from "../../src/lib/jobs/for-you/left-out-copy";
+import type { MatchScore } from "../../src/lib/match/score";
+import type { PublicJob } from "../../src/lib/jobs/types";
+
+const NOW = Date.parse("2026-10-15T12:00:00Z");
+const DAY = 86_400_000;
+
+const mk = (id: string, employer: string, ageDays = 3): PublicJob =>
+    ({ id, title: "Product Manager", company: employer, company_domain: `${employer}.com`, apply_url: "https://example.com/apply", posted_at: new Date(NOW - ageDays * DAY).toISOString() }) as PublicJob;
+const score = (total: number, extra: Partial<MatchScore> = {}): MatchScore => ({ total, role: "own", components: [{ key: "relevance", label: "Relevance", detail: "t", score: total / 100 }], ...extra });
+const ABROAD = { components: [{ key: "relevance", label: "Relevance", detail: "t", score: 0.9 }, { key: "location", label: "Location", detail: "t", score: 0.1, reason: "remote_abroad" }] } as Partial<MatchScore>;
+const GERMAN = { language: { posting: ["german"], yours: ["english"] } } as Partial<MatchScore>;
+const LEVEL = { newToManaging: true } as Partial<MatchScore>;
+
+type Row = { job: PublicJob; score: MatchScore };
+const rows = (spec: [employer: string, count: number, make: (employer: string, i: number) => Row][]): Row[] =>
+    spec.flatMap(([employer, count, make]) => Array.from({ length: count }, (_, i) => make(employer, i)));
+const fit = (e: string, i: number): Row => ({ job: mk(`${e}-fit-${i}`, e), score: score(90) });
+const lowerLevel = (e: string, i: number): Row => ({ job: mk(`${e}-lvl-${i}`, e), score: score(85, LEVEL) });
+const old = (e: string, i: number): Row => ({ job: mk(`${e}-old-${i}`, e, 60), score: score(90) });
+const weak = (e: string, i: number): Row => ({ job: mk(`${e}-weak-${i}`, e), score: score(50) });
+const abroad = (e: string, i: number): Row => ({ job: mk(`${e}-abr-${i}`, e), score: score(50, ABROAD) });
+const oldAbroad = (e: string, i: number): Row => ({ job: mk(`${e}-oab-${i}`, e, 60), score: score(50, ABROAD) });
+const german = (e: string, i: number): Row => ({ job: mk(`${e}-ger-${i}`, e), score: score(50, GERMAN) });
+
+/** The list the page builds: `deckListFor`, the tracker/closed removals, then one slot per employer. */
+function build(set: Row[], removed: { closed?: number; tracked?: number } = {}) {
+    const byId = new Map(set.map((r) => [r.job.id, r.score] as const));
+    const { ranked, lower, summary } = deckListFor(set.map((r) => r.job), (j) => byId.get(j.id) ?? null, NOW);
+    const slots = collapseByEmployer([...ranked, ...lower], (j) => j);
+    return { slots, summary: withListRemovals(summary, removed) as DeckLeftOutSummary };
+}
+const reachable = (slots: ReturnType<typeof build>["slots"]) => slots.reduce((n, s) => n + 1 + s.more.length + s.hidden, 0);
+
+describe("the headline number is the roles the list can show", () => {
+    it("fit list: cards, roles behind 'N more at X' (past the cap too), ranked lower; old roles are left out", () => {
+        const set = rows([["acme", 6, fit], ["beta", 2, fit], ["gamma", 1, fit], ["acme", 2, lowerLevel], ["delta", 3, lowerLevel], ["omega", 4, old]]);
+        const { slots, summary } = build(set);
+        assert.equal(deckListKind(summary), "fit");
+        assert.equal(rolesInList(summary), 14);
+        assert.equal(rolesInList(summary), reachable(slots));
+        assert.equal(rolesInList(summary), slots.reduce((n, s) => n + slotOpenings(s), 0));
+        assert.ok(slots.some((s) => s.hidden > 0), "an employer past the slot cap is in the fixture");
+        assert.equal(formatHubFitLine(summary, slots.length), "14 roles · ranked by fit");
+        assert.equal(formatLeftOutCount(summary), "4 left out");
+    });
+
+    it("nothing fits: the closest lead, every other scored role ranks lower, so rule cuts merge into the count and only closed, tracked and unscored are left out", () => {
+        const set = rows([["acme", 2, weak], ["beta", 1, weak], ["acme", 2, abroad], ["gamma", 3, german], ["delta", 2, oldAbroad], ["zeta", 1, lowerLevel]]);
+        const { slots, summary } = build(set, { closed: 2, tracked: 1 });
+        assert.equal(deckListKind(summary), "near");
+        assert.equal(summary.listed, 3);
+        assert.equal(rolesInList(summary), 11, "every scored role the list read, not only the closest");
+        assert.equal(rolesInList(summary), reachable(slots));
+        assert.deepEqual(summary.byReason, { closed: 2, tracked: 1 });
+        assert.equal(formatHubFitLine(summary, slots.length), `11 closest roles at ${slots.length} employers · each a weaker fit`);
+        assert.equal(formatLeftOutCount(summary), "3 left out");
+    });
+
+    it("only older roles fit: the older roles lead, the rest rank lower", () => {
+        const set = rows([["acme", 2, old], ["beta", 1, old], ["gamma", 2, lowerLevel]]);
+        const { slots, summary } = build(set);
+        assert.equal(deckListKind(summary), "older");
+        assert.equal(rolesInList(summary), 5);
+        assert.equal(rolesInList(summary), reachable(slots));
+        assert.equal(formatHubFitLine(summary, slots.length), `5 roles fit your résumé at ${slots.length} employers · all posted over 30 days ago`);
+    });
+
+    it("nothing ranks lower: the number is the cards and what rides behind them", () => {
+        const set = rows([["acme", 3, fit], ["beta", 1, fit], ["gamma", 1, fit], ["omega", 2, old]]);
+        const { slots, summary } = build(set);
+        assert.equal(summary.rankedLower, undefined);
+        assert.equal(rolesInList(summary), 5);
+        assert.equal(rolesInList(summary), reachable(slots));
+        assert.equal(formatHubFitLine(summary, slots.length), "5 roles · ranked by fit");
+    });
+
+    it("nothing left out: no count line, however many roles rank lower", () => {
+        const { summary } = build(rows([["acme", 2, fit], ["beta", 3, lowerLevel]]));
+        assert.equal(rolesInList(summary), 5);
+        assert.equal(formatLeftOutCount(summary), null);
+    });
+});

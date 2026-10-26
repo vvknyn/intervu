@@ -6,8 +6,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
 import { cn } from "@/lib/utils";
 
-/** The id the "Ranked lower" divider in the list carries, so a row's Jump scrolls to it. */
-export const RANKED_LOWER_ANCHOR = "ranked-lower";
 const OPEN_KEY = "velai.ranked-disclosure.open";
 
 const linkClass = "underline underline-offset-2 transition-colors duration-100 hover:text-foreground";
@@ -28,7 +26,7 @@ function writeOpen(open: boolean): void {
     }
 }
 
-/** The one quiet line under the count ("Showing 236 of 368 · 122 ranked lower · 54 hidden") and, opened, a row per bucket with its action. Presentational: `RankedListDisclosure` holds the open state. */
+/** The one quiet line under the count ("54 left out") and, opened, a row per bucket with its action. Presentational: `RankedListDisclosure` holds the open state. */
 export function RankedListDisclosureView({
     line,
     rows,
@@ -56,7 +54,7 @@ export function RankedListDisclosureView({
             );
         return (
             <button type="button" data-testid={`ranked-action-${row.key}`} onClick={() => onAction(row)} className={linkClass}>
-                {a.kind === "jump" ? "Jump" : "Include"}
+                Include
             </button>
         );
     };

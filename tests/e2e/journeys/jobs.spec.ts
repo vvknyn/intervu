@@ -696,7 +696,9 @@ test("the list reads a career changer's level from the years in the role they ho
 
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 60_000 });
   await expect.poll(() => listRowIds(page), { timeout: 30_000 }).toEqual(["tam", "tam-senior", "tam-senior-title"]);
-  await expect(page.getByTestId("ranked-disclosure-toggle")).toContainText("2 ranked lower");
+  // One count: the two senior roles ranked lower are in the headline's 3, and nothing is left out, so no "left out" line.
+  await expect(page.getByTestId("result-line")).toContainText(/^3 /);
+  await expect(page.getByTestId("ranked-disclosure-toggle")).toHaveCount(0);
   await expect(page.getByTestId("list-left-out")).toHaveCount(0);
   // The search bounds roles past Senior (omitPastSenior, 4c5c0c3e) and no longer names a level; the senior roles it returns are ranked below.
   expect(asked.length).toBeGreaterThan(0);

@@ -117,7 +117,6 @@ import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm
 import { useVisit } from "@/hooks/use-visit";
 import { listNewSince } from "@/lib/jobs/list-new-since";
 import { EmployerMore, type EmployerMoreRole } from "@/components/jobs/for-you/EmployerMore";
-import { RANKED_LOWER_ANCHOR } from "@/components/jobs/for-you/RankedListDisclosure";
 import { RecommendedListNotes } from "@/components/jobs/for-you/RecommendedListNotes";
 import { LanguagesControl, storedLanguages } from "@/components/jobs/LanguagesControl";
 import { useLanguageChoice } from "@/hooks/use-language-choice";
@@ -2733,8 +2732,8 @@ export function JobsContent({
         const held = [...inOrder(ranked), ...inOrder(lower)];
         const slots = collapseByEmployer(held, (c) => c.primary);
         const tailLeadId = slots.find((slot) => lowerIds.has(slot.lead.primary.id))?.lead.primary.id ?? null;
-        return { slots, roles: held.length, tailLeadId, summary: withListRemovals(summary, read, result?.total) };
-    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, result?.total, includeAbroad, includeOlder]);
+        return { slots, roles: held.length, tailLeadId, summary: withListRemovals(summary, read) };
+    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, includeAbroad, includeOlder]);
     const rankedClusters = useMemo(() => (recommended ? recommended.slots.map((slot) => slot.lead) : clusters), [recommended, clusters]);
     // The other roles of each employer's slot, by the role that leads it, with the fit label each has elsewhere.
     const employerMoreByLead = useMemo(() => {
@@ -5793,7 +5792,6 @@ export function JobsContent({
                                     whole board above it would be another list's number. */}
                                 {resumeBandEl}
                                 {promoBand === "extension" && <ExtensionTile className="mb-3" />}
-                                {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
                                 {fitActive && resumeReadText && (
                                     <div
                                         data-testid="resume-read-strip"
@@ -6047,6 +6045,7 @@ export function JobsContent({
                                                     >
                                                         {resultCountLine}
                                                     </span>
+                                                    {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
                                                     {listNew && (
                                                         <span className="flex items-center gap-2">
                                                             <span className="size-2 shrink-0 rounded-pill bg-brand" aria-hidden />
@@ -6244,7 +6243,6 @@ export function JobsContent({
                                                 rows.unshift(
                                                     <p
                                                         key="ranked-lower"
-                                                        id={RANKED_LOWER_ANCHOR}
                                                         data-testid="ranked-lower-divider"
                                                         className="mt-2 px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
                                                     >

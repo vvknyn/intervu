@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { deckListFor, withRankedLowerLeftOut, type DeckLeftOutSummary } from "../../src/lib/jobs/for-you/band-order";
-import { disclosureRows, formatDeckShowingLine, formatHubFitLine, formatRankedLine, hiddenTotal, rankedLowerTotal } from "../../src/lib/jobs/for-you/left-out-copy";
+import { disclosureRows, formatDeckShowingLine, formatHubFitLine, formatLeftOutCount, leftOutTotal, rankedLowerTotal, rolesInList } from "../../src/lib/jobs/for-you/left-out-copy";
 import { RankedListDisclosureView } from "../../src/components/jobs/for-you/RankedListDisclosure";
 import type { MatchScore } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
@@ -54,7 +54,7 @@ describe("deckListFor ranks fit buckets lower instead of leaving them out", () =
     });
     it("still removes the hard buckets: old, abroad, language", () => {
         assert.deepEqual(summary.byReason, { old: 1, abroad: 1, language: 1 });
-        assert.equal(hiddenTotal(summary), 3);
+        assert.equal(leftOutTotal(summary), 3);
         assert.ok(![...ids(ranked), ...ids(lower)].some((id) => ["old", "abroad", "german"].includes(id)));
     });
     it("orders a list whose only fits are weaker the same way: nothing stretch-only is dropped", () => {
@@ -105,7 +105,7 @@ describe("when nothing fits, ranking still lists everything the search found", (
         assert.equal(r.lower.length, 14);
         assert.equal(r.summary.near, true);
         assert.equal(rankedLowerTotal(r.summary), 14);
-        assert.equal(hiddenTotal(r.summary), 0);
+        assert.equal(leftOutTotal(r.summary), 0);
         assert.equal(r.summary.listed + rankedLowerTotal(r.summary), 19);
     });
     it("fewer results than the cap: all ranked, nothing lower", () => {
@@ -133,33 +133,34 @@ const SUMMARY: DeckLeftOutSummary = {
 };
 
 describe("the one disclosure line", () => {
-    it("counts the roles on the page, those ranked lower and those hidden", () => {
-        assert.equal(formatRankedLine(SUMMARY), "Showing 236 of 368 · 122 ranked lower · 55 hidden");
+    it("counts only the roles the rules left out", () => {
+        assert.equal(formatLeftOutCount(SUMMARY), "55 left out");
+        assert.equal(formatLeftOutCount({ considered: 100, listed: 90, byReason: { old: 10 } }), "10 left out");
     });
-    it("leaves out a part that is zero", () => {
-        assert.equal(formatRankedLine({ considered: 120, found: 300, listed: 100, byReason: {}, rankedLower: { stretch: 20 } }), "Showing 120 of 300 · 20 ranked lower");
-        assert.equal(formatRankedLine({ considered: 100, listed: 90, byReason: { old: 10 } }), "Showing 90 of 100 · 10 hidden");
-        assert.equal(formatRankedLine({ considered: 100, found: 250, listed: 100, byReason: {} }), "Showing 100 of 250");
+    it("is absent when nothing was left out, whatever else the list holds", () => {
+        assert.equal(formatLeftOutCount({ considered: 120, found: 300, listed: 100, byReason: {}, rankedLower: { stretch: 20 } }), null);
+        assert.equal(formatLeftOutCount({ considered: 20, listed: 20, byReason: {} }), null);
+        assert.equal(formatLeftOutCount(null), null);
     });
-    it("says nothing when the page holds everything the search found", () => {
-        assert.equal(formatRankedLine({ considered: 20, listed: 20, byReason: {} }), null);
-        assert.equal(formatRankedLine(null), null);
-    });
-    it("the headline no longer carries the employers", () => {
+    it("the headline counts the roles it leads with and the ones ranked lower, in each kind's words", () => {
+        assert.equal(rolesInList(SUMMARY), 236);
+        assert.equal(formatHubFitLine(SUMMARY, 94), "236 roles · ranked by fit");
+        assert.equal(formatHubFitLine({ ...SUMMARY, near: true }, 94), "236 closest roles at 94 employers · each a weaker fit");
+        assert.equal(formatHubFitLine({ ...SUMMARY, older: true }, 94), "236 roles fit your résumé at 94 employers · all posted over 30 days ago");
+        assert.equal(formatHubFitLine({ ...SUMMARY, near: true, older: true }, 94), "236 closest roles at 94 employers · each a weaker fit, all posted over 30 days ago");
         assert.equal(formatDeckShowingLine(114, "fit", 94), "114 roles · ranked by fit");
         assert.equal(formatDeckShowingLine(1, "fit"), "1 role · ranked by fit");
-        assert.equal(formatHubFitLine(SUMMARY, 94), "114 roles · ranked by fit");
         assert.equal(formatDeckShowingLine(5, "near", 2), "5 closest roles at 2 employers · each a weaker fit");
     });
 });
 
 describe("the disclosure rows", () => {
     const rows = disclosureRows(SUMMARY, 94);
-    it("lists employers, then hidden buckets, then ranked-lower ones, only for non-zero buckets", () => {
-        assert.equal(rows[0]!.reason, "114 roles at 94 employers");
-        assert.deepEqual(rows.filter((r) => r.group === "hidden").map((r) => r.key), ["language-german", "language-french", "abroad", "old", "tracked", "closed"]);
-        assert.deepEqual(rows.filter((r) => r.group === "lower").map((r) => r.key), ["lower-level", "lower-requirement", "lower-other-role", "lower-stretch"]);
-        assert.ok(rows.findIndex((r) => r.group === "lower") > rows.findLastIndex((r) => r.group === "hidden"));
+    it("lists employers, then left-out buckets, only for non-zero buckets, and no ranked-lower row", () => {
+        assert.equal(rows[0]!.reason, "236 roles at 94 employers");
+        assert.deepEqual(rows.filter((r) => r.group === "left-out").map((r) => r.key), ["language-german", "language-french", "abroad", "old", "tracked", "closed"]);
+        assert.equal(rows.length, 7);
+        assert.ok(!rows.some((r) => r.key.startsWith("lower-")));
     });
     it("gives each bucket its action", () => {
         const by = Object.fromEntries(rows.map((r) => [r.key, r.action]));
@@ -168,27 +169,25 @@ describe("the disclosure rows", () => {
         assert.deepEqual(by["language-german"], { kind: "include", reason: "language", language: "german" });
         assert.deepEqual(by.tracked, { kind: "tracker" });
         assert.equal(by.closed, undefined);
-        assert.deepEqual(by["lower-level"], { kind: "jump" });
     });
     it("drops zero buckets and the employers row when every role is its own employer", () => {
         const few = disclosureRows({ considered: 10, listed: 8, byReason: { old: 2 } }, 8);
         assert.deepEqual(few.map((r) => r.key), ["old"]);
     });
-    it("after an include the bucket reads as ranked lower with a jump", () => {
-        const after = disclosureRows({ considered: 10, listed: 5, byReason: {}, rankedLower: { old: 3 } });
-        assert.deepEqual(after.map((r) => [r.key, r.count, r.action]), [["lower-old", 3, { kind: "jump" }]]);
+    it("after an include the bucket is ranked lower, which has no row", () => {
+        assert.deepEqual(disclosureRows({ considered: 10, listed: 5, byReason: {}, rankedLower: { old: 3 } }), []);
     });
 });
 
 describe("RankedListDisclosureView", () => {
     const render = (open: boolean) =>
         renderToStaticMarkup(
-            React.createElement(RankedListDisclosureView, { line: formatRankedLine(SUMMARY)!, rows: disclosureRows(SUMMARY, 94), open, onToggle() {}, onAction() {}, footer: React.createElement("span", null, "Postings in footer") }),
+            React.createElement(RankedListDisclosureView, { line: formatLeftOutCount(SUMMARY)!, rows: disclosureRows(SUMMARY, 94), open, onToggle() {}, onAction() {}, footer: React.createElement("span", null, "Postings in footer") }),
         );
     it("is one collapsed line by default", () => {
         const html = render(false);
         assert.match(html, /aria-expanded="false"/);
-        assert.match(html, /Showing 236 of 368 · 122 ranked lower · 55 hidden/);
+        assert.match(html, /55 left out/);
         assert.doesNotMatch(html, /data-testid="ranked-disclosure-panel"|Include|Postings in footer/);
     });
     it("opens to a row per non-zero bucket, an action beside each, and the languages last", () => {
@@ -197,9 +196,9 @@ describe("RankedListDisclosureView", () => {
         assert.match(html, /48 · posted over 30 days ago/);
         assert.match(html, /1 · written in German/);
         assert.match(html, /View in tracker/);
-        assert.match(html, /Jump/);
+        assert.doesNotMatch(html, /Jump/);
         assert.equal((html.match(/>Include</g) ?? []).length, 4);
-        assert.ok(html.indexOf("Postings in footer") > html.indexOf("lower-stretch"));
+        assert.ok(html.indexOf("Postings in footer") > html.indexOf("ranked-row-closed"));
         assert.doesNotMatch(html, /ranked-row-unplaced|ranked-row-level"/);
     });
 });
