@@ -77,7 +77,7 @@ Never commit directly on `main` or `staging`.
 
 Firebase, WorkOS, Meilisearch read key, Subspace API, encryption, etc. live in `/opt/interview-os/deploy/contabo-web/intervu.env` on the Contabo box (`.env.production` on a solo box) — **not** in git. After changing it, rerun `/opt/deploy-intervu-quad.sh`: a plain `docker restart` keeps the old values.
 
-`RESUME_RETENTION_CRON_SECRET` (server-only) is the bearer for `POST /api/retention/resumes`; unset, the route answers 503 and no résumé is ever warned about or deleted. `deploy/run-resume-retention.sh` reads it from this env file. It is a dry run unless given `--apply`; the go-live order is in `docs/billing.md`.
+`RESUME_RETENTION_CRON_SECRET` (server-only) is the bearer for `POST /api/retention/resumes`; unset, the route answers 503 and no résumé is ever warned about or deleted. `deploy/run-resume-retention.sh` reads it from this env file. It is a dry run unless given `--apply`; with `--apply` it runs hourly (a saved résumé is deleted within an hour after paid time ends); the go-live order is in `docs/billing.md`.
 
 `ORPHAN_ACCOUNTS_CRON_SECRET` (server-only) is the bearer for `POST /api/ops/orphan-accounts`, the report-only daily count of profiles with no WorkOS user; unset, the route answers 503. `deploy/run-orphan-accounts.sh` reads it from this env file and logs OK/WARN/FAIL to `~/logs/intervu-orphan-accounts.log`. Erasing them is `scripts/erase-orphan-accounts.ts` (dry run by default).
 

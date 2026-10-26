@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DELETED_WHEN } from "@/lib/retention/rules";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { LegalDocFrame, LegalDocHeader } from "@/components/legal/LegalDocHeader";
@@ -262,7 +263,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you have an account, we store the structured résumé with that account until you delete the résumé or
-          the account. Deleting the account deletes that copy from our database; backups that still hold it, in
+          the account, and it is deleted {DELETED_WHEN}. Deleting the account deletes that copy from our database; backups that still hold it, in
           encrypted form, expire on their normal schedule. Deleting the account also asks PostHog to delete the
           analytics events and replays tied to your account.
         </p>
