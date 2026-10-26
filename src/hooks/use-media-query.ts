@@ -2,6 +2,9 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 
+/** The mobile/desktop split every compact presentation uses (filters Sheet, search view): below `lg` is compact. */
+export const LG_UP_QUERY = "(min-width: 1024px)";
+
 /**
  * SSR-safe `matchMedia` hook — same `useSyncExternalStore` triple idiom
  * jobs/page.tsx already uses for other external browser state
