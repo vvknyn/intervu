@@ -1,5 +1,4 @@
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { postedAgeShort } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -13,17 +12,13 @@ export function isEmployerSiteSource(source: string | null | undefined): boolean
     return !!source && source.includes("_direct");
 }
 
-/** The two row facts the list row has no other place for; each is `null`/`false` unless true for this row. */
+/** The two row marks the list row prints as squared hairline chips; each is `false` unless true for this row. */
 export interface RowSourceFacts {
-    /** When Velai first saw a newly listed role, e.g. "1d ago"; `null` unless the row is "fresh" and its own age does not already say it. */
-    firstSeen: string | null;
+    /** "New": the shared 7-day `classifyPostingFreshness` rule, the same one `listNewSince` reads. */
+    isNew: boolean;
     fromEmployerSite: boolean;
 }
 
 export function rowSourceFacts(job: Pick<PublicJob, "source" | "posted_at" | "first_seen_at">, nowMs: number): RowSourceFacts {
-    const { kind, firstSeenMs, postedMs } = classifyPostingFreshness(job, nowMs);
-    const seen = kind === "fresh" ? postedAgeShort(firstSeenMs, nowMs) : null;
-    // The row's right rail already prints this age (posted, or first seen when the posting has no date): never twice.
-    const railAge = postedAgeShort(postedMs ?? firstSeenMs, nowMs);
-    return { firstSeen: seen !== railAge ? seen : null, fromEmployerSite: isEmployerSiteSource(job.source) };
+    return { isNew: classifyPostingFreshness(job, nowMs).kind === "fresh", fromEmployerSite: isEmployerSiteSource(job.source) };
 }

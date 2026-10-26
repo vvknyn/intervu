@@ -35,7 +35,6 @@ import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
-import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { rowSourceFacts } from "@/lib/jobs/row-source-facts";
 import { Badge } from "@/components/ui/badge";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
@@ -147,7 +146,6 @@ export function JobCard({
     // `locationWithMode` fold-in) — showing "Hybrid" in both the location
     // text AND its own chip would say the same fact twice.
     const factChips = buildFactChips(job, null, null).filter((c) => c.kind === "work_type" || c.kind === "salary");
-    const freshness = classifyPostingFreshness(job, now);
     const sourceFacts = rowSourceFacts(job, now);
     // "Hires in Canada" for a remote role whose posting says so in words its place fields lack (HiresIn.tsx).
     const hires = hiresNoteOf(matchScore);
@@ -320,7 +318,7 @@ export function JobCard({
                     the detail pane's verdict word — sharing this line with
                     the facts (instead of a second row) is what keeps the
                     comfortable row inside the rulebook's 96-112px band. */}
-                {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0 || hires || sourceFacts.firstSeen || sourceFacts.fromEmployerSite) && (
+                {(factChips.length > 0 || sourceFacts.isNew || variantCount > 0 || hires || sourceFacts.fromEmployerSite) && (
                     <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         <span>
                         <MetaLine
@@ -331,13 +329,6 @@ export function JobCard({
                                     </span>
                                 )),
                                 hires && <HiresInWord note={hires} />,
-                                // "New" reads the SAME 7-day `classifyPostingFreshness`
-                                // window everything else on the row already uses.
-                                freshness.kind === "fresh" && (
-                                    <span data-testid="freshness-badge" className="font-semibold text-muted-foreground">
-                                        New
-                                    </span>
-                                ),
                                 // "+N location(s)"/"+N opening(s)" joins the same
                                 // flowing meta line as plain text (rulebook item k)
                                 // instead of a boxed chip — still the cluster
@@ -358,8 +349,8 @@ export function JobCard({
                             ]}
                         />
                         </span>
-                        {/* Two facts the row has no other place for, as quiet squared `key value` chips (SourceFact). */}
-                        {sourceFacts.firstSeen && <SourceFact testId="first-seen-pill" label="Seen by Velai" value={sourceFacts.firstSeen} />}
+                        {/* "New" (the row's one 7-day freshness rule) and the source fact, as quiet squared hairline chips (SourceFact). */}
+                        {sourceFacts.isNew && <SourceFact testId="freshness-badge" label="New" />}
                         {sourceFacts.fromEmployerSite && <SourceFact testId="employer-site-pill" label="From the company's site" />}
                     </div>
                 )}
@@ -410,12 +401,11 @@ export function JobCard({
     );
 }
 
-/** A fact as a squared hairline chip: `Badge` (the word primitive) boxed, key muted, value in the row's tabular figures. */
-function SourceFact({ testId, label, value }: { testId: string; label: string; value?: string }) {
+/** A row mark as a squared hairline chip: `Badge` (the word primitive) boxed. */
+function SourceFact({ testId, label }: { testId: string; label: string }) {
     return (
         <Badge data-testid={testId} className="mono-data rounded-none border border-border-subtle px-1.5 py-0.5 font-normal leading-none text-muted-foreground">
             {label}
-            {value && <span className="font-semibold text-foreground">{value}</span>}
         </Badge>
     );
 }

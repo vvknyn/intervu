@@ -22,7 +22,7 @@ const VIEWPORTS = [
 
 for (const [name, engine] of ENGINES) {
     for (const viewport of VIEWPORTS) {
-        test(`${name} ${viewport.width}: source pills show only where the row's facts make them true`, { tag: ['@J-JOBS-163'] }, async ({ baseURL }) => {
+        test(`${name} ${viewport.width}: row marks show only where the row's facts make them true`, { tag: ['@J-JOBS-163'] }, async ({ baseURL }) => {
             test.skip(!/localhost|127\.0\.0\.1/.test(baseURL ?? ''), '/mock/* is a design fixture, not served on production');
             const browser = await engine.launch();
             try {
@@ -31,16 +31,21 @@ for (const [name, engine] of ENGINES) {
                 const row = (id: string) => page.locator(`[data-job-id="${id}"]`);
                 await expect(row('new-employer')).toBeVisible({ timeout: 30_000 });
 
-                await expect(row('new-employer').getByTestId('first-seen-pill')).toHaveText("Seen by Velai1d ago");
-                await expect(row('new-employer').getByTestId('employer-site-pill')).toHaveText("From the company's site");
-                await expect(row('new-board').getByTestId('first-seen-pill')).toBeVisible();
-                await expect(row('new-board').getByTestId('employer-site-pill')).toHaveCount(0);
-                await expect(row('old-employer').getByTestId('employer-site-pill')).toBeVisible();
-                await expect(row('old-employer').getByTestId('first-seen-pill')).toHaveCount(0);
-                await expect(row('old-board').getByTestId('first-seen-pill')).toHaveCount(0);
-                await expect(row('old-board').getByTestId('employer-site-pill')).toHaveCount(0);
-                await expect(row('new-unknown-source').getByTestId('first-seen-pill')).toBeVisible();
-                await expect(row('new-unknown-source').getByTestId('employer-site-pill')).toHaveCount(0);
+                const newMark = (id: string) => row(id).getByTestId('freshness-badge');
+                const site = (id: string) => row(id).getByTestId('employer-site-pill');
+                await expect(newMark('new-employer')).toHaveText('New');
+                await expect(newMark('new-employer')).toHaveCount(1);
+                await expect(row('new-employer').getByText('New', { exact: true })).toHaveCount(1);
+                await expect(site('new-employer')).toHaveText("From the company's site");
+                await expect(newMark('new-board')).toHaveCount(1);
+                await expect(site('new-board')).toHaveCount(0);
+                await expect(site('old-employer')).toBeVisible();
+                await expect(newMark('old-employer')).toHaveCount(0);
+                await expect(newMark('old-board')).toHaveCount(0);
+                await expect(site('old-board')).toHaveCount(0);
+                await expect(newMark('new-unknown-source')).toHaveCount(1);
+                await expect(site('new-unknown-source')).toHaveCount(0);
+                await expect(page.getByText(/Seen by/)).toHaveCount(0);
 
                 // Facts only: no claim about any other site; the page does not scroll sideways.
                 await expect(page.locator('[data-testid$="-pill"]').filter({ hasText: /google|linkedin/i })).toHaveCount(0);
