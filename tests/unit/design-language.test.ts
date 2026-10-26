@@ -742,7 +742,8 @@ test("no blur, backdrop-blur, drop-shadow, or arbitrary shadow utility survives"
     // value, not by file, mirroring the scrim carve-out for translucency. A
     // line skips only when EVERY banned-pattern match on it is that token,
     // so a real violation sharing a line with the token still gets caught.
-    const bannedBlurShadow = /\b(?:backdrop-blur(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|blur(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|drop-shadow(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|shadow-\[[^\]]*\])\b/g;
+    // `(?<!\.)`: the DOM method `el.blur()` (drop focus) is not the utility.
+    const bannedBlurShadow = /(?<!\.)\b(?:backdrop-blur(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|blur(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|drop-shadow(?:-\[[^\]]*\]|-[a-zA-Z0-9]+)?|shadow-\[[^\]]*\])\b/g;
     const offenders = findOffenders(path.join(ROOT, "src"), bannedBlurShadow, {
         skip: (strippedLine) => {
             const matches = strippedLine.match(bannedBlurShadow) ?? [];
