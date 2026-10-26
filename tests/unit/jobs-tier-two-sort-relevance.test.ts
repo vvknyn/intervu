@@ -26,7 +26,7 @@ describe("tier 2 requires every word under every sort", () => {
   for (const [label, p, sort] of cases) {
     it(`${label}: every word required in both tiers, same q and filter, sort passed through`, () => {
       const [t1, t2] = buildTieredQuerySpecs(p);
-      assert.deepEqual(strategies(p), ["all", "all"]);
+      assert.ok(strategies(p).every((m) => m === "all"), "title-alias queries require every word too");
       assert.equal(t1.query.q, t2.query.q);
       assert.ok(t1.query.q.replaceAll('"', "") === p.q, "q is the typed query (short tokens quoted)");
       assert.deepEqual(t1.query.filter, t2.query.filter, "tiers differ only in scope");

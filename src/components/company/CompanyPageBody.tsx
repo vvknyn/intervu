@@ -3,6 +3,7 @@ import { CompanyFollowChannelProvider } from "@/components/companies/CompanyFoll
 import { CompanyChangeEventTeaser } from "@/components/company/CompanyChangeEventTeaser";
 import { CompanyChangeEvents } from "@/components/company/CompanyChangeEvents";
 import { CompanyExhaustGate, type ExhaustGateTeaser } from "@/components/company/CompanyExhaustGate";
+import { HiringDot } from "@/components/company/HiringDot";
 import { CompanyFactRow } from "@/components/company/CompanyFactRow";
 import { CompanyFilingsBand } from "@/components/company/CompanyFilingsBand";
 import { CompanyIntegrityBand } from "@/components/company/CompanyIntegrityBand";
@@ -155,9 +156,7 @@ export function CompanyPageBody({
                 </p>
               )}
               <p className="mt-3 flex items-center gap-2 text-base leading-snug text-foreground">
-                {hiring.hasOpenRoles && (
-                  <span className="h-2 w-2 shrink-0 rounded-pill bg-live" aria-hidden />
-                )}
+                <HiringDot dot={hiring.dot} />
                 <span data-testid="company-hiring-headline">
                   {humanizeProjectorHeadline(hiring.headline)}
                   {hiring.liveCheck && (

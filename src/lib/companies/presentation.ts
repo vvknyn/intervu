@@ -17,11 +17,12 @@ import type { OpenCount } from "./open-count";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { exhaustHiringRecord } from "./hiring-record";
-import { formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
+import { STALE_CLEAR_META, formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { formatCount } from "@/lib/format";
+import { STATUS_FILL } from "@/lib/ui/status-tokens";
 import { hiringFreshness, newestCheckAt, type HiringFreshness } from "@/lib/companies/freshness";
 
 /**
@@ -202,6 +203,10 @@ export type CompanyHiringAnswer = {
   /** At least one live role — the page uses it for the live indicator only;
    *  the words are already decided below. */
   hasOpenRoles: boolean;
+  /** The header's status dot, read from the same `hiringFreshness` fact as
+   *  `headline`: green "Live" only over a current check, otherwise the role
+   *  rows' neutral "Not recently verified" tone. Null with no open roles. */
+  dot: { cls: string; label: string } | null;
   /** The direct answer to "Is X hiring?", as one sentence. Rendered verbatim
    *  on the page AND handed to the FAQPage structured data, so the machine
    *  answer and the human answer cannot drift apart. */
@@ -248,17 +253,23 @@ export function buildCompanyHiringAnswer(
   nowMs: number,
 ): CompanyHiringAnswer {
   const hasOpenRoles = data.openCount > 0;
+  const freshness = hiringFreshness(newestCheckAt(data.jobs), nowMs);
   const roles = data.openCount === 1 ? "open role" : "open roles";
   // The box database's record (job_listings) is the only source of the
   // opened/closed record, the one the integrity band and "Hiring now" print.
   return {
     hasOpenRoles,
+    dot: hasOpenRoles
+      ? freshness.fresh
+        ? { cls: "bg-live", label: "Live" }
+        : { cls: STATUS_FILL.intv, label: STALE_CLEAR_META.label }
+      : null,
     // No "No" on the empty branch: the page knows what Velai tracks, not
     // whether the employer is hiring somewhere it can't see. It reports the
     // former and lets the reader draw the latter. No "Yes —" on the other:
     // the count is the answer (rulebook 2026-09, GROUP-D: dash-free).
     headline: hasOpenRoles
-      ? `${openCountText(data)} ${roles} ${listedClaim(hiringFreshness(newestCheckAt(data.jobs), nowMs))}`
+      ? `${openCountText(data)} ${roles} ${listedClaim(freshness)}`
       : "Velai isn't tracking any live open roles right now",
     liveCheck: buildLiveCheckFact(data, nowMs),
     trackRecord: exhaustHiringRecord(data.exhaust, nowMs),
