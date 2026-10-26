@@ -23,7 +23,7 @@ const base: Omit<PublicJob, "id" | "title" | "company" | "source" | "posted_at" 
     salary_period: null,
     visa_sponsorship: null,
     tags: [],
-    apply_url: "https://example.com",
+    apply_url: "",
     updated_at: null,
     vacancy_status: "open",
     ghost_badge: "clear",
