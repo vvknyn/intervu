@@ -58,7 +58,7 @@ async function CompanyPageContent({ slug }: { slug: string }) {
   const now = Date.now();
 
   // The visible FAQ (inside CompanyPageBody) and this JSON-LD render the same array.
-  const faqJsonLd = buildFaqPageJsonLd(buildCompanyFaq(data.facts));
+  const faqJsonLd = buildFaqPageJsonLd(buildCompanyFaq(data.facts, data.nowMs));
   const related = await relatedRead;
   // Same array-of-graphs convention as the root layout's own JSON-LD
   // (app/layout.tsx) — one script tag, not one per graph. Organization is

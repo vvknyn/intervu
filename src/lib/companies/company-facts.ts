@@ -13,6 +13,7 @@ import type { WikidataItem } from "@/lib/companies/indexable";
 import { formatCount } from "@/lib/format";
 import type { OpenCount } from "@/lib/companies/open-count";
 import { categoryLabel, machineTokenLabel } from "@/lib/companies/machine-token";
+import { newestCheckAt } from "@/lib/companies/freshness";
 import { typicalPayText } from "@/lib/companies/presentation";
 import { evidencedSkills } from "@/lib/jobs/presentation";
 import { classifyCountryValue, rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
@@ -67,7 +68,8 @@ export interface CompanyFacts {
     openCountIsLowerBound: boolean;
     monitoredSince: string | null;
     lastPostedAt: string | null;
-    lastSeenAliveAt: string | null;
+    /** Newest check stamp over the fetched window (`newestCheckAt`); feeds `hiringFreshness`. */
+    checkedAt: string | null;
     cadence: WeeklyCadence[] | null;
   };
   mix: {
@@ -277,7 +279,7 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
       openCountIsLowerBound: openCount.isLowerBound,
       monitoredSince: exhaust?.integrity?.data.trackedSinceIso ?? null,
       lastPostedAt: latestIso(jobs, (j) => j.posted_at),
-      lastSeenAliveAt: latestIso(jobs, (j) => j.last_observed_alive_at),
+      checkedAt: newestCheckAt(jobs),
       cadence: exhaust?.cadence?.data.weeks ?? null,
     },
     mix: {

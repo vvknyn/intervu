@@ -1,6 +1,8 @@
 import type { CompanyFacts } from "./company-facts";
 import { roleCountText } from "./facts-copy";
 import { formatCount } from "@/lib/format";
+import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { hiringFreshness } from "./freshness";
 
 export interface CompanyFaqItem {
   question: string;
@@ -15,16 +17,18 @@ const REMOTE_VALUES = new Set(["remote", "fully_remote", "fully remote"]);
  * absent is omitted. The visible FAQ and the FAQPage JSON-LD both render this
  * one array, so they cannot disagree.
  */
-export function buildCompanyFaq(facts: CompanyFacts): CompanyFaqItem[] {
+export function buildCompanyFaq(facts: CompanyFacts, nowMs: number): CompanyFaqItem[] {
   const { name } = facts.identity;
-  const { openCount, openCountIsLowerBound: lower, lastPostedAt } = facts.hiring;
+  const { openCount, openCountIsLowerBound: lower, lastPostedAt, checkedAt } = facts.hiring;
+  const { fresh, checkedOn } = hiringFreshness(checkedAt, nowMs);
+  const newest = lastPostedAt ? eventDate(lastPostedAt) : null;
   const { countries, workType, visaSponsorship } = facts.mix;
   const items: (CompanyFaqItem | null)[] = [
     {
       question: `Is ${name} hiring?`,
       answer:
         openCount > 0
-          ? `Yes. ${name} has ${roleCountText(openCount, lower)} listed${lastPostedAt ? `, the newest posted ${lastPostedAt.slice(0, 10)}` : ""}.`
+          ? `${fresh ? "Yes. " : ""}${name} has ${roleCountText(openCount, lower)} listed${!fresh && checkedOn ? `, last checked ${checkedOn}` : ""}${newest ? `, the newest posted ${newest}` : ""}.`
           : `${name} has no open roles listed right now.`,
     },
     openCount > 0

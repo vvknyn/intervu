@@ -28,7 +28,7 @@ test("the hiring headline states the open-role count on Velai, with no 'Yes —'
     const headline = page.getByTestId("company-hiring-headline");
     await expect(headline).toBeVisible({ timeout: 30_000 });
     const text = (await headline.textContent())?.trim() ?? "";
-    expect(text).toMatch(/^(\d[\d,]*\+? open roles? live on Velai right now|Velai isn't tracking any live open roles right now)/);
+    expect(text).toMatch(/^(\d[\d,]*\+? open roles? (live on Velai right now|listed on Velai(, last checked [A-Z][a-z]{2} \d{1,2}, \d{4})?)|Velai isn't tracking any live open roles right now)/);
     expect(text).not.toMatch(/\bYes\b|—|\bvelai\b/);
     // The live check, when printed, is a count (or "all") seen in the past week.
     const rest = text.split(" · ")[1];
