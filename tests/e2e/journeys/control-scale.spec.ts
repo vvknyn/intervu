@@ -69,8 +69,8 @@ test("/jobs toolbar: every control in the row takes the md step", { tag: ["@J-JO
     await page.goto("/jobs?work=remote&exp=senior");
     const row = page.getByTestId("jobs-toolbar-rows");
     await expect(row.getByTestId("filters-toggle")).toBeVisible({ timeout: 15_000 });
-    // A chip's own dismiss glyph is the sm step by design (`ChipDismiss`, `.ctl-square`); every other control is the row.
-    const heights = await controlHeights(row, `:is(${CONTROLS}):not(.ctl-square)`);
+    // A chip's own dismiss glyph is the sm step by design (`ChipDismiss`, `data-slot="chip-dismiss"`); every other control, square ones included, is the row.
+    const heights = await controlHeights(row, `:is(${CONTROLS}):not([data-slot="chip-dismiss"])`);
     expect(heights.length).toBeGreaterThanOrEqual(2);
     expect(new Set(heights)).toEqual(new Set([MD]));
 });

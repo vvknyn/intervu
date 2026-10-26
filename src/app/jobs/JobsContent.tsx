@@ -202,9 +202,15 @@ const ResumeImportModal = dynamic(
     { ssr: false, loading: () => null },
 );
 // Rendered on the server too when the list is (/jobs/first-rows), so the
-// search box is in place before the page's code runs.
-const SearchAutocomplete = dynamic(() =>
-    import("@/components/search/SearchAutocomplete").then((m) => m.SearchAutocomplete),
+// search box is in place before the page's code runs. `loading` gives it its
+// own boundary: without one a late chunk hides the whole page behind
+// JobsRouteGate's Suspense (tests/unit/dynamic-own-boundary.test.ts). The
+// placeholder holds the field's own lg step so the row does not grow when the
+// chunk lands (J-JOBS-163); max-h-full clamps it inside the docked header's
+// fixed-height slot and does nothing in the in-page row, whose height is auto.
+const SearchAutocomplete = dynamic(
+    () => import("@/components/search/SearchAutocomplete").then((m) => m.SearchAutocomplete),
+    { loading: () => <div aria-hidden className="ctl-lg max-h-full w-full" /> },
 );
 const AuthPopover = dynamic(
     () => import("@/components/auth/auth-popover").then((m) => m.AuthPopover),

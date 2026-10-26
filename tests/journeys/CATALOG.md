@@ -964,3 +964,4 @@ Specs in `tests/e2e/` triaged "fix" that no row above cites. Not run by the jour
 | jobs-rulebook.spec.ts | `beforeAll` waits 60 s for result rows behind the poster gate; every test times out; dev-server oriented. |
 
 Deleted as stale (no journey behind them): api-search-stability, audit-search, motivational-banner, parallel-loading, privacy-account, quirky-messages, setup-wizard-fix, storage-persistence.
+| J-JOBS-163 | The search row keeps its box (position and size) from the first frame to the settled one while the search field's code arrives late (the lazy field has its own loading boundary, so the page is not hidden and re-run) | Guest | `/jobs?q=engineer` with the SearchAutocomplete chunk held 1.5 s; every animation frame's `[data-search-line]` box is recorded and must be one value | signed-out | no | covered | search-row-stable.spec.ts |
