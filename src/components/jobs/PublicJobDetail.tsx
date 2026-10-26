@@ -27,7 +27,6 @@ import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
-import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { scoreJobAgainstResume } from "@/lib/match/score";
@@ -301,7 +300,6 @@ export function PublicJobDetail({
             toast.success("Applied — nice work");
             captureEvent("job_marked_applied", {
                 job_id: target.id,
-                ...matchAnalyticsProps(target.id === job.id ? matchScoreFor(job) : null),
             });
         } catch (e) {
             setOptimisticPursuits((prev) => {
@@ -385,7 +383,6 @@ export function PublicJobDetail({
                 toast.success(GUEST_SAVE_TOAST);
                 captureEvent("job_saved", {
                     job_id: target.id,
-                    ...matchAnalyticsProps(matchScoreFor(target)),
                 });
             } catch (e) {
                 setOptimisticPursuits((prev) => {

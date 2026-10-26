@@ -27,8 +27,7 @@ import { resolveAuthKitReturnTo } from '@/lib/auth/post-auth-destination'
 import { validateNextParam } from '@/lib/auth/product-routes'
 import { authCardCopy, PERSONAL_EMAIL_HINT, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import Link from 'next/link'
-import { BrandLockup } from '@/components/brand/BrandMark'
+import { BrandHomeLink } from '@/components/brand/BrandMark'
 import { PageTitle } from '@/components/ui/heading'
 
 interface LoginFormProps {
@@ -309,9 +308,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                     {/* A dead end otherwise — this card had no wordmark/home link
                         back to the rest of the site. Reuses TopBar's own lockup
                         (BrandMark.tsx) rather than a second copy of the mark. */}
-                    <Link href="/jobs" className="inline-flex w-fit transition-opacity hover:opacity-90" data-rulebook-exempt>
-                        <BrandLockup />
-                    </Link>
+                    <BrandHomeLink href="/jobs" />
                     <PageTitle>
                         {headline?.title ?? copy.title}
                     </PageTitle>
@@ -337,10 +334,14 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
             </div>
 
             <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as "login" | "signup"); setMessage(null); }} className="w-full">
-                <TabsList variant="line" className="mb-3.5 sm:mb-5">
-                    <TabsTrigger value="login">{authCardCopy("login").tabLabel}</TabsTrigger>
-                    <TabsTrigger value="signup">{authCardCopy("signup").tabLabel}</TabsTrigger>
-                </TabsList>
+                {/* Spacing sits on a wrapper: a margin on the list itself would replace its
+                    scroll-hit compensation and grow the card. */}
+                <div className="mb-3.5 sm:mb-5">
+                    <TabsList variant="line">
+                        <TabsTrigger value="login">{authCardCopy("login").tabLabel}</TabsTrigger>
+                        <TabsTrigger value="signup">{authCardCopy("signup").tabLabel}</TabsTrigger>
+                    </TabsList>
+                </div>
 
                 {/* Email-first ordering (2026-08-20 signup-ladder audit): Google is
                     the only sign-in path that hands us a real, mail-deliverable
