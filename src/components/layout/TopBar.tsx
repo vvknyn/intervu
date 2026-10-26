@@ -19,7 +19,7 @@ import { TabItem, TabNav } from "@/components/ui/tabs";
 import { NAV_TABS, RESUME_TAB } from "@/components/layout/nav-tabs";
 import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
-import { BrandLockup } from "@/components/brand/BrandMark";
+import { BrandHomeLink } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
@@ -98,16 +98,13 @@ export function TopBar() {
                 data-region="header"
                 className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6"
             >
-                <Link
+                <BrandHomeLink
                     href="/"
                     prefetch={false}
                     {...prefetchOnIntent("/")}
-                    className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-90"
+                    markClassName="h-8 w-8"
                     data-testid="topbar-logo"
-                    data-rulebook-exempt
-                >
-                    <BrandLockup markClassName="h-8 w-8" />
-                </Link>
+                />
 
                 {/* `flex-1` so the row's leftover width lands HERE rather than
                     as a gap in the middle of the bar. `justify-end` keeps the
@@ -209,7 +206,7 @@ export function TopBar() {
                                 href="/pricing"
                                 prefetch={false}
                                 data-testid="topbar-pricing"
-                                className={cn("px-2 text-sm text-muted-foreground hover:text-foreground", CHROME_FOCUS_VISIBLE)}
+                                className={cn("hit-band px-2 text-sm text-muted-foreground hover:text-foreground", CHROME_FOCUS_VISIBLE)}
                             >
                                 Pricing
                             </Link>
