@@ -100,7 +100,7 @@ import {
     getRecentlyViewedServerSnapshot,
     recordRecentlyViewedJob,
 } from "@/lib/jobs/recently-viewed";
-import { hrefFromJobsUrlState, jobsUrlStateFromSavedHref, savedSearchId, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
+import { hrefFromJobsUrlState, savedSearchId, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
 import { useSavedSearches, savePendingSearchAfterSignIn, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
     subscribeSuppressLocationDefault,
@@ -4201,14 +4201,14 @@ export function JobsContent({
 
     const chooseBestMatch = () => chooseSort("relevance");
 
-    const applySavedSearch = (href: string) => {
+    const applySavedSearch = (state: JobsUrlState) => {
         // A saved search IS a full /jobs URL-state write — same chokepoint
         // as every other filter/sort/query mutation above, not a real
         // navigation, so it gets the same shallow (no server round-trip)
         // history write. The reconcile effect below picks up the resulting
         // `searchParams` change and re-derives every local field from it,
         // exactly as it already does for Back/Forward/a typed address bar.
-        applyUrlState(jobsUrlStateFromSavedHref(href), "push");
+        applyUrlState(state, "push");
     };
 
     const canSaveSearch = Boolean(
@@ -4859,6 +4859,8 @@ export function JobsContent({
             urlState={addressState(buildUrlState())}
             canSave={false}
             onApply={applySavedSearch}
+            resumeQuery={pack?.q ?? null}
+            derivedQuery={resumeDerivedRef.current?.q ?? null}
             compact
             className="inline-flex"
         />
@@ -4938,6 +4940,8 @@ export function JobsContent({
             signedIn={!!user}
             saved={savedSearches}
             urlState={alertUrlState}
+            resumeQuery={pack?.q ?? null}
+            derivedQuery={resumeDerivedRef.current?.q ?? null}
             guestOn={manualAlertOpen}
             guestRequested={requestedAlerts.includes(alertSearchId)}
             onGuestChange={setManualAlertOpen}

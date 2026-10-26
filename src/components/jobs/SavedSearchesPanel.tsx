@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookmarkSimple, X } from "@phosphor-icons/react";
+import { BookmarkSimple, Info, X } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
@@ -15,16 +15,19 @@ import { captureEvent } from "@/lib/analytics/events";
 import { noteSetupFacts } from "@/hooks/use-onboarding";
 import { getSignedInUser } from "@/lib/firebase/client-auth";
 import { SignupGate } from "@/components/auth/SignupGate";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { decideSaveAttempt } from "@/lib/auth/guest-save-gate";
 import { readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
     deleteSavedSearch,
+    effectiveSavedSearchState,
     hrefFromJobsUrlState,
-    jobsUrlStateFromSavedHref,
     persistSavedSearch,
+    savedSearchDisplay,
     savedSearchId,
+    savedSearchOrigin,
     suggestSavedSearchName,
     type SavedSearch,
 } from "@/lib/jobs/saved-searches";
@@ -43,6 +46,8 @@ export function SavedSearchesPanel({
     urlState,
     canSave,
     onApply,
+    resumeQuery,
+    derivedQuery = null,
     onBeforeGuestSave,
     compact = false,
     className,
@@ -53,7 +58,12 @@ export function SavedSearchesPanel({
     urlState: JobsUrlState;
     /** Parent decides when the current URL state is worth persisting. */
     canSave: boolean;
-    onApply: (href: string) => void;
+    /** Applies a saved search's effective state (`effectiveSavedSearchState`). */
+    onApply: (state: JobsUrlState) => void;
+    /** The query the CURRENT résumé's fit derives, or null with no résumé on the device. A résumé-origin saved search follows it. */
+    resumeQuery: string | null;
+    /** The fit-derived query this page's search carries, null while the search is the visitor's own: a save records its origin from it. */
+    derivedQuery?: string | null;
     /**
      * Called BEFORE a guest (signed-out) save is committed. Return `"block"`
      * to cancel the save (the panel then shows the signup gate);
@@ -82,14 +92,14 @@ export function SavedSearchesPanel({
     const saved = savedProp.filter((s) => !removedIds.has(s.id));
     // The count effect keys on CONTENT: `saved` is a new array every render, and the effect's own
     // setState re-renders, so keying on it refetched every count in a loop.
-    const countsKey = JSON.stringify(saved.map((s) => [s.id, s.href]));
+    const countsKey = JSON.stringify(saved.map((s) => [s.id, s.href, s.origin ?? null, resumeQuery]));
     // A guest sees the signup gate instead of a name
     // field; the search they meant to save is saved once they sign in.
     const [gated, setGated] = useState<PendingSavedSearch | null>(null);
 
     const startSave = () => {
         if (decideSaveAttempt(!!getSignedInUser()) === "gate") {
-            setGated({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState) });
+            setGated({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState), origin: savedSearchOrigin(urlState, derivedQuery) });
             return;
         }
         setNameDraft(suggestSavedSearchName(urlState));
@@ -102,8 +112,9 @@ export function SavedSearchesPanel({
         setSaving(true);
         try {
             const href = hrefFromJobsUrlState(urlState);
+            const origin = savedSearchOrigin(urlState, derivedQuery);
             if (getSignedInUser()) {
-                const res = await settleAction(saveSavedSearchAction({ name, href }));
+                const res = await settleAction(saveSavedSearchAction({ name, href, origin }));
                 if (!res.error) {
                     invalidateSavedSearchesCache();
                     captureEvent("saved_search_created", { surface: "toolbar", signed_in: true });
@@ -114,10 +125,10 @@ export function SavedSearchesPanel({
                 if (onBeforeGuestSave?.() === "block") {
                     setNaming(false);
                     setNameDraft("");
-                    setGated({ name, href });
+                    setGated({ name, href, origin });
                     return;
                 }
-                persistSavedSearch({ name, href });
+                persistSavedSearch({ name, href, origin });
                 captureEvent("saved_search_created", { surface: "toolbar", signed_in: false });
             }
             setNaming(false);
@@ -158,7 +169,7 @@ export function SavedSearchesPanel({
     // — deriving from the hash is what lets "new since I looked" progress
     // survive the guest→signed-in transition.
     useEffect(() => {
-        const rows: [string, string][] = JSON.parse(countsKey);
+        const rows: [string, string, SavedSearch["origin"] | null, string | null][] = JSON.parse(countsKey);
         if (rows.length === 0) {
             setNewCounts((prev) => (Object.keys(prev).length === 0 ? prev : {}));
             return;
@@ -166,9 +177,9 @@ export function SavedSearchesPanel({
         let cancelled = false;
         void (async () => {
             const counts = await Promise.all(
-                rows.map(([, href]) =>
+                rows.map(([, href, origin, rq]) =>
                     countNewSinceAction(
-                        { scope: "saved", params: jobsUrlStateFromSavedHref(href) },
+                        { scope: "saved", params: effectiveSavedSearchState({ href, origin: origin ?? undefined }, rq) },
                         readVisitCursor(`saved:${savedSearchId(href)}`),
                     ),
                 ),
@@ -281,35 +292,72 @@ export function SavedSearchesPanel({
                 </div>
             )}
             {!hideList && saved.length > 0 && (
+                <TooltipProvider delayDuration={300}>
                 <ul className={cn("flex items-center gap-1.5", compact ? "min-w-0 flex-wrap" : "flex-wrap")}>
-                    {saved.map((s) => (
-                        <li key={s.id} className={cn(
-                            compact
-                                ? "inline-flex items-center gap-1"
-                                : "inline-flex ctl-lg items-center gap-1 rounded-pill bg-muted px-2.5",
-                        )}>
+                    {saved.map((s) => {
+                        const { label, terms } = savedSearchDisplay(s, resumeQuery);
+                        const count = newCounts[s.id];
+                        const chip = (
                             <button
                                 type="button"
                                 data-testid="saved-search-item"
                                 onClick={() => {
                                     writeVisitCursor(`saved:${savedSearchId(s.href)}`, new Date().toISOString());
-                                    onApply(s.href);
+                                    onApply(effectiveSavedSearchState(s, resumeQuery));
                                 }}
                                 className={cn(
                                     compact
                                         ? "max-w-[8rem] truncate text-xs text-foreground underline underline-offset-2 hover:no-underline"
                                         : "max-w-[10rem] truncate text-xs text-foreground hover:underline",
                                 )}
-                                title={s.name}
                             >
-                                {s.name}
+                                {label}
                             </button>
-                            {(newCounts[s.id]?.value ?? 0) >= 1 && (
+                        );
+                        return (
+                        <li key={s.id} className={cn(
+                            compact
+                                ? "inline-flex items-center gap-1"
+                                : "inline-flex ctl-lg items-center gap-1 rounded-pill bg-muted px-2.5",
+                        )}>
+                            {terms ? (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>{chip}</TooltipTrigger>
+                                    <TooltipContent>{terms.join(", ")}</TooltipContent>
+                                </Tooltip>
+                            ) : (
+                                chip
+                            )}
+                            {terms && (
+                                // Touch has no hover: a tap on this opens the same terms (hidden where a pointer can hover).
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <button
+                                            type="button"
+                                            data-testid="saved-search-terms-trigger"
+                                            aria-label={`Show the search terms in ${label}`}
+                                            className="hidden size-8 items-center justify-center text-muted-foreground hover:text-foreground pointer-coarse:inline-flex"
+                                        >
+                                            <Info />
+                                        </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent data-testid="saved-search-terms" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] p-3 text-sm">
+                                        <ul className="list-disc space-y-0.5 pl-4">
+                                            {terms.map((term) => (
+                                                <li key={term}>{term}</li>
+                                            ))}
+                                        </ul>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+                            {(count?.value ?? 0) >= 1 && (
                                 <span
                                     data-testid="saved-search-new-count"
+                                    role="note"
+                                    aria-label={`${formatCorpusCount(count)} new listings since your last visit`}
                                     className="text-xs font-semibold text-brand"
                                 >
-                                    +{formatCorpusCount(newCounts[s.id])}
+                                    {formatCorpusCount(count)} new
                                 </span>
                             )}
                             <button
@@ -317,13 +365,15 @@ export function SavedSearchesPanel({
                                 data-testid="saved-search-remove"
                                 onClick={() => void removeSaved(s)}
                                 className="text-muted-foreground hover:text-foreground ml-0.5"
-                                aria-label={`Remove saved search ${s.name}`}
+                                aria-label={`Remove saved search ${label}`}
                             >
                                 <X />
                             </button>
                         </li>
-                    ))}
+                        );
+                    })}
                 </ul>
+                </TooltipProvider>
             )}
         </div>
     );

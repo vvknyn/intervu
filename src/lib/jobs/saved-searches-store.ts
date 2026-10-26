@@ -9,7 +9,7 @@
  * `"use server"` file's exports must all be async Server Actions.
  */
 import { getAdminDb } from "@/lib/firebase/admin";
-import type { SavedSearch } from "./saved-searches";
+import { originField, type SavedSearch } from "./saved-searches";
 
 export function savedSearchesCollection(uid: string) {
   return getAdminDb().collection("users").doc(uid).collection("savedSearches");
@@ -22,5 +22,6 @@ export function docToSavedSearch(snap: FirebaseFirestore.DocumentSnapshot): Save
     name: data.name,
     href: data.params,
     createdAt: data.createdAt,
+    ...originField(data.origin),
   };
 }
