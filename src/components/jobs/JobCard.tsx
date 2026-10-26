@@ -36,6 +36,7 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
+import { Badge } from "@/components/ui/badge";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
 import { formatCardPlace, presentJob } from "@/lib/presentation";
@@ -320,7 +321,8 @@ export function JobCard({
                     the facts (instead of a second row) is what keeps the
                     comfortable row inside the rulebook's 96-112px band. */}
                 {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0 || hires) && (
-                    <div className="mt-1 flex flex-wrap items-baseline text-sm text-muted-foreground">
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                        <span>
                         <MetaLine
                             items={[
                                 ...factChips.map((c) => (
@@ -329,13 +331,6 @@ export function JobCard({
                                     </span>
                                 )),
                                 hires && <HiresInWord note={hires} />,
-                                // "New" reads the SAME 7-day `classifyPostingFreshness`
-                                // window everything else on the row already uses.
-                                freshness.kind === "fresh" && (
-                                    <span data-testid="freshness-badge" className="font-semibold text-muted-foreground">
-                                        New
-                                    </span>
-                                ),
                                 // "+N location(s)"/"+N opening(s)" joins the same
                                 // flowing meta line as plain text (rulebook item k)
                                 // instead of a boxed chip — still the cluster
@@ -355,6 +350,9 @@ export function JobCard({
                                 ),
                             ]}
                         />
+                        </span>
+                        {/* "New" (the row's one 7-day freshness rule) as a quiet squared hairline chip. */}
+                        {freshness.kind === "fresh" && <NewMark />}
                     </div>
                 )}
                 {reasonLine && (
@@ -401,5 +399,14 @@ export function JobCard({
             </span>
             </div>
         </div>
+    );
+}
+
+/** The row's "New" mark as a squared hairline chip: `Badge` (the word primitive) boxed. */
+function NewMark() {
+    return (
+        <Badge data-testid="freshness-badge" className="mono-data rounded-none border border-border-subtle px-1.5 py-0.5 font-normal leading-none text-muted-foreground">
+            New
+        </Badge>
     );
 }
