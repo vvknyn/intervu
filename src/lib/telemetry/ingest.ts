@@ -18,6 +18,7 @@
  *   (in-batch duplicate event_id -> drop the repeat, keep the first)
  */
 import { ANALYTICS_EVENTS } from "@/lib/analytics/event-names";
+import { scrubValue } from "@/lib/analytics/scrub-url-queries";
 import { SEARCH_ENGINE_BOTS, AI_ANSWER_ENGINE_BOTS } from "@/lib/shield/robots-policy";
 import type { TelemetryRejection, TelemetryRow } from "./types";
 import { ENVELOPE_COLUMN_RULES, isPlainObject, LEDGER_COLUMN_RULES } from "./column-rules";
@@ -107,7 +108,8 @@ function parseEvent(raw: unknown, now: number, userId: string | null): ParsedEve
   const occurredAtMs = Date.parse(raw.occurred_at as string);
   const eventName = raw.event_name as string;
 
-  const props = (raw.props as Record<string, unknown> | undefined) ?? {};
+  // The ledger keeps addresses the way PostHog does: no query string, no hash (`scrubValue`).
+  const props = scrubValue((raw.props as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
   if (JSON.stringify(props).length > MAX_PROPS_LENGTH) {
     return { rejection: { event_id: eventId, reason: "props_too_large" } };
   }

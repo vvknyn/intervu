@@ -11,7 +11,7 @@
  * parameter cannot — same pattern `writeHeartbeat` uses.
  */
 import type { Queryable } from "@/lib/pg/pool";
-import type { DailyEventRow } from "./daily-rollup";
+import type { DailyEventRow, ImpressionEventCount } from "./daily-rollup";
 import { RESULTS_IMPRESSED } from "./outcome-events";
 import { utcDayColumnSql, UTC_DAY_TRUNC_NOW_SQL } from "./derived-day";
 
@@ -109,6 +109,30 @@ export async function fetchWindowImpressions(
     [windowDays, RESULTS_IMPRESSED],
   );
   return rows;
+}
+
+/**
+ * One row per `results_impressed` event with its `count`, flagged
+ * `positioned` when `job_ids` is present. A résumé-shaped list omits
+ * `job_ids`/`positions`, so `fetchWindowImpressions` (an inner zip) yields
+ * nothing for it; this is the only reader that still sees its volume.
+ */
+export async function fetchWindowImpressionCounts(
+  db: Queryable,
+  windowDays: number,
+): Promise<ImpressionEventCount[]> {
+  const { rows } = await db.query<{ day: string; count: string; positioned: boolean }>(
+    `select
+       ${utcDayColumnSql("e.received_at")} as day,
+       (e.props->>'count') as count,
+       (e.props->'job_ids') is not null as positioned
+     from intervu.telemetry_events e
+     where e.event_name = $2
+       and e.props->>'count' ~ '^[0-9]+$'
+       and e.received_at >= ${UTC_DAY_TRUNC_NOW_SQL} - make_interval(days => $1)`,
+    [windowDays, RESULTS_IMPRESSED],
+  );
+  return rows.map((r) => ({ day: r.day, count: Number(r.count), positioned: r.positioned }));
 }
 
 /** Unnested impressions carry no company_domain (see roll-up-telemetry.ts's

@@ -547,7 +547,7 @@ export function JobDetail({
     useEffect(() => {
         setDescExpanded(false);
     }, [job.id]);
-    useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
+    useJobViewedCapture({ job, source });
     // Identity-header location line — same progressive-disclosure idiom as
     // the description clamp above, for aggregator-feed `location` strings
     // that stuff many semicolon-joined locations into one field (see

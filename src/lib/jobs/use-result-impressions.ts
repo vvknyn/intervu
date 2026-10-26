@@ -27,6 +27,7 @@
 
 import { useEffect, useRef } from "react";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
+import { resultsImpressedPayload } from "@/lib/analytics/result-payloads";
 import {
   EMPTY_IMPRESSION_BATCH,
   recordImpression,
@@ -41,7 +42,11 @@ export function useResultImpressions(
   containerRef: React.RefObject<HTMLElement | null>,
   source: EventSource,
   queryId: string,
+  resumeShaped: boolean,
 ): void {
+  // Read at flush time: the fit can be applied after the hook armed for this query.
+  const resumeShapedRef = useRef(resumeShaped);
+  resumeShapedRef.current = resumeShaped;
   const stateRef = useRef<ImpressionBatchState>(EMPTY_IMPRESSION_BATCH);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -59,13 +64,7 @@ export function useResultImpressions(
       const { impressions, next } = flushImpressions(stateRef.current);
       stateRef.current = next;
       if (impressions.length > 0) {
-        captureEvent("results_impressed", {
-          job_ids: impressions.map((i) => i.jobId),
-          positions: impressions.map((i) => i.position),
-          count: impressions.length,
-          source,
-          ...(queryId ? { query_id: queryId } : {}),
-        });
+        captureEvent("results_impressed", resultsImpressedPayload(impressions, { source, queryId, resumeShaped: resumeShapedRef.current }));
       }
     };
 

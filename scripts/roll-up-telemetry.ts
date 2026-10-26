@@ -93,6 +93,11 @@
  * array entry, which is then merged with the scalar-column events before
  * aggregation.
  *
+ * A résumé-shaped list (listShapedByResume) sends `count` but omits
+ * `job_ids`/`positions`: it adds to the logged `impressions_total` volume
+ * (`fetchWindowImpressionCounts`) and to nothing per-job or
+ * position-corrected, because there is no job or position to attribute.
+ *
  * Usage: npx tsx scripts/roll-up-telemetry.ts [--window-days=2] [--feature-window-days=90]
  */
 import { config } from "dotenv";
@@ -106,6 +111,7 @@ import { buildJobFeaturesSelect } from "@/lib/telemetry/job-features-columns";
 import type { JobFeatures } from "@/lib/telemetry/features";
 import {
   aggregateDailyMetrics,
+  impressionVolumeByDay,
   toJobDailyRows,
   toCompanyDailyRows,
   type DailyEventRow,
@@ -119,7 +125,7 @@ import {
   type OutcomeEventRow,
 } from "@/lib/telemetry/feature-outcomes";
 import { classifyOutcomeEvent } from "@/lib/telemetry/outcome-events";
-import { fetchRollupEvents, resolveWindowDays } from "@/lib/telemetry/rollup-fetch";
+import { fetchRollupEvents, fetchWindowImpressionCounts, resolveWindowDays } from "@/lib/telemetry/rollup-fetch";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: `${ROOT}/.env.local`, quiet: true });
@@ -179,6 +185,10 @@ async function main() {
   try {
     const { dailyEvents, featureEvents } = await fetchRollupEvents(db, WINDOW_DAYS, FEATURE_WINDOW_DAYS);
 
+    const volume = impressionVolumeByDay(await fetchWindowImpressionCounts(db, WINDOW_DAYS));
+    const volumeTotal = [...volume.values()].reduce((n, v) => n + v.total, 0);
+    const volumePositioned = [...volume.values()].reduce((n, v) => n + v.positioned, 0);
+
     const jobDailyRows = toJobDailyRows(aggregateDailyMetrics(dailyEvents, (e) => e.job_id));
     const companyDailyRows = toCompanyDailyRows(
       aggregateDailyMetrics(dailyEvents, (e) => e.company_domain),
@@ -232,7 +242,8 @@ async function main() {
     console.log(
       `${JOB_NAME}: window=${WINDOW_DAYS}d feature_window=${FEATURE_WINDOW_DAYS}d ` +
         `job_daily=${jobDailyRows.length} company_daily=${companyDailyRows.length} ` +
-        `feature_outcomes=${featureOutcomeRows.length}`,
+        `feature_outcomes=${featureOutcomeRows.length} ` +
+        `impressions_total=${volumeTotal} impressions_positioned=${volumePositioned}`,
     );
   } catch (err) {
     // Report the real count reached before the failure, never a fabricated
