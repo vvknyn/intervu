@@ -275,6 +275,45 @@ Salesforce, Gainsight`,
             skills: ["Salesforce", "Gainsight"],
         },
     },
+    {
+        id: "employer on contact row, Bachelors plural, two-line education",
+        text: `Asha Menon
+Speech Language Pathologist
+Hearfon Systems Private Ltd., Bangalore, India | +91 99000 00000 | asha@example.com
+
+PROFESSIONAL SUMMARY
+Speech language pathologist working with adults and children.
+
+EDUCATION
+Master of Science in Speech Language Pathology
+Dr. S.R. Chandrasekhar Institute of Speech and Hearing, Bangalore, India
+2014
+Bachelors in Audiology and Speech Language Pathology
+Manipal University, Manipal, India
+2012`,
+        expect: {
+            name: "Asha Menon",
+            profession: "Speech Language Pathologist",
+            email: "asha@example.com",
+            phone: "+91 99000 00000",
+            location: "Bangalore, India",
+            summary: "Speech language pathologist working with adults and children.",
+            experience: [],
+            education: [
+                {
+                    degree: "Master of Science in Speech Language Pathology",
+                    institution: "Dr. S.R. Chandrasekhar Institute of Speech and Hearing, Bangalore, India",
+                    year: "2014",
+                },
+                {
+                    degree: "Bachelors in Audiology and Speech Language Pathology",
+                    institution: "Manipal University, Manipal, India",
+                    year: "2012",
+                },
+            ],
+            skills: [],
+        },
+    },
 ];
 
 describe("résumé fields land in their own slot", () => {

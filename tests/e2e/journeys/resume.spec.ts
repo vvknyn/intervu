@@ -51,6 +51,39 @@ const GUEST_RESUME = {
   sourceLabel: "jane-doe.pdf",
 };
 
+/** Legacy localStorage shape: employer string stored as location; Bachelors degree in institution only. */
+const GUEST_MISPARSED_RESUME = {
+  data: {
+    profile: {
+      name: "Asha Menon",
+      profession: "Speech Language Pathologist",
+      yearsOfExperience: 4,
+      location: "Hearfon Systems Private Ltd., Bangalore, India",
+      email: "asha@example.com",
+      phone: "+91 99000 00000",
+    },
+    generatedSummary: "Speech language pathologist working with adults and children.",
+    competencies: [{ category: "Core competencies", skills: ["Swallowing disorders", "AAC devices"] }],
+    experience: [],
+    education: [
+      {
+        id: "edu-0",
+        degree: "Master of Science in Speech Language Pathology",
+        institution: "Dr. S.R. Chandrasekhar Institute of Speech and Hearing, Bangalore, India",
+        year: "2014",
+      },
+      {
+        id: "edu-1",
+        degree: "",
+        institution: "Bachelors in Audiology and Speech Language Pathology",
+        year: "2012",
+      },
+    ],
+  },
+  updatedAt: "2026-09-20T00:00:00.000Z",
+  sourceLabel: "asha-menon.pdf",
+};
+
 const isLocal = (baseURL: string | undefined) => /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");
 
 /** Next server-action response in flight format: `1:` carries the action's return value. */
@@ -113,6 +146,51 @@ test("A guest résumé offers its ranked jobs and can be removed from this devic
   await page.reload();
   await expect(page.getByTestId("resume-signed-out-upload")).toBeVisible();
 });
+
+test(
+  "A guest local résumé shows a readable readout with a sane place and education",
+  { tag: ["@J-RESUME-61"] },
+  async ({ page }) => {
+    await page.addInitScript(
+      ([key, value]) => {
+        if (!sessionStorage.getItem("seeded")) {
+          localStorage.setItem(key, value);
+          sessionStorage.setItem("seeded", "1");
+        }
+      },
+      [LOCAL_AI_RESUME_KEY, JSON.stringify(GUEST_MISPARSED_RESUME)],
+    );
+    await page.goto("/resume");
+
+    const readout = page.getByTestId("guest-resume-readout");
+    await expect(readout).toBeVisible();
+    await expect(readout.getByText("Bangalore, India")).toBeVisible();
+    await expect(readout).not.toContainText("Hearfon Systems Private Ltd.");
+    await expect(readout.getByText("Bachelors in Audiology and Speech Language Pathology")).toBeVisible();
+
+    const pipeLeading = await page.evaluate(() => {
+      const hits: string[] = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const trimmed = (walker.currentNode.textContent ?? "").trim();
+        if (trimmed.startsWith("|")) hits.push(trimmed.slice(0, 60));
+      }
+      return hits;
+    });
+    expect(pipeLeading).toEqual([]);
+
+    const pitch = page.getByTestId("resume-local-account-pitch");
+    const replace = page.getByRole("button", { name: "Replace" });
+    const pitchBox = await pitch.boundingBox();
+    const replaceBox = await replace.boundingBox();
+    expect(pitchBox).not.toBeNull();
+    expect(replaceBox).not.toBeNull();
+    expect(pitchBox!.x + pitchBox!.width).toBeLessThanOrEqual(replaceBox!.x + 1);
+
+    await expect(page.getByTestId("resume-see-matches")).toHaveAttribute("href", "/jobs");
+    await expect(page.getByTestId("resume-see-matches")).toBeVisible();
+  },
+);
 
 /** A guest with a résumé on this device. */
 const seedGuestResume = (page: Page) =>
