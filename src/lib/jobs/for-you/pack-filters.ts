@@ -128,6 +128,33 @@ export function fitUrlState(base: JobsUrlState, fit: FitApplication): JobsUrlSta
     };
 }
 
+/** What the fit derives from the résumé when applied to `base`: nothing when the address has its own intent, which fit only ranks. */
+export function derivedByFit(base: JobsUrlState, fit: FitApplication): FitApplication | null {
+    return urlHasOwnIntent(base) ? null : fit;
+}
+
+/**
+ * The state as it is written to an address: whatever the résumé's fit derived (its query, its facets, its window)
+ * stays out, and `sort=fit` alone says the list is ranked by fit. The address reaches the Referer header, access
+ * logs, a reload and the sign-up and sign-in links, so résumé-derived words leave the browser only in the search
+ * request's body. Values the visitor typed or picked differ from the derived ones and are written as they are; a
+ * reload with only `sort=fit` derives the same fit again from the résumé (the client's at-rest fit).
+ */
+export function withoutResumeDerived(state: JobsUrlState, fit: FitApplication | null): JobsUrlState {
+    if (!fit || state.sort !== "fit") return state;
+    const facets = { ...state.facets };
+    for (const [key, derived] of Object.entries(fit.facets) as [FacetKey, string[]][]) {
+        if (facets[key]?.join(",") === derived.join(",")) delete facets[key];
+    }
+    const windowDerived = !fit.keepUserWindow && state.postedBucket === fit.postedBucket;
+    return {
+        ...state,
+        q: state.q === fit.q ? "" : state.q,
+        facets,
+        ...(windowDerived ? { postedBucket: DEFAULT_URL_STATE.postedBucket, postedExplicit: undefined } : {}),
+    };
+}
+
 /**
  * Whether the address already asks for something of its own (a query, a company or board scope, a job, any filter;
  * anything but a sort): fitting then ranks it as it stands, never replaces or widens it with the résumé's pack.
