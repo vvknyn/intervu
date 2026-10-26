@@ -38,7 +38,7 @@ test.describe("the search box", () => {
     const seed = (await options.first().boundingBox())!;
     const parked = { x: seed.x + seed.width / 2, y: seed.y + seed.height / 2 };
     await page.mouse.move(parked.x, parked.y);
-    await expect(options.first(), "hovering a suggestion picks nothing").toHaveAttribute("aria-selected", "false");
+    await expect(input, "hovering a suggestion picks nothing").not.toHaveAttribute("aria-activedescendant", /.+/);
 
     // Type with the pointer still there. Enter at once, while the list still shows the old suggestions.
     await page.keyboard.press("Escape");
@@ -52,24 +52,41 @@ test.describe("the search box", () => {
     await input.fill(TYPED);
     await expect(options.first()).toContainText(/account/i);
     await page.mouse.move(parked.x, parked.y + 1);
-    await expect(options.first(), "a list drawn under the pointer picks nothing").toHaveAttribute("aria-selected", "false");
+    await expect(input, "a list drawn under the pointer picks nothing").not.toHaveAttribute("aria-activedescendant", /.+/);
     await input.press("Enter");
     await expect(page).toHaveURL(new RegExp(`q=${TYPED}(&|$)`));
     expect(searched(page), "Enter with the typed words' suggestions under the pointer").toBe(TYPED);
+
+    // Hover the third row, then Enter: still the typed words, never that row.
+    await input.fill("");
+    await input.fill(TYPED);
+    await expect(options.nth(2)).toBeVisible();
+    await options.nth(2).hover();
+    await expect(input, "hovering the third row picks nothing").not.toHaveAttribute("aria-activedescendant", /.+/);
+    await input.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`q=${TYPED}(&|$)`));
+    expect(searched(page), "Enter with the third row hovered").toBe(TYPED);
     expect(diagnostics.serverErrors).toEqual([]);
   });
 
   test("runs the suggestion that was picked with the arrow keys, or clicked or tapped", { tag: ["@J-SRCH-39"] }, async ({ page, diagnostics }) => {
     const input = await openFrontDoor(page);
     const options = page.getByRole("option");
+    // The first row is `Search "<typed>"`, which runs the typed words; the rows after it are the suggestions.
+    const suggestions = options.filter({ hasNotText: /^Search\s/ });
 
     await input.fill(TYPED);
-    await expect(options.first()).toContainText(/account/i);
-    const first = (await options.first().innerText()).trim();
+    await expect(suggestions.first()).toContainText(/account/i);
+    const first = (await suggestions.first().innerText()).trim();
     expect(first.toLowerCase(), "a suggestion is a longer title than the typed words").not.toBe(TYPED);
+    for (const text of await suggestions.allInnerTexts()) {
+      expect(text.trim().toLowerCase(), "no suggestion just echoes the typed words").not.toBe(TYPED);
+    }
 
-    await input.press("ArrowDown");
-    await expect(options.first()).toHaveAttribute("aria-selected", "true");
+    // Arrow to the first suggestion (past the Search row).
+    const firstId = (await suggestions.first().getAttribute("id"))!;
+    for (let i = 0; i < 4 && (await input.getAttribute("aria-activedescendant")) !== firstId; i++) await input.press("ArrowDown");
+    await expect(input).toHaveAttribute("aria-activedescendant", firstId);
     await input.press("Enter");
     await expect(page).toHaveURL(/\/jobs\?(.+&)?q=/);
     expect(searched(page), "arrow key then Enter").toBe(first);
@@ -77,9 +94,9 @@ test.describe("the search box", () => {
     // A click or tap on a suggestion runs it too.
     await input.fill("");
     await input.fill(TYPED);
-    await expect(options.first()).toContainText(/account/i);
-    const second = (await options.first().innerText()).trim();
-    await options.first().click();
+    await expect(suggestions.first()).toContainText(/account/i);
+    const second = (await suggestions.first().innerText()).trim();
+    await suggestions.first().click();
     await expect.poll(() => searched(page), "click on a suggestion").toBe(second);
     expect(diagnostics.serverErrors).toEqual([]);
   });

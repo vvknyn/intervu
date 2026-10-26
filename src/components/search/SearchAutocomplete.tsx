@@ -1,18 +1,19 @@
 "use client";
 
-import { Fragment, useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent, useId } from "react";
-import { createPortal } from "react-dom";
-import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
-import { Input } from "@/components/ui/input";
-import { Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, type CSSProperties, type KeyboardEvent, type Key } from "react";
+import type { ComboBoxState } from "react-aria-components";
+import { Combobox, ComboboxInput, ComboboxItem, ComboboxLayer, ComboboxList, ComboboxPopover, ComboboxSection } from "@/components/ui/combobox";
+import { ArrowLeft, Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
-import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
+import { getSuggestions, groupSuggestions, withQueryRow, SearchSuggestion, SuggestionRow, SuggestionSection } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
     getRecentSearchesServerSnapshot,
 } from "@/lib/jobs/recent-searches";
+import { LG_UP_QUERY, useMediaQuery } from "@/hooks/use-media-query";
+import { useVisibleViewport } from "@/hooks/use-visual-viewport";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 
 interface SearchAutocompleteProps {
@@ -85,25 +86,18 @@ export interface SearchAutocompleteHandle {
     focus: () => void;
 }
 
-/**
- * Section header text for each suggestion type — single source of truth for
- * the dropdown's group labels (item 6a, 2026-08-21 front-door audit: the
- * dropdown mixed roles, companies, and stray junk with no labels at all,
- * generalized from the one pre-existing 'seed' -> "Popular searches"
- * special case). Keyed off `SearchSuggestion['type']` itself — TypeScript
- * requires every member of that closed union to be handled below (`undefined`
- * for a type deliberately left unlabeled), so a new suggestion type can't
- * silently render without a labeling decision having been made for it.
- * A type omitted here (falls through to `undefined`) renders no header —
- * `'full'` (compound one-off boosted rows) doesn't read as its own group.
- */
-const SECTION_LABELS: Record<SearchSuggestion["type"], string | undefined> = {
-    seed: "Popular searches",
-    history: "Recent searches",
-    role: "Roles",
-    company: "Companies",
-    full: undefined,
+// Fixed to the screen (dvh); while open it follows the visible viewport instead, see `useVisibleViewport`; the padding keeps the top row clear of a notch.
+const LAYER_STYLE: CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    height: "100dvh",
+    paddingTop: "env(safe-area-inset-top)",
+    paddingLeft: "env(safe-area-inset-left)",
+    paddingRight: "env(safe-area-inset-right)",
 };
+
+/** The words a row reads as: the raw-text row names the search it runs. */
+const rowLabel = (row: SearchSuggestion) => (row.type === "query" ? `Search \u201c${row.text}\u201d` : row.text);
 
 export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAutocompleteProps>(function SearchAutocomplete({
     value,
@@ -123,8 +117,22 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 }, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [suggestLoading, setSuggestLoading] = useState(false);
+    // The source rejected: told apart from "no matches", which is an empty list.
+    const [suggestFailed, setSuggestFailed] = useState(false);
+    // Whether the list is open — the combobox's own open state, reported
+    // through `onOpenChange`, and the ONE state for "open": the phone layer below
+    // is derived from it, so no path can open or close one without the other.
+    // It stays true while the list has nothing to show (`allowsEmptyCollection`),
+    // so a typed query can fetch the suggestions that will fill it.
     const [isOpen, setIsOpen] = useState(false);
-    const [activeIndex, setActiveIndex] = useState(-1);
+    // Below `lg` the focused field becomes the standard full-screen search view
+    // (back arrow + field on top, full-width rows below). The layer is a CSS
+    // switch on the SAME elements, never a second input: iOS opens the keyboard
+    // only for focus that happens inside the tap, so the input that took the tap
+    // must be the one that stays mounted and focused.
+    const compact = !useMediaQuery(LG_UP_QUERY);
+    const layer = compact && isOpen;
+    const visible = useVisibleViewport(layer);
     // The SHARED recent-searches store (lib/jobs/recent-searches.ts) — the
     // same store the jobs page's landing chips render, so the dropdown
     // history and the chips can never disagree. Read-only here: recording
@@ -179,20 +187,31 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 
     const inputRef = useRef<HTMLInputElement>(null);
     const anchorRef = useRef<HTMLDivElement>(null);
-    const listboxId = useId().replace(/:/g, "");
-    const optionId = (index: number) => `${listboxId}-option-${index}`;
+    const comboboxStateRef = useRef<ComboBoxState<SuggestionSection> | null>(null);
     const showSuggestLoading = Boolean(suggest) && isOpen && value.trim().length > 0 && suggestLoading;
     const showClear = Boolean(onClear) && value.length > 0;
-    const dropdownOpen = isOpen && (suggestions.length > 0 || showSuggestLoading);
-    const overlayRect = useAnchoredOverlayRect(anchorRef, dropdownOpen, 8);
+    const rows = useMemo(() => withQueryRow(value, suggestions), [value, suggestions]);
+    const sections = useMemo(() => groupSuggestions(rows), [rows]);
+    const showSuggestFailed = Boolean(suggest) && isOpen && value.trim().length > 0 && !suggestLoading && suggestFailed;
     useImperativeHandle(
         ref,
         () => ({
-            close: () => setIsOpen(false),
+            close: () => comboboxStateRef.current?.close(),
             focus: () => inputRef.current?.focus(),
         }),
         [],
     );
+
+    // The page behind the layer must not scroll under a finger on the list.
+    useEffect(() => {
+        if (!layer) return;
+        const { body, documentElement: html } = document;
+        const prev = [body.style.overflow, html.style.overflow];
+        body.style.overflow = html.style.overflow = "hidden";
+        return () => {
+            [body.style.overflow, html.style.overflow] = prev;
+        };
+    }, [layer]);
 
     // A server-drawn box can be typed in before the page's code runs. That
     // text is still in the field when it hydrates; take it as the value, or
@@ -222,6 +241,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 return invalidate;
             }
             setSuggestLoading(true);
+            setSuggestFailed(false);
             const timer = setTimeout(() => {
                 const fn = suggestRef.current;
                 if (!fn) return;
@@ -230,7 +250,9 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         if (suggestGenRef.current === myGeneration) setSuggestions(results);
                     })
                     .catch(() => {
-                        if (suggestGenRef.current === myGeneration) setSuggestions([]);
+                        if (suggestGenRef.current !== myGeneration) return;
+                        setSuggestions([]);
+                        setSuggestFailed(true);
                     })
                     .finally(() => {
                         if (suggestGenRef.current === myGeneration) setSuggestLoading(false);
@@ -260,53 +282,37 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value, history, isOpen, Boolean(suggest), Boolean(seeds && seeds.length > 0)]);
 
-    // Reset the highlighted item whenever the suggestion LIST itself changes
-    // (a new debounced/async result set, or the sync source recomputing) —
-    // otherwise a stale index left over from a longer previous list can
-    // point past the end of a shorter new one, or land on a different item
-    // than what's rendered highlighted, and Enter would silently fall
-    // through to raw-text submit instead of selecting what's shown.
-    useEffect(() => {
-        setActiveIndex(-1);
-    }, [suggestions]);
-
-    // The one rule for what Enter runs: the words in the box. `activeIndex` is
-    // moved by the arrow keys ONLY (and cleared by typing and by a new list),
-    // so Enter runs a suggestion exactly when the person picked it with the
-    // arrow keys; a click or tap on a row runs it through `handleSelect`.
-    // Pointer hover never sets it — rows only DRAW hover (the `hover:` classes
-    // below). It used to (`onMouseEnter`), so a pointer resting where the list
-    // opened, such as the spot "Upload résumé" was clicked on a phone, made the
-    // row under it the Enter target and "accountant" + Enter searched the old
-    // first suggestion instead.
+    // The one rule for what Enter runs: the words in the box. The combobox
+    // highlights a row ONLY from the arrow keys — the list sets
+    // `shouldFocusOnHover={false}`, so the pointer just paints `data-hovered` —
+    // and reports it as `aria-activedescendant`; so Enter runs a suggestion
+    // exactly when the person picked one with the arrow keys (the library selects
+    // it, `onSelectionChange` below runs it), and otherwise searches the free
+    // text. The library's default is to focus the hovered row, so a pointer
+    // resting where the list opened made "accountant" + Enter search whatever
+    // row was under it.
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-        // Bubble up arrow keys only if dropdown is open and has items
-        if ((e.key === "ArrowDown" || e.key === "ArrowUp") && isOpen && suggestions.length > 0) {
-            e.preventDefault();
-            if (e.key === "ArrowDown") {
-                setActiveIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : prev));
-            } else {
-                setActiveIndex(prev => (prev > 0 ? prev - 1 : -1));
-            }
-        } else if (e.key === "Enter") {
-            if (isOpen && activeIndex >= 0 && suggestions[activeIndex]) {
-                e.preventDefault();
-                handleSelect(suggestions[activeIndex].text);
-            } else {
-                // `onSearch` is the search; a surrounding form must not
-                // submit it a second time.
-                e.preventDefault();
-                setIsOpen(false);
-                onSearchRef.current();
-            }
-        } else if (e.key === "Escape") {
-            setIsOpen(false);
-        }
+        if (e.key !== "Enter" || e.currentTarget.hasAttribute("aria-activedescendant")) return;
+        // `onSearch` is the search; a surrounding form must not submit it a second time.
+        e.preventDefault();
+        comboboxStateRef.current?.close();
+        // Full-screen search is done: the keyboard drops so the results show. The desktop box keeps the cursor.
+        if (compact) e.currentTarget.blur();
+        onSearchRef.current();
     };
 
-    const handleSelect = (text: string) => {
-        onChange(text);
-        setIsOpen(false);
+    // The library hands focus back to the field after a pick; that is not a new
+    // visit to it. Set by a pick, cleared by the next press on the field or blur.
+    const pickedRef = useRef(false);
+    const pressOnFocusedRef = useRef(false);
+    const openLayer = () => {
+        if (compact) comboboxStateRef.current?.open(null, "focus");
+    };
+
+    const handleSelect = (key: Key | null) => {
+        const picked = key == null ? undefined : rows[Number(key)];
+        if (!picked) return;
+        onChange(picked.text);
 
         // No history bookkeeping here — the shared store (see the `history`
         // read above) is written once per COMMITTED search at the caller's
@@ -316,11 +322,83 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         // Wait a tick so the parent's re-render (triggered by the `onChange`
         // above) lands before we search — `onSearchRef` always holds the
         // latest `onSearch` closure, so this reads the post-selection value.
-        setTimeout(() => onSearchRef.current(), 0);
+        // The same tick closes the list: the library opens it on ANY change
+        // of the controlled text while focused, including the one above, so a
+        // close issued before the re-render would be undone by it.
+        pickedRef.current = true;
+        setTimeout(() => {
+            comboboxStateRef.current?.close();
+            onSearchRef.current();
+        }, 0);
     };
 
+    const suggestionList = (
+        <>
+                    <ComboboxList aria-label="Search suggestions" shouldFocusOnHover={false} className={layer ? "max-h-none" : undefined}>
+                        {(section: SuggestionSection) => (
+                            <ComboboxSection key={section.id} id={section.id} aria-label={section.label ?? "Suggestions"} heading={section.label} items={section.rows}>
+                                {(row: SuggestionRow) => (
+                                    <ComboboxItem id={row.id} textValue={rowLabel(row)}>
+                                        {({ isFocused }) => (
+                                            <>
+                                                {row.type === "history" ? (
+                                                    <Clock size={16} className="shrink-0 opacity-70" />
+                                                ) : row.type === "company" ? (
+                                                    <Buildings size={16} className="shrink-0 opacity-70" />
+                                                ) : (
+                                                    <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
+                                                )}
+                                                <span className="flex-1 truncate">
+                                                    {row.type === "query"
+                                                        ? rowLabel(row)
+                                                        : highlightMatch(row.text, value).map((seg, i) =>
+                                                            seg.matched ? (
+                                                                <mark key={i} className="bg-transparent font-semibold text-foreground">
+                                                                    {seg.text}
+                                                                </mark>
+                                                            ) : (
+                                                                <span key={i}>{seg.text}</span>
+                                                            ),
+                                                        )}
+                                                </span>
+                                                {isFocused && <CaretRight className="opacity-50" />}
+                                            </>
+                                        )}
+                                    </ComboboxItem>
+                                )}
+                            </ComboboxSection>
+                        )}
+                    </ComboboxList>
+                    {showSuggestLoading && (
+                        <div role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
+                            <InlineSpinner size={16} className="shrink-0" />
+                            Loading suggestions…
+                        </div>
+                    )}
+                    {showSuggestFailed && <p role="status" className="px-4 py-3 text-sm text-muted-foreground">Suggestions are unavailable right now.</p>}
+        </>
+    );
+
     return (
-        <div ref={anchorRef} className={cn("relative group", containerClassName)}>
+        <Combobox
+            ref={anchorRef}
+            stateRef={comboboxStateRef}
+            className={containerClassName}
+            aria-label={ariaLabel}
+            name={name}
+            isDisabled={disabled}
+            // Free text searches (Enter), a suggestion is only a shortcut to it.
+            // `selectedKey` stays null so picking the same row twice still
+            // fires: a pick is an action, not a value the field remembers.
+            selectedKey={null}
+            onSelectionChange={handleSelect}
+            inputValue={value}
+            onInputChange={onChange}
+            items={sections}
+            menuTrigger="focus"
+            allowsEmptyCollection
+            onOpenChange={setIsOpen}
+        >
             {/* The glyph is a FLEX SIBLING of the field, never an absolutely
                 positioned overlay with `pl-*` on the input holding the text
                 clear of it. That older shape coupled the component and its
@@ -331,25 +409,44 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 callers own their own padding again. `jobs-first-screen.spec.ts`
                 ("no glyph painted over the search field overlaps where its text
                 starts") measures this and is the regression gate. */}
-            <div className="relative flex h-full w-full items-center">
+            {/* Two wrappers that vanish (`contents`) at rest and on desktop, so the
+                field sits exactly where it always did. Below `lg` while open the
+                outer one is the full-viewport layer (inline style: position is
+                what makes it a layer, so it must not depend on a class) and the
+                inner one its top row. The input is the same node in both. */}
+            <ComboboxLayer
+                active={layer}
+                data-search-layer={layer ? "" : undefined}
+                style={layer ? { ...LAYER_STYLE, ...(visible && { top: visible.top, bottom: "auto", height: visible.height }) } : undefined}
+                className={layer ? "z-[var(--z-sheet)] flex flex-col bg-background animate-in fade-in motion-reduce:animate-none" : "contents"}
+            >
+            <div className={layer ? "flex shrink-0 items-center gap-1 px-2 py-2" : "contents"}>
+            {layer && (
+                <button
+                    type="button"
+                    aria-label="Close search"
+                    // Back leaves search, as in native full-screen search: the list closes
+                    // and focus moves off the field to this button (Safari does not focus buttons on tap),
+                    // so the keyboard drops. (Escape keeps the focus.) The button sits inside
+                    // the list surface, so the library does not close on that blur by itself.
+                    onClick={(e) => {
+                        e.currentTarget.focus();
+                        comboboxStateRef.current?.close();
+                    }}
+                    className={cn("flex size-11 shrink-0 items-center justify-center text-foreground", CONTROL_FOCUS_VISIBLE)}
+                >
+                    <ArrowLeft size={20} aria-hidden />
+                </button>
+            )}
+            <div className={cn("relative flex h-full w-full items-center", layer && "h-11 min-w-0 flex-1 rounded-pill bg-surface-3")}>
                 {leadingIcon && (
                     <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
                         {leadingIcon}
                     </span>
                 )}
-                <Input
+                <ComboboxInput
                     ref={inputRef}
                     type="text"
-                    role="combobox"
-                    aria-haspopup="listbox"
-                    aria-expanded={dropdownOpen}
-                    aria-controls={dropdownOpen ? listboxId : undefined}
-                    aria-activedescendant={
-                        dropdownOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined
-                    }
-                    aria-autocomplete="list"
-                    aria-label={ariaLabel}
-                    name={name}
                     placeholder={placeholder}
                     className={cn(
                         "relative z-20 overflow-hidden text-ellipsis transition-all",
@@ -363,25 +460,32 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         // slack under the other one.
                         showClear && "pr-12 lg:pr-9",
                         className,
+                        // Last, so it wins over a caller's own size: the layer's field is a
+                        // 44px row; 16px type keeps iOS from zooming the page on focus.
+                        layer && "h-11 text-base",
                     )}
-                    value={value}
-                    onChange={(e) => {
-                        onChange(e.target.value);
-                        setIsOpen(true);
-                        setActiveIndex(-1);
+                    enterKeyHint="search"
+                    onFocus={() => !pickedRef.current && openLayer()}
+                    // A press that STARTS on a field that already has focus (after Escape) fires no
+                    // focus event, so it opens at the END of the press (click). The layer moves the
+                    // field: moved under a finger still down, WebKit drops its focus. Only such a
+                    // press counts, so neither a pick's click (it lands on the field below the closing
+                    // layer) nor the late click of the press that took focus can reopen the layer.
+                    // An unfocused field opens on its focus event instead: moving it before it
+                    // takes focus makes WebKit drop the focus (no keyboard).
+                    onPointerDown={(e) => {
+                        pickedRef.current = false;
+                        pressOnFocusedRef.current = document.activeElement === e.currentTarget;
                     }}
-                    onFocus={() => setIsOpen(true)}
-                    // Item 6e (2026-08-21): closes the dropdown on blur —
-                    // tab away, click elsewhere, or click a suggestion (each
-                    // `<li>` below prevents the mousedown that would
-                    // otherwise fire this BEFORE the click's own `onClick`
-                    // runs) — replacing the separate click-outside
-                    // listener this component used to carry: blur already
-                    // covers every case that did, and one source of truth
-                    // for "did focus leave the field" beats two.
-                    onBlur={() => setIsOpen(false)}
+                    onClick={() => {
+                        if (!pressOnFocusedRef.current) return;
+                        pressOnFocusedRef.current = false;
+                        openLayer();
+                    }}
+                    onBlur={() => {
+                        pickedRef.current = false;
+                    }}
                     onKeyDown={handleKeyDown}
-                    disabled={disabled}
                     autoFocus={autoFocus}
                 />
                 {/* z-30, strictly above the Input's z-20 — a sibling with a
@@ -396,9 +500,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         data-testid="search-input-clear"
                         aria-label="Clear search"
                         title="Clear search"
-                        // Same guard as the suggestion `<li>` items above and
-                        // this field's clear button:
-                        // without it, mousedown moves focus to this button
+                        // Without this, mousedown moves focus to this button
                         // before onClick fires, blurring the Input. Touch taps
                         // are unaffected — they fire their own click regardless
                         // of what a mousedown handler does.
@@ -414,81 +516,17 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 )}
             </div>
 
-            {/* Portaled so clipped ancestors (docked header `overflow-hidden`)
-                cannot hide suggestions. */}
-            {dropdownOpen &&
-                overlayRect &&
-                typeof document !== "undefined" &&
-                createPortal(
-                    <div
-                        className="fixed z-[var(--z-dropdown)] overflow-hidden rounded-ctl border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1"
-                        style={{
-                            top: overlayRect.top,
-                            left: overlayRect.left,
-                            width: overlayRect.width,
-                        }}
-                    >
-                        <ul
-                            id={listboxId}
-                            role="listbox"
-                            aria-label="Search suggestions"
-                            className="max-h-[300px] overflow-y-auto py-2"
-                        >
-                            {showSuggestLoading && (
-                                <li role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
-                                    <InlineSpinner size={16} className="shrink-0" />
-                                    Loading suggestions…
-                                </li>
-                            )}
-                            {suggestions.map((suggestion, index) => {
-                                const label = SECTION_LABELS[suggestion.type];
-                                const showLabel = label && (index === 0 || suggestions[index - 1]?.type !== suggestion.type);
-                                const segments = highlightMatch(suggestion.text, value);
-                                return (
-                                    <Fragment key={index}>
-                                        {showLabel && (
-                                            <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold text-muted-foreground">
-                                                {label}
-                                            </li>
-                                        )}
-                                        <li
-                                            id={optionId(index)}
-                                            role="option"
-                                            aria-selected={index === activeIndex}
-                                            className={cn(
-                                                "flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors",
-                                                index === activeIndex ? "bg-surface-3 text-foreground" : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-                                            )}
-                                            onClick={() => handleSelect(suggestion.text)}
-                                            onMouseDown={(e) => e.preventDefault()}
-                                        >
-                                            {suggestion.type === "history" ? (
-                                                <Clock size={16} className="shrink-0 opacity-70" />
-                                            ) : suggestion.type === "company" ? (
-                                                <Buildings size={16} className="shrink-0 opacity-70" />
-                                            ) : (
-                                                <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
-                                            )}
-                                            <span className="flex-1 truncate">
-                                                {segments.map((seg, i) =>
-                                                    seg.matched ? (
-                                                        <mark key={i} className="bg-transparent font-semibold text-foreground">
-                                                            {seg.text}
-                                                        </mark>
-                                                    ) : (
-                                                        <span key={i}>{seg.text}</span>
-                                                    ),
-                                                )}
-                                            </span>
-                                            {index === activeIndex && <CaretRight className="opacity-50" />}
-                                        </li>
-                                    </Fragment>
-                                );
-                            })}
-                        </ul>
-                    </div>,
-                    document.body,
-                )}
-        </div>
+            </div>
+            {layer ? (
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+                    {suggestionList}
+                </div>
+            ) : (
+                (rows.length > 0 || showSuggestLoading) && (
+                    <ComboboxPopover triggerRef={anchorRef}>{suggestionList}</ComboboxPopover>
+                )
+            )}
+            </ComboboxLayer>
+        </Combobox>
     );
 });
