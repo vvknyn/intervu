@@ -3,7 +3,7 @@ import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/li
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
-import { getDirectory, peekCountGeneration } from "@/lib/companies/directory-model";
+import { getDirectory, isListedInBuiltDirectory, peekCountGeneration } from "@/lib/companies/directory-model";
 import { COMPANY_JOBS_FETCH_LIMIT, companyOpenCount, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
 import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
@@ -90,19 +90,27 @@ function ghostFlaggedPct(jobs: PublicJob[]): number | null {
 }
 
 /**
+ * THE rule for whether `/co/[slug]` is a page (200) or a 404, shared by `companyExists` (before the first byte)
+ * and `getCompanyPageData` (after the load). A company the directory lists always has a page: the sitemap and
+ * the letter pages list from a snapshot up to 6 h old, so a company whose roles have all closed since is
+ * still listed, and its page renders honestly empty (as a board company's does) rather than 404 under a link.
+ */
+export const hasCompanyPage = ({ listed, boards, roles }: { listed: boolean; boards: number; roles: number }): boolean => listed || boards > 0 || roles > 0;
+
+/**
  * Whether `/co/[slug]` is a company at all, answered before the page streams
  * so an unknown or malformed slug is a real 404. The narrowest read there is:
  * the slug's shape, then a board allowlist hit, then a one-hit roles search
  * (its `total`, not the hit, so an internal-only first posting cannot hide a
  * company). An ATS or vendor host (the directory's M1 rule) is no company. A failed search throws, as `getCompanyPageData` does.
  */
-export async function companyExists(slug: string, search: SearchFn = searchJobs): Promise<boolean> {
+export async function companyExists(slug: string, search: SearchFn = searchJobs, listed: (domain: string) => boolean = isListedInBuiltDirectory): Promise<boolean> {
   const domain = decodeSlug(slug);
   if (!domain || !isCompanyDomain(domain)) return false;
-  if (getBoardsForDomain(domain).length > 0) return true;
+  if (hasCompanyPage({ listed: listed(domain), boards: getBoardsForDomain(domain).length, roles: 0 })) return true;
   const result = await search({ companyDomain: domain, limit: 1, hideGhosts: false });
   if (isUnavailableJobsResult(result)) throw new Error(result.note ?? SEARCH_UNAVAILABLE_MESSAGE);
-  return result.total > 0;
+  return hasCompanyPage({ listed: false, boards: 0, roles: result.total });
 }
 
 export async function getCompanyPageData(
@@ -201,7 +209,8 @@ export async function getCompanyPageData(
   const jobs = publicRoles(result.hits);
   const boards = getBoardsForDomain(domain);
 
-  if (jobs.length === 0 && boards.length === 0) return null;
+  const listed = directory.value?.companies.find((c) => c.domain === domain);
+  if (!hasCompanyPage({ listed: !!listed, boards: boards.length, roles: jobs.length })) return null;
 
   const name = resolveCompanyName(jobs, domain);
   const openCount = reads.countGeneration()?.get(domain) ?? companyOpenCount(result);
@@ -218,7 +227,6 @@ export async function getCompanyPageData(
   // keeping the suffix intact. Reused below for the about-line extraction so
   // both read the same brand token instead of each re-deriving it.
   // A listed company shows the name the directory lists it under, so the page and the listing agree.
-  const listed = directory.value?.companies.find((c) => c.domain === domain);
   const displayName = listed?.name ?? displayCompanyName(name.value);
 
   return {
