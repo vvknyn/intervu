@@ -69,10 +69,17 @@ test("/jobs toolbar: every control in the row takes the md step", { tag: ["@J-JO
     await page.goto("/jobs?work=remote&exp=senior");
     const row = page.getByTestId("jobs-toolbar-rows");
     await expect(row.getByTestId("filters-toggle")).toBeVisible({ timeout: 15_000 });
-    // A chip's own dismiss glyph is the sm step by design (`ChipDismiss`, `data-slot="chip-dismiss"`); every other control, square ones included, is the row.
+    // The row's buttons and fields. A chip's own dismiss glyph is the sm step by design (`ChipDismiss`, `data-slot="chip-dismiss"`); every other control, square ones included, is the row.
     const heights = await controlHeights(row, `:is(${CONTROLS}):not([data-slot="chip-dismiss"])`);
     expect(heights.length).toBeGreaterThanOrEqual(2);
     expect(new Set(heights)).toEqual(new Set([MD]));
+    // The active-filter chips are spans, not buttons, so CONTROLS never sees them. A chip face is what holds the
+    // chip primitive's dismiss (`data-slot="chip-dismiss"`, chip.tsx), whatever it is called: its parent.
+    const chipHeights = await row
+        .locator('[data-slot="chip-dismiss"]')
+        .evaluateAll((els) => els.map((el) => Math.round(el.parentElement!.getBoundingClientRect().height)));
+    expect(chipHeights.length, "chip faces in the row (one per active filter)").toBeGreaterThanOrEqual(2);
+    expect(new Set(chipHeights)).toEqual(new Set([MD]));
 });
 
 /**

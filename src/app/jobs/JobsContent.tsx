@@ -5358,7 +5358,7 @@ export function JobsContent({
                                 hairline shape) at rest instead of a second,
                                 bespoke hairline style. */}
                             <Button
-                                // control-type-allow: the one 44px button — Search shares the [data-search-line] row with the 44px query and location fields (J-JOBS-29)
+                                // control-type-allow: the one 44px button — Search shares the [data-search-line] row with the 44px query field (J-JOBS-29)
                                 size="lg"
                                 type="submit"
                                 data-testid="search-submit"
@@ -5856,12 +5856,16 @@ export function JobsContent({
                                 end-of-list states — unrelated surfaces, left as-is. */}
                             {/* Saved searches must stay reachable when there is no list: the
                                 list branch carries the control in its own action row below;
-                                every other panel (ask, not-connected, error, loading, empty)
+                                every other SETTLED panel (ask, not-connected, error, empty)
                                 gets it here, once, above the panel, docked or not (the header
-                                never carries it). The empty panel's own `searchAlertSlot` is
-                                the Job alert, not this. */}
-                            {resultsPanel !== "list" && savedSearchControl && (
-                                <div data-testid="jobs-saved-searches-row" className="mb-3 flex px-[var(--list-inset)] text-sm">
+                                never carries it). "loading" is excluded: a refinement goes
+                                list -> loading -> list (stale hits still show as loading), and
+                                mounting the control in the loading step would remount it twice
+                                per refinement, re-firing every saved search's new-count request
+                                each time. The empty panel's own `searchAlertSlot` is the Job
+                                alert, not this. */}
+                            {resultsPanel !== "list" && resultsPanel !== "loading" && savedSearchControl && (
+                                <div data-testid="jobs-saved-searches-row" className="mb-3 flex px-[var(--list-inset)] text-sm empty:hidden">
                                     {savedSearchControl}
                                 </div>
                             )}
