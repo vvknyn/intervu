@@ -54,21 +54,23 @@ test("desktop header with a query: the docked search, Sign in and Create account
     expect(heights).toEqual([MD, MD, MD]);
 });
 
-test("/jobs search row: query, location and Search share the lg step", { tag: ["@J-JOBS-29"] }, async ({ page }) => {
+test("/jobs search row: query and Search share the lg step", { tag: ["@J-JOBS-29"] }, async ({ page }) => {
     await returningVisitor(page);
     await page.goto("/jobs");
     const row = page.locator("[data-search-line]");
     await expect(row.getByTestId("search-submit")).toBeVisible({ timeout: 15_000 });
     // The inline clear glyphs sit inside the fields on the sm step; every other control is the row.
-    await expect.poll(() => controlHeights(row, `:is(${CONTROLS}):not([data-testid$="-clear"])`)).toEqual([LG, LG, LG]);
+    await expect.poll(() => controlHeights(row, `:is(${CONTROLS}):not([data-testid$="-clear"])`)).toEqual([LG, LG]);
 });
 
 test("/jobs toolbar: every control in the row takes the md step", { tag: ["@J-JOBS-30"] }, async ({ page }) => {
     await returningVisitor(page);
-    await page.goto("/jobs");
-    const row = page.getByTestId("jobs-toolbar-scroller");
+    // Active filters (from the URL) put the chips and Clear in the row beside Filters, so the row holds several controls.
+    await page.goto("/jobs?work=remote&exp=senior");
+    const row = page.getByTestId("jobs-toolbar-rows");
     await expect(row.getByTestId("filters-toggle")).toBeVisible({ timeout: 15_000 });
-    const heights = await controlHeights(row);
+    // A chip's own dismiss glyph is the sm step by design (`ChipDismiss`, `.ctl-square`); every other control is the row.
+    const heights = await controlHeights(row, `:is(${CONTROLS}):not(.ctl-square)`);
     expect(heights.length).toBeGreaterThanOrEqual(2);
     expect(new Set(heights)).toEqual(new Set([MD]));
 });

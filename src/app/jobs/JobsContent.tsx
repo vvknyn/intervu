@@ -5848,6 +5848,17 @@ export function JobsContent({
                                 real estate. `EmptyResultsState` and `ListTail` still
                                 render `BrowseSeedRow` for the genuine no-results /
                                 end-of-list states — unrelated surfaces, left as-is. */}
+                            {/* Saved searches must stay reachable when there is no list: the
+                                list branch carries the control in its own action row below;
+                                every other panel (ask, not-connected, error, loading, empty)
+                                gets it here, once, above the panel, docked or not (the header
+                                never carries it). The empty panel's own `searchAlertSlot` is
+                                the Job alert, not this. */}
+                            {resultsPanel !== "list" && savedSearchControl && (
+                                <div data-testid="jobs-saved-searches-row" className="mb-3 flex px-[var(--list-inset)] text-sm">
+                                    {savedSearchControl}
+                                </div>
+                            )}
                             {resultsPanel === "serp-ask" ? (
                                 /* Fallback ask (product spec §2, revised 2026-08-07):
                                    the zero-query browse fetch above (see the debounced
