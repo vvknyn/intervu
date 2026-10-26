@@ -68,7 +68,7 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
   it("answers from the open-role count when the 90-day aggregates are absent (every employer today)", () => {
     const answer = buildCompanyHiringAnswer(company(), NOW);
     assert.equal(answer.hasOpenRoles, true);
-    assert.equal(answer.headline, "213 open roles live on Velai right now");
+    assert.equal(answer.headline, "213 open roles listed on Velai");
     // The half it does NOT have is omitted, not implied, not rendered as a
     // plausible-looking zero or an em-dash on its own.
     assert.equal(answer.trackRecord, null);
@@ -78,11 +78,11 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
     assert.equal(
       buildCompanyHiringAnswer(company({ openCount: 200, openCountIsLowerBound: true }), NOW)
         .headline,
-      "200+ open roles live on Velai right now",
+      "200+ open roles listed on Velai",
     );
     assert.equal(
       buildCompanyHiringAnswer(company({ openCount: 1 }), NOW).headline,
-      "1 open role live on Velai right now",
+      "1 open role listed on Velai",
     );
   });
 

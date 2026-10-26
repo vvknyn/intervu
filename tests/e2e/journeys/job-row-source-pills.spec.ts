@@ -21,7 +21,7 @@ const VIEWPORTS = [
 
 for (const [name, engine] of ENGINES) {
     for (const viewport of VIEWPORTS) {
-        test(`${name} ${viewport.width}: the New mark shows once, on a new role only, inside its row`, { tag: ['@J-JOBS-163'] }, async ({ baseURL }) => {
+        test(`${name} ${viewport.width}: the New mark shows once, on a new role only, inside its row`, { tag: ['@J-JOBS-164'] }, async ({ baseURL }) => {
             test.skip(!/localhost|127\.0\.0\.1/.test(baseURL ?? ''), '/mock/* is a design fixture, not served on production');
             const browser = await engine.launch();
             try {

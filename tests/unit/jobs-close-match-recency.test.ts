@@ -198,7 +198,7 @@ describe("searchMeili — details requested for relevance only, never returned",
     });
 
     it("the federated tiered pass (bare role query) asks for details on both tiers and strips them", async () => {
-        const q = "data analyst";
+        const q = "quux analyst"; // not in the title alias graph: exactly the two tier queries
         await primeNonCompanyIntent(q);
         const rawHits = [
             { ...hit("s-old", 60), _federation: { queriesPosition: 0 } },

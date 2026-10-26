@@ -26,6 +26,7 @@ import {
 } from "@/lib/jobs/related-jobs";
 import { relatedCountryIso2 } from "@/lib/jobs/related-country";
 import { companyHiringRecord } from "@/lib/companies/exhaust-cache";
+import type { HiringRecordView } from "@/lib/companies/hiring-record";
 import type { OpenCount } from "@/lib/companies/open-count";
 import { resolveCorpusCount, resolveLiveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { companyOpenCount, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
@@ -266,11 +267,12 @@ export async function getCompanyOpenCountAction(companyDomain: string): Promise<
 }
 
 /**
- * The employer's opened/closed record for a job page: the same sentence the
- * company page prints, from the same cached box read (`exhaust-cache.ts`),
- * never from the job document. Null when the read has no integrity facts.
+ * The employer's opened/closed record for a job page: the same sentence and
+ * weekly bars the company page prints, from the same cached box read
+ * (`exhaust-cache.ts`), never from the job document. Null when the read has
+ * neither.
  */
-export async function getCompanyHiringRecordAction(companyDomain: string): Promise<string | null> {
+export async function getCompanyHiringRecordAction(companyDomain: string): Promise<HiringRecordView | null> {
   if (!companyDomain) return null;
   const ip = await getClientIp();
   if (!allowSearchRequest(ip)) return null;

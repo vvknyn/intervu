@@ -69,23 +69,20 @@ describe("row text is never a one-line ellipsis", () => {
         assert.ok(tag("row-fit-reason"), "row-fit-reason element not found");
         assert.doesNotMatch(tag("row-fit-reason"), /line-clamp/);
     });
-    it("meta line carries the full string in title", () => assert.match(card.slice(card.indexOf('data-testid="job-row-meta"') - 20, card.indexOf('data-testid="job-row-meta"') + 300), /title=/));
+    it("meta line carries no title: it is block-level, so a tooltip there fires over empty space and repeats visible text", () => assert.doesNotMatch(card.slice(card.indexOf('data-testid="job-row-meta"') - 20, card.indexOf('data-testid="job-row-meta"') + 300), /title=/));
 });
 
-describe("toolbar below @2xl is one scrolling row", () => {
+describe("every applied-chip row is one scrolling line at every width", () => {
     const page = readFileSync(path.join(process.cwd(), "src/app/jobs/JobsContent.tsx"), "utf8");
     const at = (id: string) => page.slice(page.indexOf(`data-testid="${id}"`), page.indexOf(`data-testid="${id}"`) + 700);
-    it("wrapper scrolls sideways and only blocks at @2xl", () => {
-        const w = at("jobs-toolbar-rows");
-        assert.match(w, /overflow-x-auto/);
-        assert.match(w, /@2xl:block/);
+    it("the wrapper is the shared CHIP_SCROLL_ROW primitive", () => {
+        assert.match(at("jobs-toolbar-rows"), /CHIP_SCROLL_ROW/);
     });
     for (const id of ["jobs-toolbar-scroller", "active-filter-row"]) {
-        it(`${id} does not wrap below @2xl`, () => {
+        it(`${id} never wraps or scrolls on its own`, () => {
             const cls = at(id);
             assert.match(cls, /shrink-0/);
-            assert.ok(!/(^|[\s"])flex-wrap/.test(cls.slice(0, 400)), "bare flex-wrap would wrap on a phone");
-            assert.match(cls, /@2xl:[^"]*flex-wrap|@2xl:flex-wrap/);
+            assert.doesNotMatch(cls.slice(0, 400), /flex-wrap|overflow-x-/);
         });
     }
 });
