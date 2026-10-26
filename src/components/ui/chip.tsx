@@ -45,7 +45,7 @@ export const chipVariants = cva(
  * overflow-x:auto element is clipped otherwise.
  */
 export const CHIP_SCROLL_ROW =
-  "no-scrollbar flex min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto py-1.5 -my-1.5 pr-8 [&>*]:shrink-0 [mask-image:linear-gradient(to_right,white_calc(100%-2rem),transparent)]"
+  "no-scrollbar flex min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto scroll-hit pr-8 [&>*]:shrink-0 [mask-image:linear-gradient(to_right,white_calc(100%-2rem),transparent)]"
 
 /**
  * A chip that is a boolean toggle (on/off, no value in its label). Selected is
