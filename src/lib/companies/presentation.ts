@@ -22,6 +22,7 @@ import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { formatCount } from "@/lib/format";
+import { hiringFreshness, newestCheckAt, type HiringFreshness } from "@/lib/companies/freshness";
 
 /**
  * The open-role count as a string, everywhere the page shows it.
@@ -213,6 +214,12 @@ export type CompanyHiringAnswer = {
   trackRecord: string | null;
 };
 
+/** "live on Velai right now" only over a current check; otherwise "listed", dated when we can. */
+export function listedClaim({ fresh, checkedOn }: HiringFreshness): string {
+  if (fresh) return "live on Velai right now";
+  return checkedOn ? `listed on Velai, last checked ${checkedOn}` : "listed on Velai";
+}
+
 /**
  * Answers the question the page's own `<title>` asks.
  *
@@ -251,7 +258,7 @@ export function buildCompanyHiringAnswer(
     // former and lets the reader draw the latter. No "Yes —" on the other:
     // the count is the answer (rulebook 2026-09, GROUP-D: dash-free).
     headline: hasOpenRoles
-      ? `${openCountText(data)} ${roles} live on Velai right now`
+      ? `${openCountText(data)} ${roles} ${listedClaim(hiringFreshness(newestCheckAt(data.jobs), nowMs))}`
       : "Velai isn't tracking any live open roles right now",
     liveCheck: buildLiveCheckFact(data, nowMs),
     trackRecord: exhaustHiringRecord(data.exhaust, nowMs),

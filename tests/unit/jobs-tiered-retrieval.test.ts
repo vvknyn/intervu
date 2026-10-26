@@ -144,7 +144,7 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
         assert.ok(!("attributesToSearchOn" in whole), JSON.stringify(whole));
         assert.equal(whole.federationOptions.weight, 1);
         assert.equal(strict.matchingStrategy, "all", "tier 1 requires every word");
-        assert.equal(whole.matchingStrategy, "last", "tier 2 relaxes: partial matches rank below full ones, not dropped");
+        assert.equal(whole.matchingStrategy, "all", "tier 2 widens the fields, never drops words");
         assert.ok(!("limit" in whole) && !("offset" in whole) && !("facets" in whole), JSON.stringify(whole));
     });
 
@@ -290,7 +290,7 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
             const { queries } = calls.find((c) => c.url.endsWith("/multi-search"))!.body;
             assert.equal(queries.length, 4);
             assert.deepEqual(queries.map((x: any) => x.federationOptions.weight), [100, 1, 50, 0.5]);
-            assert.deepEqual(queries.map((x: any) => x.matchingStrategy), ["all", "last", "all", "last"]);
+            assert.deepEqual(queries.map((x: any) => x.matchingStrategy), ["all", "all", "all", "all"]);
             const unknownMarker = /IS NULL|NOT EXISTS/;
             assert.ok(!unknownMarker.test(queries[0].filter.join()) && !unknownMarker.test(queries[1].filter.join()), "known pair is strict");
             assert.ok(unknownMarker.test(queries[2].filter.join()) && unknownMarker.test(queries[3].filter.join()), "inclusive pair admits unknowns");
