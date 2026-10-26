@@ -148,7 +148,9 @@ test("visitBannerFitsResults: thin and empty result sets never carry the banner"
 test("the header's Sign in records a topbar attempt, so a signup finished in its popover reports gate header", () => {
     const mem = new Map<string, string>();
     const storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
-    assert.equal(gateAttemptEventFields(beginHeaderGateAttempt(storage, "/jobs")).gate, "header");
+    const header = beginHeaderGateAttempt(storage, "/jobs");
+    assert.equal(gateAttemptEventFields(header).gate, "header");
+    assert.equal(header.originSurface, "topbar");
     // An attempt already open keeps its door: the header never rewrites it.
     mem.clear();
     beginGateAttempt(storage, { reason: "save", originSurface: "job_detail" });

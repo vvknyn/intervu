@@ -172,7 +172,8 @@ describe("Phase 2 batch 4 — marketing TopBar", () => {
 
         const marketingSignIn = topBarAuthButtonBlock(src, "topbar-signin", 0);
         assert.match(marketingSignIn, /variant="ghost"/);
-        assert.match(marketingSignIn, /beginHeaderGateAttempt/);
+        // The helper records surface "topbar" (signup-gate-helpers); here the click must call it, with the real sessionStorage, before opening the popover.
+        assert.match(marketingSignIn, /beginHeaderGateAttempt\(window\.sessionStorage,[^;]*\);\s*setAuthPopoverOpen\(true\)/);
         assert.doesNotMatch(src, /topbar-create-account/, "the popover's own Create account tab is the one signup door");
 
         assert.doesNotMatch(src, /topbar-alerts-cta/);

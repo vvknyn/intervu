@@ -139,6 +139,11 @@ export function TopBar() {
                                 e.preventDefault();
                                 docked.onSubmit(docked.value);
                             }}
+                            // A coarse pointer's 44px hit band (the ctl-* ::before) is wider than the 32px field and
+                            // lands on the form itself, so a tap in the band hands focus to the query input.
+                            onClick={(e) => {
+                                if (e.target === e.currentTarget) e.currentTarget.querySelector("input")?.focus();
+                            }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
                             className="ctl-md hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill p-0.5 pl-0 border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
