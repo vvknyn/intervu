@@ -1,0 +1,26 @@
+# Owen Fitzgerald
+**Product Manager** · Dublin · owen.fitzgerald@example.com
+
+## Summary
+Product manager for payments products used by small businesses.
+
+## Experience
+### Senior Product Manager — Liffey Payments
+*Apr 2021 – Present*
+- Launched instant payouts to 30,000 merchants.
+- Ran discovery with 50 merchants a quarter.
+
+### Product Manager — Grand Canal Software
+*Jan 2018 – Mar 2021*
+- Shipped the invoicing module and its mobile app.
+
+## Education
+**MSc Management**, Trinity College Dublin, 2017
+
+## Skills
+- Product Discovery
+- Roadmapping
+- SQL
+- Payments
+- Stakeholder Management
+- Experimentation

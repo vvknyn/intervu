@@ -1,0 +1,24 @@
+Tomasz Wieczorek
+Mechanical Design Engineer
+Gdansk, Poland  |  tomasz.w@example.com  |  +48 600 100 200
+
+Profile
+Mechanical design engineer focused on marine propulsion components and design for manufacture.
+
+Career History
+Mechanical Design Engineer
+Baltic Marine Systems, Gdansk
+05/2019 – Present
+▪ Designed shaft line assemblies for 30 vessel retrofits in SolidWorks.
+▪ Ran FEA checks on bearing housings and cut casting weight by 12%.
+
+Design Engineer
+Pomeranian Pumps Sp. z o.o., Gdynia
+09/2016 – 04/2019
+▪ Produced 2D drawings and tolerance stacks for centrifugal pump casings.
+
+Education
+MSc Mechanical Engineering, Gdansk University of Technology, 2016
+
+Key Skills
+SolidWorks, AutoCAD, FEA, GD&T, Design for Manufacture, Technical Drawing, ANSYS

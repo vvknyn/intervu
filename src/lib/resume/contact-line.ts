@@ -95,6 +95,19 @@ export function isLikelyPlaceSegment(segment: string): boolean {
     return marked || namesRegion(parts) || (parts.length === 1 && AREA_RE.test(parts[0]));
 }
 
+/** Parts split from the place they end on ("…, Chicago, IL"): the shortest tail that names a region. */
+export function splitTrailingPlace(parts: string[]): { names: string[]; place: string } {
+    for (let k = parts.length - 1; k >= 1; k--) {
+        if (isLikelyPlaceSegment(parts.slice(k).join(", "))) return { names: parts.slice(0, k), place: parts.slice(k).join(", ") };
+    }
+    return { names: parts, place: "" };
+}
+
+/** An employer without the place a résumé prints beside it: "Humber River Health, Toronto, ON" → "Humber River Health". */
+export function employerName(company: string): string {
+    return splitTrailingPlace(company.split(/,\s*/)).names.join(", ");
+}
+
 /**
  * A one-part place with none of that evidence ("Mississauga", "London") —
  * or "". Not the candidate's location: the name may be several places, or

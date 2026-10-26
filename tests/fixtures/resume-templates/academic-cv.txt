@@ -1,0 +1,29 @@
+Dr. Samuel Achebe
+Department of Chemistry, Example State University
+samuel.achebe@example.edu
+
+ACADEMIC APPOINTMENTS
+2019–present  Assistant Professor of Chemistry, Example State University
+2016–2019  Postdoctoral Research Fellow, Lakeview Institute of Technology
+
+EDUCATION
+2016  PhD in Physical Chemistry, University of Ibadan
+2011  BSc in Industrial Chemistry, University of Lagos
+
+RESEARCH INTERESTS
+Electrocatalysis, battery interfaces, and in-situ spectroscopy.
+
+PUBLICATIONS
+1. Achebe, S., & Moreau, L. (2023). Interfacial water in nickel electrocatalysts. Journal of Example Chemistry, 12(4), 233–245.
+2. Achebe, S. (2021). Operando Raman of lithium anodes. Example Energy Letters, 6, 1101–1109.
+
+GRANTS AND AWARDS
+2022  Early Career Research Award, Example Science Foundation
+2020  Faculty Seed Grant, Example State University
+
+TEACHING
+CHEM 210 General Chemistry II (2019–present)
+CHEM 480 Electrochemistry (2021–present)
+
+TECHNICAL SKILLS
+Cyclic Voltammetry, Raman Spectroscopy, X-ray Diffraction, DFT, Python, Origin

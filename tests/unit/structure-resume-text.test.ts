@@ -294,6 +294,18 @@ Salesforce`;
         assert.deepEqual([out.experience[1].role, out.experience[1].company], ["Software Engineer", "Beta Systems"]);
     });
 
+    it("keeps an experience section that names no role under its own heading, not in the last job", () => {
+        const text = [
+            "Asha Rao", "Professional Experience", "Programme Officer | Lakeside Trust | 2019 – Present",
+            "• Ran field surveys", "Research Internship Experience", "Organisation: Riverside Institute",
+            "Project: Mapping water use", "Education", "MA Sociology, Riverside University, 2018",
+        ].join("\n");
+        const out = resumeDataFromPlainText(text);
+        assert.deepEqual(out.experience.map((e) => [e.role, e.company, e.description]), [["Programme Officer", "Lakeside Trust", "• Ran field surveys"]]);
+        const kept = out.additionalSections?.find((s) => s.heading === "Research Internship Experience");
+        assert.deepEqual(kept?.lines, ["Organisation: Riverside Institute", "Project: Mapping water use"]);
+    });
+
     it("leaves plain text alone, even with a # or * in it", () => {
         const plain = "Ranked #1 of 40 reps\nC# developer, 5* rated\n* Built the pipeline";
         assert.equal(markdownResumeToPlainText(plain), plain);

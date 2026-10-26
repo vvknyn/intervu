@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { resumeMatchText } from '../../src/lib/resume/match-text';
 import { scoreJobAgainstResume } from '../../src/lib/match/score';
+import { buildMatchQuery } from '../../src/lib/jobs/resume-match';
 import type { ResumeData } from '../../src/types/resume';
 import type { PublicJob } from '../../src/lib/jobs/types';
 
@@ -62,6 +63,28 @@ describe('resumeMatchText', () => {
         assert.match(text, /Shipped the API\./);
         assert.match(text, /Built a Kubernetes operator\./);
         assert.match(text, /Terraform/);
+    });
+
+    it('reads degrees, courses and the sections a résumé names itself', () => {
+        const text = resumeMatchText(mkResume({
+            education: [{ id: 'e1', degree: 'MSc Epidemiology', institution: 'Tailspin University', coursework: ['Biostatistics'] }],
+            additionalSections: [{ heading: 'Certifications', lines: ['AWS Certified Solutions Architect'], after: 'education' }],
+        }));
+        assert.match(text, /MSc Epidemiology/);
+        assert.match(text, /Biostatistics/);
+        assert.match(text, /AWS Certified Solutions Architect/);
+        assert.doesNotMatch(text, /Tailspin University/);
+    });
+
+    it('searches by a résumé whose work is written only under a heading of its own', () => {
+        const resume = mkResume({
+            additionalSections: [{
+                heading: 'Highlights',
+                lines: ['Cut API latency by 40% across the payments service', 'Ran the Kubernetes deploy pipeline and incident rota'],
+                after: null,
+            }],
+        });
+        assert.equal(buildMatchQuery(resume).q, '"Software Engineer" OR "Software Developer"');
     });
 
     it('returns empty text for a résumé with nothing in any of the four sources', () => {

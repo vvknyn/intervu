@@ -11,6 +11,7 @@
  */
 
 import type { ResumeExperience } from "@/types/resume";
+import { DATE_RANGE_RE, OPEN_END } from "./resume-dates";
 
 const MONTHS: Record<string, number> = {
     jan: 0, january: 0,
@@ -27,7 +28,7 @@ const MONTHS: Record<string, number> = {
     dec: 11, december: 11,
 };
 
-const PRESENT_RE = /^(present|current|now|ongoing|till date|to date)$/i;
+const PRESENT_RE = new RegExp(`^(?:${OPEN_END})$`, "i");
 
 const monthIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
 
@@ -57,7 +58,8 @@ function parseDateToken(token: string): Date | null {
         }
     }
 
-    const numeric = t.match(/^(\d{1,2})[\/\-](\d{4})$/);
+    // "05/2019", "05-2019", or a day first: "01.09.2015" (Europass).
+    const numeric = t.match(/^(?:\d{1,2}[./-])?(\d{1,2})[./-](\d{4})$/);
     if (numeric) {
         const month = Number(numeric[1]) - 1;
         if (month >= 0 && month <= 11) return new Date(Number(numeric[2]), month, 1);
@@ -81,8 +83,9 @@ interface ParsedRange {
 function parseDateRange(dates: string, now: Date): ParsedRange | null {
     if (!dates || !dates.trim()) return null;
 
-    const parts = dates.split(/\s*(?:-|–|—|to)\s*/i).map(p => p.trim()).filter(Boolean);
-    if (parts.length === 0) return null;
+    // The range's own two ends, so "October" and "05-2019" are never split apart.
+    const range = dates.match(DATE_RANGE_RE);
+    const parts = range ? [range[1], range[2]] : [dates.trim()];
 
     const start = parseDateToken(parts[0]);
     if (!start) return null;

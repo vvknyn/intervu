@@ -1,0 +1,123 @@
+{
+    "caps-classic": {
+        "experience": [["Senior Data Analyst", "Harrowgate Logistics"], ["Data Analyst", "Kestrel Retail Group"], ["Junior Analyst", "Ambleside Insurance"]],
+        "education": [["BSc Mathematics", "University of Leeds"]],
+        "skills": ["SQL", "Python", "dbt", "Tableau", "Power BI", "Forecasting", "Excel", "Snowflake"]
+    },
+    "title-case-colon": {
+        "experience": [["Marketing Manager", "Brightloop Media"], ["Marketing Specialist", "Northshore Fitness"]],
+        "education": [["Bachelor of Arts in Communications", "Loyola University Chicago"]],
+        "skills": ["Paid Social", "Email Marketing", "Google Analytics", "HubSpot", "Copywriting", "A/B Testing", "Budget Planning"]
+    },
+    "career-history-mmyyyy": {
+        "experience": [["Mechanical Design Engineer", "Baltic Marine Systems"], ["Design Engineer", "Pomeranian Pumps"]],
+        "education": [["MSc Mechanical Engineering", "Gdansk University of Technology"]],
+        "skills": ["SolidWorks", "AutoCAD", "FEA", "GD&T", "Design for Manufacture", "Technical Drawing", "ANSYS"]
+    },
+    "employment-year-range": {
+        "experience": [["Full Stack Developer", "Lotus Health Tech"], ["Software Engineer", "Saffron Learning"]],
+        "education": [["B.Tech in Computer Science", "Visvesvaraya Technological University"]],
+        "skills": ["JavaScript", "TypeScript", "Python", "React", "Node.js", "Django", "Docker", "Git", "Playwright", "PostgreSQL"]
+    },
+    "professional-background-durations": {
+        "experience": [["Clinical Research Coordinator", "Lakeshore Cancer Centre"], ["Research Assistant", "Northbridge University Hospital"], ["Research Intern", "Ontario Health Data Institute"]],
+        "education": [["Master of Public Health", "University of Waterloo"], ["Bachelor of Science in Biology", "McMaster University"]],
+        "skills": ["REDCap", "Good Clinical Practice", "Informed Consent", "Data Management", "R", "SPSS", "Regulatory Binders"],
+        "labels": ["Graduate Internship Experience"]
+    },
+    "work-history-undated": {
+        "experience": [["Warehouse Team Lead", "Midwest Freight Solutions"], ["Forklift Operator", "Buckeye Distribution Center"], ["Stock Associate", "Riverside Home Goods"]],
+        "education": [["High School Diploma", "Westland High School"]],
+        "skills": ["Forklift Operation", "Inventory Control", "RF Scanners", "OSHA Safety", "Team Leadership", "Shipping and Receiving"]
+    },
+    "relevant-experience-projects": {
+        "experience": [["Machine Learning Engineer", "Nordvik Commerce"], ["Data Scientist", "Fjordline Travel"]],
+        "education": [["MSc Machine Learning", "KTH Royal Institute of Technology"]],
+        "skills": ["Python", "PyTorch", "TensorFlow", "LightGBM", "SQL", "Spark", "Kubernetes", "A/B Testing"]
+    },
+    "letter-spaced": {
+        "experience": [["Leading Hand Electrician", "Coral Coast Electrical"], ["Electrician", "Sunstate Maintenance Services"]],
+        "education": [["Certificate III in Electrotechnology", "TAFE Queensland"]],
+        "skills": ["Switchboard Upgrades", "Fault Finding", "Test and Tag", "AS/NZS 3000", "Conduit Installation", "Solar PV"]
+    },
+    "symbol-headings": {
+        "experience": [["Senior UX Designer", "Kranich Software GmbH"], ["UX Designer", "Spreewald Digital"]],
+        "education": [["BA Interaction Design", "Berlin University of the Arts"]],
+        "skills": ["Figma", "User Research", "Prototyping", "Design Systems", "Usability Testing", "Information Architecture", "Accessibility"]
+    },
+    "unicode-bullets": {
+        "experience": [["Operations Manager", "Rota Expressa Logística"], ["Hub Supervisor", "Mercado Veloz"], ["Logistics Analyst", "Transportes Alvorada"]],
+        "education": [["Bachelor of Business Administration", "Universidade Presbiteriana Mackenzie"]],
+        "skills": ["Last-Mile Delivery", "Route Planning", "Team Leadership", "KPI Reporting", "Lean Operations", "Vendor Negotiation"]
+    },
+    "two-column-layout": {
+        "pdfColumn": 44,
+        "experience": [["Clinical Dietitian", "Cascade Regional Hospital"], ["Outpatient Dietitian", "Willamette Family Clinic"], ["Diet Technician", "Bridgetown Senior Living"]],
+        "education": [["MS Clinical Nutrition", "Oregon State University"]],
+        "skills": ["Medical Nutrition Therapy", "Diabetes Education", "Enteral Nutrition", "Motivational Interviewing", "Epic EHR", "Menu Planning"]
+    },
+    "tab-table": {
+        "experience": [["Senior Accountant", "Savanna Agro Exports Ltd"], ["Accountant", "Kilima Microfinance Bank"], ["Accounts Assistant", "Tana River Traders"]],
+        "education": [["Bachelor of Commerce (Accounting)", "University of Nairobi"], ["Kenya Certificate of Secondary Education", "Alliance High School"]],
+        "skills": ["IFRS", "QuickBooks", "Sage", "Payroll", "Tax Compliance", "Budgeting", "Excel", "Audit Preparation", "Bank Reconciliation"],
+        "labels": ["Period\tRole\tEmployer", "Year\tQualification\tInstitution", "Title: Accountant"]
+    },
+    "no-headings": {
+        "experience": [["Chef de Partie", "The Harbour Hotel"], ["Commis Chef", "Ballymore House"]],
+        "education": [["Level 6 Certificate in Culinary Arts", "Munster Technological University"]],
+        "skills": ["HACCP", "Menu Costing", "Fish Butchery", "Sauces", "Allergen Management", "Stock Control", "Team Training"]
+    },
+    "linkedin-export": {
+        "experience": [["Senior Project Manager", "Cedarline Telecom"], ["Project Manager", "Cedarline Telecom"], ["Project Coordinator", "Gulf Systems Integration"]],
+        "education": [["Bachelor of Engineering", "American University of Beirut"]],
+        "skills": ["Stakeholder Management", "Agile Delivery", "Jira"],
+        "labels": ["Contact"]
+    },
+    "europass": {
+        "experience": [["Environmental Consultant", "Verde Ingeniería Ambiental"], ["Junior Environmental Technician", "EcoMediterránea Consultores"]],
+        "education": [["Master's Degree in Environmental Engineering", "Universidad Politécnica de Madrid"], ["Bachelor's Degree in Environmental Sciences", "Universidad de Valencia"]],
+        "skills": ["ArcGIS", "QGIS", "AutoCAD", "Microsoft Office", "Python", "Environmental Impact Assessment", "Soil Sampling", "Groundwater Monitoring", "Permitting"],
+        "labels": ["Europass Curriculum Vitae", "PERSONAL INFORMATION"]
+    },
+    "academic-cv": {
+        "experience": [["Assistant Professor of Chemistry", "Example State University"], ["Postdoctoral Research Fellow", "Lakeview Institute of Technology"]],
+        "education": [["PhD in Physical Chemistry", "University of Ibadan"], ["BSc in Industrial Chemistry", "University of Lagos"]],
+        "skills": ["Cyclic Voltammetry", "Raman Spectroscopy", "X-ray Diffraction", "DFT", "Python", "Origin"]
+    },
+    "functional-resume": {
+        "experience": [["Customer Success Lead", "Peachtree Analytics"], ["Customer Success Manager", "Magnolia HR Software"], ["Account Coordinator", "Southern Office Supply"]],
+        "education": [["BBA Marketing", "Georgia State University"]],
+        "skills": ["Account Management", "Renewals", "Onboarding", "Salesforce", "Zendesk", "Churn Analysis", "Training"]
+    },
+    "nurse-clinical": {
+        "experience": [["Medical-Surgical Staff Nurse", "St. Luke's Example Medical Center"], ["Emergency Room Nurse", "Manila Example General Hospital"]],
+        "education": [["Bachelor of Science in Nursing", "University of Santo Tomas"]],
+        "skills": ["Patient Assessment", "Wound Care", "IV Therapy", "Medication Administration", "Electronic Health Records", "Patient Education"]
+    },
+    "tradesperson-simple": {
+        "experience": [["Senior Welder", "Deccan Steel Fabricators"], ["Welder", "Sahyadri Engineering Works"]],
+        "education": [["ITI Welder", "Government Industrial Training Institute"], ["SSC", "Maharashtra State Board"]],
+        "skills": ["TIG Welding", "MIG Welding", "Arc Welding", "Blueprint Reading", "Gas Cutting", "Grinding"]
+    },
+    "indian-fresher": {
+        "experience": [["Software Testing Intern", "Brightpath Infotech"]],
+        "education": [["B.Sc. Computer Science", "Example Women's College"], ["HSC", "Example Matriculation Higher Secondary School"]],
+        "skills": ["Manual Testing", "Selenium", "Java", "SQL", "Jira", "Postman"],
+        "labels": ["CURRICULUM VITAE", "Course\tInstitution\tBoard/University\tYear\tPercentage"]
+    },
+    "markdown-paste": {
+        "experience": [["Senior Product Manager", "Liffey Payments"], ["Product Manager", "Grand Canal Software"]],
+        "education": [["MSc Management", "Trinity College Dublin"]],
+        "skills": ["Product Discovery", "Roadmapping", "SQL", "Payments", "Stakeholder Management", "Experimentation"]
+    },
+    "professional-background-extras": {
+        "experience": [["Teacher of History", "Leith Example Academy"], ["Probationer Teacher", "Portobello Example High School"]],
+        "education": [["PGDE Secondary History", "University of Edinburgh"], ["MA (Hons) History", "University of Glasgow"]],
+        "skills": ["Curriculum Planning", "Classroom Management", "Assessment", "SQA Marking", "Google Classroom", "Differentiation"]
+    },
+    "right-aligned-durations": {
+        "experience": [["Learning and Development Facilitator", "Brightwater Skills Foundation"], ["Monitoring and Evaluation Officer", "Tarang Rural Livelihoods Trust"], ["Youth Programmes Facilitator", "Saathi Education Collective"]],
+        "education": [["Masters in Social Work", "Deccan Valley University"], ["Bachelors in Sociology and Mass Communication", "Fergusson Arts College"]],
+        "skills": ["Curriculum Design", "Training Facilitation", "Monitoring and Evaluation", "KoboToolbox", "Stakeholder Engagement", "English", "Hindi", "Marathi"]
+    }
+}

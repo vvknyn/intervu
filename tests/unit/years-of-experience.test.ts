@@ -25,6 +25,13 @@ describe('computeYearsOfExperience', () => {
         assert.equal(years, 7); // 2013-02-01 -> 2020-07-01 is ~7y5m
     });
 
+    it('reads day-first, dashed and month-name dates, and ranges still running "till date"', () => {
+        const now = new Date(2026, 0, 1); // Jan 1, 2026
+        assert.equal(computeYearsOfExperience([exp('01.09.2015 – 01.09.2018')], now), 3);
+        assert.equal(computeYearsOfExperience([exp('05-2019 - till date')], now), 6); // 2019-05 -> 2026-01 is 6y8m
+        assert.equal(computeYearsOfExperience([exp('October 2018 to October 2020')], now), 2);
+    });
+
     it('a future-dated role does not inflate the result or crash', () => {
         const now = new Date(2026, 0, 1); // Jan 1, 2026
         const years = computeYearsOfExperience(

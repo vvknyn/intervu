@@ -23,6 +23,7 @@ import { ENGINE_LABELS, type LocalAiEngineId } from "./engines/types";
 import { groundDraft, resumeWordSet, ungroundedWords } from "./tailor-ground";
 import { rulesTailorDraft } from "./tailor-rules";
 import { lineAsks, postingAsks, withLeaveOuts, wordKey, type LineAsk, type PostingAsk } from "./tailor-asks";
+import { employerName } from "@/lib/resume/contact-line";
 import type { ResumeData } from "@/types/resume";
 
 export interface GenerateOptions {
@@ -320,7 +321,7 @@ export async function tailorWithModel(
     const parts = new Map<string, Part>();
     pairs.forEach((pair, i) => {
         const entry = all.find((e) => e.id === pair.entryId);
-        const otherEmployers = all.filter((e) => e !== entry && e.company !== entry?.company).map((e) => e.company.trim());
+        const otherEmployers = all.filter((e) => e !== entry && e.company !== entry?.company).map((e) => employerName(e.company).trim());
         parts.set(String(i + 1), {
             item: { id: String(i + 1), text: pair.line, asks: [pair.ask.text], max: lineWordLimit(pair.line) },
             before: pair.line,

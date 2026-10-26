@@ -1,0 +1,30 @@
+CURRICULUM VITAE
+
+ANANYA SHARMA
+Email: ananya.sharma@example.com | Mobile: +91 98765 43210
+
+CAREER OBJECTIVE
+To begin my career as a software tester in a growth-oriented organisation.
+
+ACADEMIC QUALIFICATION
+Course	Institution	Board/University	Year	Percentage
+B.Sc. Computer Science	Example Women's College, Chennai	University of Madras	2024	82%
+HSC	Example Matriculation Higher Secondary School	State Board	2021	91%
+
+INTERNSHIPS
+Software Testing Intern, Brightpath Infotech, Chennai (Jan 2024 – Apr 2024)
+- Wrote 150 manual test cases for a billing web app.
+- Logged and retested defects in Jira.
+
+TECHNICAL SKILLS
+Manual Testing, Selenium, Java, SQL, Jira, Postman
+
+PERSONAL DETAILS
+Date of Birth: 01/01/2003
+Languages Known: English, Tamil, Hindi
+Nationality: Indian
+
+DECLARATION
+I hereby declare that the above information is true to the best of my knowledge.
+
+Place: Chennai

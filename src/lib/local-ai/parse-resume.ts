@@ -77,9 +77,44 @@ function hasMeaningfulEducation(education: unknown): boolean {
     );
 }
 
+/** Lower-case letters and digits only: how two reads of one name compare. */
+const squash = (text: unknown) => String(text ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+
+/** "Verde S.L." and "Verde S.L. – Madrid": one name, one read with more after it. */
+function sameName(a: unknown, b: unknown): boolean {
+    const [x, y] = [squash(a), squash(b)];
+    return x.startsWith(y) || y.startsWith(x);
+}
+
+/**
+ * The model's entries, then each of the quick read's that none of them
+ * names (in either order): a reply cut short at its token cap, or a résumé
+ * longer than the text it was sent, keeps every entry the quick read found.
+ */
+function unionEntries<T>(model: T[], quick: T[] = [], names: (entry: T) => [unknown, unknown]): T[] {
+    const covered = (entry: T) => {
+        const [a, b] = names(entry);
+        return model.some((m) => {
+            const [c, d] = names(m);
+            return (sameName(a, c) && sameName(b, d)) || (sameName(a, d) && sameName(b, c));
+        });
+    };
+    return [...model, ...quick.filter((entry) => !covered(entry))];
+}
+
+type Competencies = NonNullable<RawParsedResumeInput["competencies"]>;
+
+/** The model's skill lists, then the quick read's skills none of them holds. */
+function unionSkills(model: Competencies, quick: Competencies = []): Competencies {
+    const held = new Set(model.flatMap((c) => c.skills ?? []).map(squash));
+    const missed = quick.map((c) => ({ ...c, skills: (c.skills ?? []).filter((skill) => !held.has(squash(skill))) }));
+    return [...model, ...missed.filter((c) => c.skills.length > 0)];
+}
+
 /**
  * Merge model output into heuristic draft without letting empty WASM fields
- * clobber good rule-based extractions.
+ * clobber good rule-based extractions, or a shorter read drop what the quick
+ * read found.
  */
 export function mergeModelIntoHeuristic(
     heuristic: RawParsedResumeInput,
@@ -123,15 +158,15 @@ export function mergeModelIntoHeuristic(
     };
 
     if (hasMeaningfulExperience(fromModel.experience)) {
-        raw.experience = fromModel.experience;
+        raw.experience = unionEntries(fromModel.experience!, heuristic.experience, (e) => [e.role, e.company]);
         modelContributed = true;
     }
     if (hasMeaningfulCompetencies(fromModel.competencies)) {
-        raw.competencies = fromModel.competencies;
+        raw.competencies = unionSkills(fromModel.competencies!, heuristic.competencies);
         modelContributed = true;
     }
     if (hasMeaningfulEducation(fromModel.education)) {
-        raw.education = fromModel.education;
+        raw.education = unionEntries(fromModel.education!, heuristic.education, (e) => [e.degree, e.institution]);
         modelContributed = true;
     }
     if (isNonEmptyString(fromModel.generatedSummary)) {
@@ -151,27 +186,62 @@ const SEALED_READ_TIMEOUT_MS = 40_000;
 /** The résumé text without what identifies the person: their name, email, phone numbers and links (without-contact.ts). */
 export { withoutContactDetails };
 
-function readSealedPrompt(text: string): string {
+/** The text sent: up to the last whole line that fits, so no entry reaches the model cut mid-line. */
+function sealedReadText(text: string): string {
+    if (text.length <= SEALED_READ_CHARS) return text;
+    const lineEnd = text.lastIndexOf("\n", SEALED_READ_CHARS);
+    return text.slice(0, lineEnd > 0 ? lineEnd : SEALED_READ_CHARS);
+}
+
+export function readSealedPrompt(text: string): string {
     return `Read this résumé into JSON. The person's name and contact details were removed.
 Copy every word exactly as written; leave out anything the text doesn't say.
 Reply with JSON only, in this shape:
 {"profile":{"profession":"","yearsOfExperience":0,"location":""},"experience":[{"company":"","role":"","dates":"","description":"• bullet\\n• bullet"}],"competencies":[{"category":"","skills":[""]}],"education":[{"degree":"","institution":"","year":""}]}
 
 """
-${text.slice(0, SEALED_READ_CHARS)}
+${sealedReadText(text)}
 """`;
 }
 
-function parseModelJson(text: string): ModelParseOutput {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end <= start) return null;
-    try {
-        const parsed = JSON.parse(text.slice(start, end + 1)) as unknown;
-        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
-    } catch {
-        return null;
+/**
+ * A reply cut off at the token cap, closed after its last whole value:
+ * `{"experience":[{…},{"role":"Engi` → `{"experience":[{…}]}`. Null when
+ * nothing in it closed.
+ */
+function closeTruncatedJson(json: string): string | null {
+    const closers: string[] = [];
+    let inString = false;
+    let cut = 0;
+    let tail = "";
+    for (let i = 0; i < json.length; i++) {
+        const ch = json[i];
+        if (inString) {
+            if (ch === "\\") i++;
+            else if (ch === '"') inString = false;
+        } else if (ch === '"') inString = true;
+        else if (ch === "{" || ch === "[") closers.push(ch === "{" ? "}" : "]");
+        else if (ch === "}" || ch === "]") {
+            closers.pop();
+            cut = i + 1;
+            tail = [...closers].reverse().join("");
+        }
     }
+    return cut > 0 ? json.slice(0, cut) + tail : null;
+}
+
+export function parseModelJson(text: string): ModelParseOutput {
+    const start = text.indexOf("{");
+    if (start === -1) return null;
+    for (const json of [text.slice(start, text.lastIndexOf("}") + 1), closeTruncatedJson(text.slice(start))]) {
+        try {
+            const parsed = JSON.parse(json ?? "") as unknown;
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+        } catch {
+            // Not whole: the next reading, or none.
+        }
+    }
+    return null;
 }
 
 /** Sealed AI's read of the résumé, or null when it's off or fails. Identity fields stay the quick read's. */

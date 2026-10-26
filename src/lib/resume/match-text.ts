@@ -2,8 +2,9 @@ import type { ResumeData } from "@/types/resume";
 
 /**
  * All of a résumé's free text that's relevant for matching against a job:
- * the generated summary, every experience bullet, every project bullet, and
- * every skill. Single source for "the résumé's matchable text" — used both
+ * the generated summary, every experience bullet, every project bullet, every
+ * skill, every degree and course, and every line of a section the résumé
+ * names itself ("Certifications", "Publications", "Volunteering"). Single source for "the résumé's matchable text" — used both
  * to infer duty/role-family signals (duty-signals.ts) and to build the
  * résumé's topical vocabulary for relevance scoring (score.ts). Reading
  * experience alone left a résumé with content ONLY in projects or ONLY in
@@ -31,6 +32,14 @@ export function resumeMatchText(resume: ResumeData): string {
             const skill = (raw ?? "").trim();
             if (skill) parts.push(skill);
         }
+    }
+
+    for (const school of resume.education ?? []) {
+        parts.push(...[school.degree, ...(school.coursework ?? [])].map((t) => (t ?? "").trim()).filter(Boolean));
+    }
+
+    for (const section of resume.additionalSections ?? []) {
+        parts.push(...section.lines.map((line) => line.trim()).filter(Boolean));
     }
 
     return parts.join("\n");
