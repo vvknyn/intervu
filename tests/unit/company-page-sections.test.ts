@@ -69,6 +69,14 @@ describe("buildRelatedCompanies", () => {
     const out = buildRelatedCompanies(["a.com", "b.com", "c.com", "self.com", "outside.com"], set, "self.com");
     assert.deepEqual(out.map((c) => c.domain), ["b.com", "c.com", "a.com"]);
   });
+  it("ranks by shared hits before open roles, counting repeated hit domains", () => {
+    const out = buildRelatedCompanies(["small.io", "small.io", "small.io", "giant.com"], [dir("giant.com", 9000), dir("small.io", 12)], "self.com");
+    assert.deepEqual(out.map((c) => c.domain), ["small.io", "giant.com"]);
+  });
+  it("falls back to open roles when hit counts tie", () => {
+    const out = buildRelatedCompanies(["p.io", "q.io"], [dir("p.io", 5), dir("q.io", 80)], "self.com");
+    assert.deepEqual(out.map((c) => c.domain), ["q.io", "p.io"]);
+  });
   it("caps at six", () => {
     const many = Array.from({ length: 12 }, (_, i) => dir(`d${i}.com`, i));
     assert.equal(buildRelatedCompanies(many.map((m) => m.domain), many, "none.com").length, RELATED_LIMIT);
