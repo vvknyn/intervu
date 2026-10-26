@@ -241,6 +241,7 @@ import {
     resolveEmptySearchState,
     resolveJobsRenderMode,
     resolveJobsResultsPanel,
+    holdSavedSearchAbovePanel,
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
@@ -1539,6 +1540,9 @@ export function JobsContent({
     // body runs, before anything async — a state flag wouldn't be readable
     // that soon and would itself trigger a needless extra render.
     const isFirstSearchRunRef = useRef(true);
+    // See `holdSavedSearchAbovePanel`: true once a settled non-list panel has
+    // the above-panel saved-search row, so the next splash reuses it.
+    const savedSearchAboveHeldRef = useRef(false);
     // That first run's answer is already on screen when the server rendered
     // the first list (`initialSearch`); the run takes the same result.
     const firstListFromServerRef = useRef(initialSearch != null);
@@ -4410,6 +4414,8 @@ export function JobsContent({
         loading,
         hitCount: hits.length,
     });
+    const savedSearchAbove = holdSavedSearchAbovePanel(resultsPanel, savedSearchAboveHeldRef.current);
+    savedSearchAboveHeldRef.current = savedSearchAbove.held;
     const resultSetEntering = useResultSetEnter(resultSearchKey);
     // The ONE "broaden this search" nudge — the same component the packs' thin state renders, so the
     // board's zero and thin results offer the same options with the same counts. Each option applies
@@ -5858,14 +5864,16 @@ export function JobsContent({
                                 list branch carries the control in its own action row below;
                                 every other SETTLED panel (ask, not-connected, error, empty)
                                 gets it here, once, above the panel, docked or not (the header
-                                never carries it). "loading" is excluded: a refinement goes
-                                list -> loading -> list, and loading replaces the list with the
-                                splash (stale hits are not kept on screen). The control leaves
-                                with the list and comes back with it, which is one count burst.
-                                Mounting it here during the splash would be a second mount in
-                                that same refinement and would count every saved search again.
-                                The empty panel's own `searchAlertSlot` is the Job alert, not this. */}
-                            {resultsPanel !== "list" && resultsPanel !== "loading" && savedSearchControl && (
+                                never carries it). A splash that follows a list does not: the
+                                control leaves with the list and comes back with it, one count
+                                burst, and a second copy here during that splash would count
+                                every saved search again. A splash that follows a settled
+                                non-list panel keeps this same row — `holdSavedSearchAbovePanel`
+                                — so a support probe that refetches after an empty result does
+                                not count them a second time. The first splash, before any
+                                settled panel, mounts nothing. The empty panel's own
+                                `searchAlertSlot` is the Job alert, not this. */}
+                            {savedSearchAbove.show && savedSearchControl && (
                                 <div data-testid="jobs-saved-searches-row" className="mb-3 flex px-[var(--list-inset)] text-sm empty:hidden">
                                     {savedSearchControl}
                                 </div>
