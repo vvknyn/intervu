@@ -35,9 +35,40 @@ function run(cwd, { blockExit }) {
   process.exit(blockExit);
 }
 
+/** PreToolUse runners parse stdout as JSON. A plain pass line is treated as a broken hook and blocks the command. */
+function hookDecision(decision, reason) {
+  process.stdout.write(`${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: decision,
+      permissionDecisionReason: reason,
+    },
+  })}\n`);
+}
+
 if (process.argv.includes("--claude-hook")) {
-  const payload = JSON.parse(readFileSync(0, "utf8") || "{}");
-  if (isGatedCommand(payload.tool_input?.command ?? "")) run(payload.cwd || process.cwd(), { blockExit: 2 });
+  let payload = {};
+  try {
+    const raw = readFileSync(0, "utf8");
+    if (raw.trim()) payload = JSON.parse(raw);
+  } catch {
+    payload = {};
+  }
+  if (!isGatedCommand(payload.tool_input?.command ?? "")) process.exit(0);
+  const cwd = payload.cwd || process.cwd();
+  let verdict;
+  try {
+    verdict = evaluateJourneyCoverage(readRange(cwd));
+  } catch (e) {
+    hookDecision("deny", `journey coverage gate could not run: ${e.message}`);
+    process.exit(2);
+  }
+  if (verdict.ok) {
+    hookDecision("allow", `journey coverage gate: pass (${verdict.reason})`);
+    process.exit(0);
+  }
+  hookDecision("deny", failureText(verdict, parseCatalog(readFileSync(`${cwd}/tests/journeys/CATALOG.md`, "utf8"))));
+  process.exit(2);
 } else {
   run(process.cwd(), { blockExit: 1 });
 }
