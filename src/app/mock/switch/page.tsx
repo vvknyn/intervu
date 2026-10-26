@@ -15,7 +15,7 @@ export default function SwitchMockPage() {
     const [remoteOnly, setRemoteOnly] = useState(false);
     return (
         <main className="space-y-4 p-6">
-            <SearchAlertSwitch signedIn={false} saved={[]} urlState={DEFAULT_URL_STATE} guestOn={alertOpen} guestRequested={false} onGuestChange={setAlertOpen} />
+            <SearchAlertSwitch signedIn={false} saved={[]} urlState={DEFAULT_URL_STATE} resumeQuery={null} derivedQuery={null} guestOn={alertOpen} guestRequested={false} onGuestChange={setAlertOpen} />
             <div className="flex items-center gap-2">
                 <Switch checked={remoteOnly} onChange={() => setRemoteOnly((v) => !v)} aria-label="Remote only" />
                 <span className="text-sm">Remote only</span>

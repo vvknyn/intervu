@@ -117,6 +117,6 @@ test("toolbar control height", async (t) => {
             savedSearchesSrc.indexOf('data-testid="saved-search-item"') + 800,
         );
         assert.match(savedItemBlock, /truncate/);
-        assert.match(savedItemBlock, /title=\{s\.name\}/, "saved-search name button exposes full label via title");
+        assert.match(savedItemBlock, /title=\{terms \? undefined : label\}/, "saved-search name button exposes full label via title");
     });
 });

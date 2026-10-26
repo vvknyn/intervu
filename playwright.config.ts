@@ -47,6 +47,12 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'], launchOptions: CHROMIUM_LAUNCH },
     },
+    // WebKit is the engine on the phones people use; only the specs that check engine-specific UI run on it.
+    {
+      name: 'webkit',
+      testMatch: /saved-search-(label|privacy|idle)\.spec\.ts/,
+      use: { ...devices['Desktop Safari'] },
+    },
   ],
   // When PLAYWRIGHT_BASE_URL points at an externally-managed server, don't
   // also launch `npm run dev` — running a dev server and a prod build

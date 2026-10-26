@@ -100,7 +100,7 @@ import {
     getRecentlyViewedServerSnapshot,
     recordRecentlyViewedJob,
 } from "@/lib/jobs/recently-viewed";
-import { hrefFromJobsUrlState, jobsUrlStateFromSavedHref, savedSearchId, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
+import { hrefFromJobsUrlState, savedSearchId, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
 import { useSavedSearches, savePendingSearchAfterSignIn, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
     subscribeSuppressLocationDefault,
@@ -327,7 +327,7 @@ import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { scoringPreferences } from "@/lib/agent-preferences-read";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { viewerDefaults } from "@/lib/jobs/viewer-defaults";
-import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
+import { buildJobSearchPayload, isResumeOwnSearch, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { toast } from "@/lib/toast";
@@ -2868,6 +2868,31 @@ export function JobsContent({
         [renderedClusters, expandedClusters],
     );
 
+    // Takes a parsed URL state into every local field (the reconcile effect below, and a résumé chip apply, which
+    // must set them itself so the résumé's words never reach the address).
+    const adoptUrlState = (parsed: JobsUrlState) => {
+        setQueryDraft(parsed.q);
+        setQuery(parsed.q);
+        // Facets are an object, not a primitive — a same-content-but-new-
+        // reference set would still be a needless render, so gate it on
+        // serialized equality rather than setting unconditionally.
+        const facetsChanged =
+            serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: parsed.facets }) !==
+            serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: addressState(buildUrlState()).facets });
+        if (facetsChanged) setFacets(parsed.facets);
+        setSalaryMin(parsed.salaryMin);
+        setVisaOnly(parsed.visaOnly);
+        setPostedBucket(parsed.postedBucket);
+        setPostedExplicit(parsed.postedExplicit ?? false);
+        setYearsExperience(parsed.yearsExperience);
+        setHideGhosts(parsed.hideGhosts);
+        setHideViewed(parsed.hideViewed);
+        setBoard(parsed.board);
+        setCompanyDomain(parsed.companyDomain);
+        setSortOverride(urlSortToBackendSort(parsed.sort));
+        setFitActive(parsed.sort === "fit");
+    };
+
     // The URL is the reactive source of truth for the WHOLE screen, not just
     // `job` — this effect reconciles every parsed field back into local state
     // whenever `searchParams` changes. That covers Back/Forward, a typed
@@ -2899,26 +2924,7 @@ export function JobsContent({
         const parsedKey = serializeJobsUrl({ ...parsed, jobId: null });
         const currentKey = serializeJobsUrl({ ...current, jobId: null });
         if (parsedKey !== currentKey) {
-            setQueryDraft(parsed.q);
-            setQuery(parsed.q);
-            // Facets are an object, not a primitive — a same-content-but-new-
-            // reference set would still be a needless render, so gate it on
-            // serialized equality rather than setting unconditionally.
-            const facetsChanged =
-                serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: parsed.facets }) !==
-                serializeJobsUrl({ ...DEFAULT_URL_STATE, facets: current.facets });
-            if (facetsChanged) setFacets(parsed.facets);
-            setSalaryMin(parsed.salaryMin);
-            setVisaOnly(parsed.visaOnly);
-            setPostedBucket(parsed.postedBucket);
-            setPostedExplicit(parsed.postedExplicit ?? false);
-            setYearsExperience(parsed.yearsExperience);
-            setHideGhosts(parsed.hideGhosts);
-            setHideViewed(parsed.hideViewed);
-            setBoard(parsed.board);
-            setCompanyDomain(parsed.companyDomain);
-            setSortOverride(urlSortToBackendSort(parsed.sort));
-            setFitActive(parsed.sort === "fit");
+            adoptUrlState(parsed);
         }
 
         // Selected job stays derived from the URL's `job` param — the
@@ -4198,14 +4204,21 @@ export function JobsContent({
 
     const chooseBestMatch = () => chooseSort("relevance");
 
-    const applySavedSearch = (href: string) => {
+    const applySavedSearch = (state: JobsUrlState) => {
         // A saved search IS a full /jobs URL-state write — same chokepoint
         // as every other filter/sort/query mutation above, not a real
         // navigation, so it gets the same shallow (no server round-trip)
         // history write. The reconcile effect below picks up the resulting
         // `searchParams` change and re-derives every local field from it,
         // exactly as it already does for Back/Forward/a typed address bar.
-        applyUrlState(jobsUrlStateFromSavedHref(href), "push");
+        if (pack && isResumeOwnSearch(state.sort === "fit", state.q, pack)) {
+            // The résumé's own search, started by the visitor: it runs marked and never logged (`fitActive`), and
+            // its words stay out of the address like Rank by fit's (`withoutResumeDerived`), so the fields are set
+            // here rather than read back from the address.
+            adoptUrlState(state);
+            resumeDerivedRef.current = { q: pack.q, facets: {}, postedBucket: state.postedBucket, keepUserWindow: true };
+        }
+        applyUrlState(state, "push");
     };
 
     const canSaveSearch = Boolean(
@@ -4858,6 +4871,9 @@ export function JobsContent({
             urlState={addressState(buildUrlState())}
             canSave={false}
             onApply={applySavedSearch}
+            resumeQuery={pack?.q ?? null}
+            resumeSearchOpen={isResumeOwnSearch(fitActive, query, pack)}
+            derivedQuery={resumeDerivedRef.current?.q ?? null}
             compact
             className="inline-flex"
         />
@@ -4918,6 +4934,8 @@ export function JobsContent({
             signedIn={!!user}
             saved={savedSearches}
             urlState={alertUrlState}
+            resumeQuery={pack?.q ?? null}
+            derivedQuery={resumeDerivedRef.current?.q ?? null}
             guestOn={manualAlertOpen}
             guestRequested={requestedAlerts.includes(alertSearchId)}
             onGuestChange={setManualAlertOpen}

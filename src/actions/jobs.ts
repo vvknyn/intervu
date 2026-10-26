@@ -541,6 +541,8 @@ export async function countNewSinceAction(
   const result = await runSearch(
     {
       ...jobSearchParamsFromUrlState(input.params, Date.parse(bucketedCursor)),
+      // A résumé's own search (`sort=fit`) keeps its mark here too (`searchParamsFromUrlState`).
+      ...(input.params.sort === "fit" ? { fromResume: true } : {}),
       limit: 1,
       withFacets: false,
     },

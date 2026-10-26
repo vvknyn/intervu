@@ -130,9 +130,17 @@ export function resumeContentMark(
     query: string,
     pack: { q: string; phrases: readonly string[] } | null,
 ): Pick<JobSearchParams, "contentPhrases" | "unplacedRemote"> {
-    // Only the résumé pack's own search: a query typed beside Rank by fit is looked up as typed.
-    if (!fitActive || !pack || query.trim() !== pack.q) return {};
+    if (!pack || !isResumeOwnSearch(fitActive, query, pack)) return {};
     return packContentMark(pack.phrases, true);
+}
+
+/**
+ * THE rule for "may résumé words go to the server": only inside the résumé's own search (Rank by fit with the
+ * pack's query), which is marked and never logged (`shouldLogSearch`). A query typed beside Rank by fit is looked
+ * up as typed. The content mark, a saved search's "N new" count and a chip apply all follow it.
+ */
+export function isResumeOwnSearch(fitActive: boolean, query: string, pack: { q: string } | null): boolean {
+    return fitActive && pack !== null && query.trim() === pack.q.trim();
 }
 
 export function packContentMark(phrases: readonly string[], unplacedRemote: boolean): Pick<JobSearchParams, "contentPhrases" | "unplacedRemote"> {

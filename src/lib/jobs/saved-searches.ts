@@ -15,6 +15,78 @@ export interface SavedSearch {
     /** Serialized query string from `serializeJobsUrl`, e.g. `?q=pm&work=remote`. */
     href: string;
     createdAt: string;
+    /** Where the query came from, recorded at save time (`savedSearchOrigin`). Absent on older rows and on a query the user wrote. */
+    origin?: SavedSearchOrigin;
+}
+
+/** A search saved while its query was the one the résumé's fit derived. */
+export type SavedSearchOrigin = "resume";
+
+/**
+ * The origin to record for a search being saved: "resume" only when its query IS the query the résumé's fit
+ * derived on this page (`derivedQuery`, null while the search is the visitor's own). Never read from the text.
+ */
+export function savedSearchOrigin(state: JobsUrlState, derivedQuery: string | null | undefined): SavedSearchOrigin | undefined {
+    const q = state.q.trim();
+    return q && q === derivedQuery?.trim() ? "resume" : undefined;
+}
+
+/** The `origin` property of a stored row, or nothing: a doc must never carry `origin: undefined`, nor a value read from storage unchecked. */
+export function originField(origin: unknown): { origin?: SavedSearchOrigin } {
+    return origin === "resume" ? { origin } : {};
+}
+
+/**
+ * THE one place a saved search's query is resolved for use: a résumé-origin search follows the CURRENT
+ * résumé's derived query (`resumeQuery`, null when no résumé is on the device, then the stored query stands);
+ * any other search is its stored state. Applying a chip, its "new" count and the alert-switch match all
+ * call this. The weekly digest runs on the server without the résumé and reads the stored query by ruling.
+ */
+export function effectiveSavedSearchState(
+    s: Pick<SavedSearch, "href" | "origin">,
+    resumeQuery: string | null,
+): JobsUrlState {
+    const state = jobsUrlStateFromSavedHref(s.href);
+    // `sort=fit` makes it the résumé's own search: applying it takes the marked, never-logged path.
+    return s.origin === "resume" && resumeQuery?.trim() ? { ...state, q: resumeQuery, sort: "fit" } : state;
+}
+
+/**
+ * Whether a saved search may be sent to the server for its "N new" count now. A résumé-origin one carries the
+ * CURRENT résumé's terms, so it goes only while the board is running the résumé's own search
+ * (`isResumeOwnSearch`, `resumeSearchOpen`); the stored terms never stand in, since the count would then disagree
+ * with the terms the chip shows. Any other saved search is the searcher's own words.
+ */
+export function mayCountSavedSearch(s: Pick<SavedSearch, "origin">, resumeSearchOpen: boolean): boolean {
+    return s.origin !== "resume" || resumeSearchOpen;
+}
+
+/** The terms of a boolean query: `"A" OR "B"` (or `A OR B`) → [A, B]; a plain query → itself. */
+export function queryTerms(q: string): string[] {
+    return q
+        .split(/\s+OR\s+/i)
+        .map((t) => t.replace(/"/g, "").trim())
+        .filter(Boolean);
+}
+
+export const RESUME_KEYWORDS_LABEL = "Résumé keywords";
+
+/**
+ * What a saved-search chip reads. A name the user typed is shown as written. A name that is just the raw query
+ * (what `suggestSavedSearchName` offered when it was saved) becomes "Résumé keywords" for a search saved from
+ * the résumé's query, else its first term and "+N more"; `terms` is then the full list for the tooltip and the
+ * touch view, and null when the label already shows everything.
+ */
+export function savedSearchDisplay(
+    s: Pick<SavedSearch, "name" | "href" | "origin">,
+    resumeQuery: string | null,
+): { label: string; terms: string[] | null } {
+    const stored = jobsUrlStateFromSavedHref(s.href);
+    if (!stored.q.trim() || s.name !== suggestSavedSearchName(stored)) return { label: s.name, terms: null };
+    const terms = queryTerms(effectiveSavedSearchState(s, resumeQuery).q);
+    if (s.origin === "resume") return { label: RESUME_KEYWORDS_LABEL, terms };
+    if (terms.length < 2) return { label: s.name, terms: null };
+    return { label: `${terms[0]} +${terms.length - 1} more`, terms };
 }
 
 /** Persisted search state omits the open job — reopening is a fresh SERP. */
@@ -58,7 +130,7 @@ export function suggestSavedSearchName(state: JobsUrlState): string {
  */
 export function addSavedSearch(
     list: SavedSearch[],
-    entry: Pick<SavedSearch, "name" | "href">,
+    entry: Pick<SavedSearch, "name" | "href" | "origin">,
     max = MAX_SAVED_SEARCHES,
     now = (): string => new Date().toISOString(),
 ): SavedSearch[] {
@@ -70,6 +142,7 @@ export function addSavedSearch(
         name: trimmedName,
         href: entry.href,
         createdAt: now(),
+        ...originField(entry.origin),
     };
     return [next, ...rest].slice(0, max);
 }
@@ -108,15 +181,15 @@ export function savedSearchId(href: string): string {
  * lets the merge trigger run again safely on every login, not just the first.
  */
 export function mergedSavedSearchRow(
-    guest: Pick<SavedSearch, "name" | "href" | "createdAt">,
+    guest: Pick<SavedSearch, "name" | "href" | "createdAt" | "origin">,
     existingCreatedAt: string | undefined,
     now = (): string => new Date().toISOString(),
-): Pick<SavedSearch, "name" | "href" | "createdAt"> {
+): Pick<SavedSearch, "name" | "href" | "createdAt" | "origin"> {
     const candidates = [existingCreatedAt, guest.createdAt].filter((c): c is string => !!c);
     const createdAt = candidates.length
         ? candidates.reduce((earliest, next) => (Date.parse(next) < Date.parse(earliest) ? next : earliest))
         : now();
-    return { name: guest.name.trim(), href: guest.href.trim(), createdAt };
+    return { name: guest.name.trim(), href: guest.href.trim(), createdAt, ...originField(guest.origin) };
 }
 
 function hasLocalStorage(): boolean {
@@ -189,7 +262,7 @@ export function getSavedSearchesSnapshot(): SavedSearch[] {
     return cache;
 }
 
-export function persistSavedSearch(entry: Pick<SavedSearch, "name" | "href">): SavedSearch[] {
+export function persistSavedSearch(entry: Pick<SavedSearch, "name" | "href" | "origin">): SavedSearch[] {
     const current = getSavedSearchesSnapshot();
     const next = addSavedSearch(current, entry);
     if (next.length === current.length && next.every((s, i) => s.id === current[i]?.id)) return current;
