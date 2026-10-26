@@ -101,8 +101,8 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
       <PageTitle className="mt-3">Two ways to use Velai.</PageTitle>
       <p className={`mt-1.5 ${READING_MEASURE} text-base text-muted-foreground`}>{PRIVACY_SUMMARY}</p>
 
-      <div className="mt-8 grid items-start gap-6 md:grid-cols-2">
-      <Card data-testid="pricing-local-card" className="border border-border">
+      <div className="mt-8 grid gap-6 md:grid-cols-2">
+      <Card data-testid="pricing-local-card" className="flex flex-col border border-border">
         <p className="text-sm font-semibold text-foreground">{PRIVACY_MODES.local.name}</p>
         <p className="mt-1 text-2xl font-semibold text-foreground">{PRIVACY_MODES.local.price}</p>
         <p className="mt-1 text-sm text-muted-foreground">No account needed.</p>
@@ -112,9 +112,17 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
 
         <p className="mt-5 text-sm font-semibold text-foreground">How it stays private</p>
         <PrivacyModePoints mode={PRIVACY_MODES.local} className="mt-3" />
+
+        <div className="mt-auto pt-5">
+          <div className="border-t border-border pt-4">
+            <Button asChild className="w-full">
+              <Link data-testid="pricing-local-action" href="/jobs">Search jobs</Link>
+            </Button>
+          </div>
+        </div>
       </Card>
 
-      <Card data-testid="pricing-card" className="border border-brand">
+      <Card data-testid="pricing-card" className="flex flex-col border border-brand">
         <p className="text-sm font-semibold text-foreground">{PRIVACY_MODES.cloud.name}</p>
         <p className="mt-1 text-2xl font-semibold text-foreground">
           {PRO_MONTHLY_PRICE}
@@ -141,7 +149,8 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
           </p>
         ) : null}
 
-        <div className="mt-5 border-t border-border pt-4">
+        <div className="mt-auto pt-5">
+        <div className="border-t border-border pt-4">
           {billingConfigured ? (
             <>
               <label htmlFor="pricing-months" className="text-sm font-semibold text-foreground">
@@ -189,6 +198,7 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
         <p className="mt-4 text-xs text-muted-foreground">
           How we handle your data is in the <Link href="/privacy" className="underline">privacy policy</Link>.
         </p>
+        </div>
       </Card>
       </div>
 

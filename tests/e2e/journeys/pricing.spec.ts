@@ -14,6 +14,7 @@ test("the pricing page shows Local and Private cloud side by side, with the mont
   await expect(page.getByTestId("pricing-page")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Two ways to use Velai");
   await expect(page.getByTestId("pricing-local-card")).toContainText("Free");
+  await expect(page.getByTestId("pricing-local-action")).toHaveAttribute("href", "/jobs");
 
   const card = page.getByTestId("pricing-card");
   await expect(card).toContainText("$6");
