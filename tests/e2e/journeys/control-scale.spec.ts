@@ -184,6 +184,12 @@ const buttonFaceFindings = (page: Page) =>
         return { measured, findings };
     });
 
+// The least faces a route must show for the scan to count as having looked. /about's header carries Sign in alone
+// (the quiet nav dropped Create account) and its body has no stepped button, so one is all it can show; every
+// other route has the header plus its own controls. Each face is checked on its own against its step, never
+// against another face, so the floor guards an empty scan, not a comparison.
+const MIN_FACES: Record<string, number> = { "/about": 1 };
+
 for (const path of ["/jobs", "/jobs?q=data+analyst", "/trends", "/about"]) {
     test(`every button face on ${path} takes its type from its step: 12/14/16px at 500`, { tag: ["@J-NAV-38"] }, async ({ page }) => {
         await returningVisitor(page);
@@ -193,8 +199,8 @@ for (const path of ["/jobs", "/jobs?q=data+analyst", "/trends", "/about"]) {
         await expect
             .poll(async () => {
                 const { measured, findings } = await buttonFaceFindings(page);
-                // Sign in and Create account at the least; fewer means the scan found nothing to check.
-                return measured >= 2 ? findings : [`only ${measured} button faces found`];
+                // Fewer than the route's floor means the scan found nothing to check.
+                return measured >= (MIN_FACES[path] ?? 2) ? findings : [`only ${measured} button faces found`];
             })
             .toEqual([]);
     });
