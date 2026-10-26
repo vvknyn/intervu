@@ -316,7 +316,7 @@ import {
 import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters, derivedByFit, withoutResumeDerived, type FitApplication } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, omitsPastSenior, resumeDefaultLanguages, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { scoringPreferences } from "@/lib/agent-preferences-read";
@@ -1151,6 +1151,10 @@ export function JobsContent({
         getSuppressLocationDefaultSnapshot,
         getSuppressLocationDefaultServerSnapshot,
     );
+    // What the résumé's fit put in the search (its query, facets, window): kept out of the address, which the
+    // Referer, logs and the sign-up links carry (`withoutResumeDerived`). Null while the search is the visitor's own.
+    const resumeDerivedRef = useRef<FitApplication | null>(null);
+    const addressState = (state: JobsUrlState) => withoutResumeDerived(state, resumeDerivedRef.current);
     // Assembles the full URL-state object from current component state, with
     // `overrides` layered on top for the field(s) actually changing at the
     // call site. `jobId` defaults to whatever the URL currently holds, so a
@@ -1202,7 +1206,7 @@ export function JobsContent({
     // Native history never scrolls on its own, so the old `{ scroll: false
     // }` is simply the default now, not something to replicate.
     const applyUrlState = (next: JobsUrlState, history: "replace" | "push") => {
-        const target = `${pathname}${serializeJobsUrl(next)}`;
+        const target = `${pathname}${serializeJobsUrl(addressState(next))}`;
         if (typeof window !== "undefined" && target === `${window.location.pathname}${window.location.search}`) {
             return;
         }
@@ -2892,7 +2896,7 @@ export function JobsContent({
     // user action.
     useEffect(() => {
         const parsed = parseJobsUrl(searchParams);
-        const current = buildUrlState();
+        const current = addressState(buildUrlState());
         // Compare everything except `job`: `job` is intentionally excluded
         // because `buildUrlState()` sources its `jobId` straight from
         // `searchParams.get("job")` (the same value `parsed.jobId` just
@@ -4051,6 +4055,7 @@ export function JobsContent({
             // An address with its own intent is theirs: fit only ranks it (the résumé terms still score every row).
             setSortOverride(null);
             setFitActive(true);
+            resumeDerivedRef.current = derivedByFit(base, fit);
             applyUrlState(fitRankUrlState(base, fit), "replace");
             return;
         }
@@ -4063,6 +4068,7 @@ export function JobsContent({
         setQuery(fit.q);
         setSortOverride(null);
         setFitActive(true);
+        resumeDerivedRef.current = fit;
         applyUrlState(fitUrlState(base, fit), "replace");
     };
 
@@ -4857,7 +4863,7 @@ export function JobsContent({
     const savedSearchControl = canSaveSearch ? (
         <SavedSearchesPanel
             saved={savedSearches}
-            urlState={buildUrlState()}
+            urlState={addressState(buildUrlState())}
             canSave={false}
             onApply={applySavedSearch}
             compact
