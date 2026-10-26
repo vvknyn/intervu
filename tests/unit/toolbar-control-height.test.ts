@@ -91,17 +91,15 @@ test("toolbar control height", async (t) => {
         );
     });
 
-    await t.test("the toolbar scroller is one scrollable row in a narrow column and wraps in a wide one", () => {
+    await t.test("the toolbar scroller is one scrollable row at every width", () => {
         const scroller = pageSrc.slice(
             pageSrc.indexOf('data-testid="jobs-toolbar-scroller"'),
             pageSrc.indexOf('data-testid="jobs-toolbar-scroller"') + 300,
         );
-        assert.match(scroller, /@2xl:flex-wrap/);
-        assert.match(scroller, /@2xl:overflow-x-clip/);
-        // The scrolling lives on the wrapper shared with the active chips (one row below @2xl).
+        assert.doesNotMatch(scroller, /flex-wrap|overflow-x-/);
+        // The scrolling lives on the wrapper shared with the active chips (CHIP_SCROLL_ROW, every width).
         const rows = pageSrc.slice(pageSrc.indexOf('data-testid="jobs-toolbar-rows"'), pageSrc.indexOf('data-testid="jobs-toolbar-rows"') + 300);
-        assert.match(rows, /\boverflow-x-auto/);
-        assert.doesNotMatch(scroller, /flex-nowrap/);
+        assert.match(rows, /CHIP_SCROLL_ROW/);
     });
 
     await t.test("FilterChipsRow is a nowrap chip rail, not a 3-column grid", () => {

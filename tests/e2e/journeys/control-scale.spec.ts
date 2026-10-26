@@ -54,23 +54,32 @@ test("desktop header with a query: the docked search, Sign in and Create account
     expect(heights).toEqual([MD, MD, MD]);
 });
 
-test("/jobs search row: query, location and Search share the lg step", { tag: ["@J-JOBS-29"] }, async ({ page }) => {
+test("/jobs search row: query and Search share the lg step", { tag: ["@J-JOBS-29"] }, async ({ page }) => {
     await returningVisitor(page);
     await page.goto("/jobs");
     const row = page.locator("[data-search-line]");
     await expect(row.getByTestId("search-submit")).toBeVisible({ timeout: 15_000 });
     // The inline clear glyphs sit inside the fields on the sm step; every other control is the row.
-    await expect.poll(() => controlHeights(row, `:is(${CONTROLS}):not([data-testid$="-clear"])`)).toEqual([LG, LG, LG]);
+    await expect.poll(() => controlHeights(row, `:is(${CONTROLS}):not([data-testid$="-clear"])`)).toEqual([LG, LG]);
 });
 
 test("/jobs toolbar: every control in the row takes the md step", { tag: ["@J-JOBS-30"] }, async ({ page }) => {
     await returningVisitor(page);
-    await page.goto("/jobs");
-    const row = page.getByTestId("jobs-toolbar-scroller");
+    // Active filters (from the URL) put the chips and Clear in the row beside Filters, so the row holds several controls.
+    await page.goto("/jobs?work=remote&exp=senior");
+    const row = page.getByTestId("jobs-toolbar-rows");
     await expect(row.getByTestId("filters-toggle")).toBeVisible({ timeout: 15_000 });
-    const heights = await controlHeights(row);
+    // The row's buttons and fields. A chip's own dismiss glyph is the sm step by design (`ChipDismiss`, `data-slot="chip-dismiss"`); every other control, square ones included, is the row.
+    const heights = await controlHeights(row, `:is(${CONTROLS}):not([data-slot="chip-dismiss"])`);
     expect(heights.length).toBeGreaterThanOrEqual(2);
     expect(new Set(heights)).toEqual(new Set([MD]));
+    // The active-filter chips are spans, not buttons, so CONTROLS never sees them. A chip face is what holds the
+    // chip primitive's dismiss (`data-slot="chip-dismiss"`, chip.tsx), whatever it is called: its parent.
+    const chipHeights = await row
+        .locator('[data-slot="chip-dismiss"]')
+        .evaluateAll((els) => els.map((el) => Math.round(el.parentElement!.getBoundingClientRect().height)));
+    expect(chipHeights.length, "chip faces in the row (one per active filter)").toBeGreaterThanOrEqual(2);
+    expect(new Set(chipHeights)).toEqual(new Set([MD]));
 });
 
 /**
