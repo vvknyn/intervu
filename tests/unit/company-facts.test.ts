@@ -127,7 +127,7 @@ describe("buildCompanyFacts", () => {
         );
         assert.equal(f.hiring.openCount, 1240);
         assert.equal(f.hiring.lastPostedAt, "2026-10-01T00:00:00Z");
-        assert.equal(f.hiring.lastSeenAliveAt, "2026-10-20T00:00:00Z");
+        assert.equal(f.hiring.checkedAt, "2026-10-20T00:00:00Z");
         assert.deepEqual(f.mix.workType, { buckets: [{ value: "Remote", count: 700 }, { value: "Hybrid", count: 100 }], stated: 800, total: 1240 });
         assert.deepEqual(f.mix.visaSponsorship, { sponsors: 30, stated: 100, total: 1240 });
         assert.deepEqual(f.mix.countries?.buckets, [{ value: "United States", count: 950 }]);
@@ -297,6 +297,12 @@ describe("buildCompanyFacts", () => {
             const f = buildCompanyFacts(input({ name: "Bjak", domain: "bjak.my", exhaust: exhaust(), wikidata: [bjakWd] }));
             assert.equal(f.identity.sector, "Fintech");
             assert.deepEqual(f.identity.profileSources, [{ name: "Wikidata", url: "https://www.wikidata.org/wiki/Q136756944", fetchedAt: null }]);
+        });
+
+        it("one Wikidata item with several industries: shown plural, capped at 3, credited to Wikidata", () => {
+            const f = buildCompanyFacts(input({ name: "McGill", domain: "mcgill.ca", exhaust: exhaust(), wikidata: [{ label: "McGill", industries: ["higher education", "research", "healthcare", "publishing"], id: "Q1" }] }));
+            assert.equal(f.identity.sector, "Industries: Higher Education, Research, Healthcare");
+            assert.deepEqual(f.identity.profileSources.map((s) => s.name), ["Wikidata"]);
         });
 
         it("no source naming one: empty, for a company other than bjak", () => {

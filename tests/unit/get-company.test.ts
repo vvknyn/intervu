@@ -9,8 +9,10 @@
  * alerts.ts).
  */
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { COMPANY_JOBS_FETCH_LIMIT, getCompanyPageData } from "@/lib/companies/get-company";
+import { after, before, describe, it } from "node:test";
+import { companyBoardPath } from "@/lib/companies/paths";
+import { buildSitemapEntries } from "@/lib/seo/sitemap-entries";
+import { COMPANY_JOBS_FETCH_LIMIT, companyExists, getCompanyPageData } from "@/lib/companies/get-company";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { CORPUS_COUNT_CAP } from "@/lib/jobs/corpus-count";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
@@ -399,5 +401,42 @@ describe("getCompanyPageData: Wikidata industry sector", () => {
 
     it("leaves the sector empty for a company the directory does not list", async () => {
         assert.equal((await page(null, false))?.exhaust?.sector, null);
+    });
+});
+
+describe("a company the directory lists always has a page (sitemap, letter index and page share one membership)", () => {
+    const listed = (domain: string, name: string) => ({ domain, name, letter: name[0]!, openRoleCount: 40, computedAt: null });
+    // Invented domains: a plain .com, a hyphenated label and a two-part TLD.
+    const listedSet = [listed("quillmere.com", "Quillmere"), listed("brack-and-fenn.co.uk", "Brack & Fenn"), listed("tarnholt.com.au", "Tarnholt")];
+    const empty = async (_p: JobSearchParams): Promise<JobSearchResult> => ({ hits: [], total: 0, backend: "meilisearch", configured: true });
+    const directory = async () => ({ companies: listedSet });
+    const prevSite = process.env.NEXT_PUBLIC_SITE_URL;
+    before(() => {
+        process.env.NEXT_PUBLIC_SITE_URL = "https://velai.test";
+    });
+    after(() => {
+        if (prevSite === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+        else process.env.NEXT_PUBLIC_SITE_URL = prevSite;
+    });
+    const slugOf = (url: string) => url.split("/co/")[1]!;
+
+    it("every /co/ URL the sitemap lists is a 200 for the page even when its roles closed since the snapshot", async () => {
+        const entries = await buildSitemapEntries(async () => listedSet, { current: null });
+        const slugs = entries.map((e) => e.url).filter((u) => /\/co\/[^/]+$/.test(u)).map(slugOf);
+        assert.deepEqual(slugs.sort(), listedSet.map((c) => companyBoardPath(c.domain).slice("/co/".length)).sort());
+        const isListed = (domain: string) => listedSet.some((c) => c.domain === domain);
+        for (const slug of slugs) {
+            assert.equal(await companyExists(slug, empty, isListed), true, `exists ${slug}`);
+            const data = await getCompanyPageData(slug, empty, { directory, countGeneration: () => undefined });
+            assert.ok(data, `data ${slug}`);
+            assert.equal(data.jobs.length, 0);
+            assert.equal(data.slug, slug);
+        }
+    });
+
+    it("an unlisted domain with no roles is still a 404 on both decisions", async () => {
+        const isListed = (domain: string) => listedSet.some((c) => c.domain === domain);
+        assert.equal(await companyExists("vantrel--co--uk", empty, isListed), false);
+        assert.equal(await getCompanyPageData("vantrel--co--uk", empty, { directory, countGeneration: () => undefined }), null);
     });
 });

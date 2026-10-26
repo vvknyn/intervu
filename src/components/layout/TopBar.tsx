@@ -13,16 +13,17 @@ import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { PlanEndingNotice } from "@/components/layout/PlanEndingNotice";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
-import { CountBadge, SolidBadge } from "@/components/ui/badge";
-import { chipVariants, ChipDismiss } from "@/components/ui/chip";
+import { SolidBadge } from "@/components/ui/badge";
+import { chipVariants, ChipDismiss, CHIP_SCROLL_ROW } from "@/components/ui/chip";
 import { TabItem, TabNav } from "@/components/ui/tabs";
 import { NAV_TABS, RESUME_TAB } from "@/components/layout/nav-tabs";
 import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
-import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
-import { BrandLockup } from "@/components/brand/BrandMark";
+import { BrandHomeLink } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
+import { beginHeaderGateAttempt } from "@/lib/auth/gate-attempt";
+import { buildReturnTo } from "@/lib/jobs/pending-actions";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 /**
@@ -38,7 +39,6 @@ export function TopBar() {
     // button at a signed-in user. See lib/auth/chrome-state.ts.
     const [user, setUser] = useState<User | null | undefined>(undefined);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
-    const [authTab, setAuthTab] = useState<"login" | "signup">("login");
     const [signingOut, setSigningOut] = useState(false);
     useEffect(() => {
         const unsubscribe = onAuthChange((u) => setUser(u));
@@ -53,7 +53,6 @@ export function TopBar() {
     // duplicate fetch. This slot now belongs to the docked search below.
     const authChrome = resolveAuthChrome(user);
     const { docked } = useSearchDock();
-    const navBadges = useNavBadgeCounts();
     // The header's ONE nav: every product destination as an underline tab.
     const navTabs = NAV_TABS.filter((t) => {
         // Signed out there is no product nav (sign-in / create-account instead).
@@ -98,16 +97,13 @@ export function TopBar() {
                 data-region="header"
                 className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6"
             >
-                <Link
+                <BrandHomeLink
                     href="/"
                     prefetch={false}
                     {...prefetchOnIntent("/")}
-                    className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-90"
+                    markClassName="h-8 w-8"
                     data-testid="topbar-logo"
-                    data-rulebook-exempt
-                >
-                    <BrandLockup markClassName="h-8 w-8" />
-                </Link>
+                />
 
                 {/* `flex-1` so the row's leftover width lands HERE rather than
                     as a gap in the middle of the bar. `justify-end` keeps the
@@ -140,9 +136,14 @@ export function TopBar() {
                                 e.preventDefault();
                                 docked.onSubmit(docked.value);
                             }}
+                            // A coarse pointer's 44px hit band (the ctl-* ::before) is wider than the 32px field and
+                            // lands on the form itself, so a tap in the band hands focus to the query input.
+                            onClick={(e) => {
+                                if (e.target === e.currentTarget) e.currentTarget.querySelector("input")?.focus();
+                            }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="ctl-lg hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill p-0.5 pl-0 border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="ctl-md hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill p-0.5 pl-0 border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass className="shrink-0 self-center text-foreground" />
@@ -169,7 +170,6 @@ export function TopBar() {
                     <TabNav aria-label="Primary" className="hidden lg:flex">
                         {navTabs.map((tab) => {
                             const active = tab.match(pathname);
-                            const count = tab.badge ? navBadges[tab.badge] : 0;
                             return (
                                 <TabItem key={tab.href + tab.label} asChild size="bar" current={active ? "page" : false}>
                                     <Link
@@ -182,7 +182,6 @@ export function TopBar() {
                                         data-nav-current={active ? "true" : undefined}
                                     >
                                         {tab.href === RESUME_TAB.href ? resumeLabel : tab.label}
-                                        {count > 0 && <CountBadge count={count} data-testid={`${tab.testId}-badge`} />}
                                     </Link>
                                 </TabItem>
                             );
@@ -209,7 +208,7 @@ export function TopBar() {
                                 href="/pricing"
                                 prefetch={false}
                                 data-testid="topbar-pricing"
-                                className={cn("px-2 text-sm text-muted-foreground hover:text-foreground", CHROME_FOCUS_VISIBLE)}
+                                className={cn("hit-band px-2 text-sm text-muted-foreground hover:text-foreground", CHROME_FOCUS_VISIBLE)}
                             >
                                 Pricing
                             </Link>
@@ -218,25 +217,12 @@ export function TopBar() {
                                 variant="ghost"
                                 data-testid="topbar-signin"
                                 onClick={() => {
-                                    setAuthTab("login");
+                                    beginHeaderGateAttempt(window.sessionStorage, buildReturnTo(window.location));
                                     setAuthPopoverOpen(true);
                                 }}
                                 className={cn("text-muted-foreground", CHROME_FOCUS_VISIBLE)}
                             >
                                 {AUTH_CTA_LABEL}
-                            </Button>
-                            <Button
-                                // control-type-allow: the bar's one primary button shares the docked search field's 44px lg step
-                                size="lg"
-                                type="button"
-                                data-testid="topbar-create-account"
-                                onClick={() => {
-                                    setAuthTab("signup");
-                                    setAuthPopoverOpen(true);
-                                }}
-                                className={CHROME_FOCUS_VISIBLE}
-                            >
-                                {/* signup-gate-exempt: header entry point (gate id header), not an in-content gate */}Create account
                             </Button>
                         </>
                     )}
@@ -247,8 +233,8 @@ export function TopBar() {
             {/* Second row — active filters only. */}
             {docked && (
                 <div data-region="band" className="hidden lg:block">
-                    {/* Wrap instead of horizontal scroll; chips never truncate. */}
-                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip">
+                    {/* One scrolling line (CHIP_SCROLL_ROW); chips never truncate or wrap. */}
+                    <div className={cn("shell-row box-border w-full min-h-[var(--jobs-filter-row-h)]", CHIP_SCROLL_ROW)}>
                         {docked && (
                             <>
                                 <button
@@ -274,7 +260,7 @@ export function TopBar() {
                                 <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
                                 {docked.chips.length > 0 && (
                                     <>
-                                        <div data-testid="topbar-docked-active-filters" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+                                        <div data-testid="topbar-docked-active-filters" className="flex shrink-0 items-center gap-2">
                                             {docked.chips.map((chip) => (
                                                 <span
                                                     key={chip.key}
@@ -295,7 +281,7 @@ export function TopBar() {
                                 )}
                                 <div data-testid="topbar-docked-clear-filters" className="flex shrink-0 items-center gap-2" />
                                 <div className="min-w-0 flex-1" aria-hidden />
-                                <div data-testid="topbar-docked-save-search" className="flex min-w-0 max-w-full flex-wrap items-center gap-2" />
+                                <div data-testid="topbar-docked-save-search" className="flex min-w-0 max-w-full items-center gap-2" />
                                 <div data-testid="topbar-docked-sort" className="flex shrink-0 items-center gap-2" />
                                 <div data-testid="topbar-docked-extras" className="flex shrink-0 items-center gap-2" />
                             </>
@@ -309,7 +295,6 @@ export function TopBar() {
                 onOpenChange={setAuthPopoverOpen}
                 showTrigger={false}
                 trigger="user"
-                defaultTab={authTab}
             />
             {/* The one mount for every signed-in page: TopBar is rendered once by the root layout. */}
             {authChrome === "authenticated" && user ? <PlanEndingNotice /> : null}

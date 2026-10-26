@@ -113,10 +113,10 @@ describe('fitEntryPath from an address that already carries a search', () => {
             assert.equal(got.sort, 'fit', qs);
         }
     });
-    it('a bare address still takes the résumé pack', () => {
-        const got = parseJobsUrl(new URLSearchParams(fitEntryPath(PM, NO_PREFS).split('?')[1]));
-        assert.notEqual(got.q, '');
-        assert.equal(got.postedBucket, '30d');
+    it('a bare address is ranked by fit and carries none of the résumé pack: the client derives it from the résumé', () => {
+        for (const r of [PM, SWE]) {
+            assert.equal(fitEntryPath(r, NO_PREFS), '/jobs?sort=fit');
+        }
     });
     it('a job link keeps its job', () => {
         const got = parseJobsUrl(new URLSearchParams(fitEntryPath(PM, NO_PREFS, parseJobsUrl(bare('job=abc'))).split('?')[1]));
@@ -125,27 +125,18 @@ describe('fitEntryPath from an address that already carries a search', () => {
 });
 
 describe('fitEntryPath', () => {
-    it('is the address the client auto-fit replaced a bare /jobs with, for two different résumés', () => {
-        const prefs = NO_PREFS;
-        for (const r of [PM, SWE]) {
-            const path = fitEntryPath(r, prefs);
-            assert.equal(path, legacyClientFitPath(r, prefs));
-            assert.match(path, /^\/jobs\?q=.+sort=fit/);
-            assert.match(path, /posted=30d/);
-        }
-        assert.notEqual(fitEntryPath(PM, prefs), fitEntryPath(SWE, prefs));
-    });
-
-    it('carries a stated role preference, as the client does', () => {
+    it('names no résumé-derived query, place or window, for two different résumés and a stated preference', () => {
         const prefs: AgentPreferences = {
             configured: true,
             search: { query: 'Data Scientist', remoteOnly: true },
             answers: { custom: {} },
         };
-        const path = fitEntryPath(PM, prefs);
-        assert.equal(path, legacyClientFitPath(PM, prefs));
-        assert.notEqual(path, fitEntryPath(PM, NO_PREFS));
-        assert.match(path, /work=remote/);
+        for (const [r, p] of [[PM, NO_PREFS], [SWE, NO_PREFS], [PM, prefs]] as const) {
+            const path = fitEntryPath(r, p);
+            assert.equal(path, '/jobs?sort=fit');
+            // The pack the client derives from the same résumé is non-trivial, so the address is the scrub's doing.
+            assert.notEqual(legacyClientFitPath(r, p), path);
+        }
     });
 });
 

@@ -99,6 +99,11 @@ export const STALE_CLEAR_META: NonNullable<(typeof GHOST_META)["clear"]> = {
     explain: "This posting hasn't been re-checked recently — we can't confirm it's still active. Worth a quick sanity-check before you apply.",
 };
 
+/** True when the row badge renders `STALE_CLEAR_META` (a "clear" verdict whose check is stale). */
+export function isStaleClear(job: GhostChecked, nowMs: number): boolean {
+    return job.ghost_badge === "clear" && checkFreshness(job, nowMs) === "stale";
+}
+
 /**
  * Single chokepoint for which `GHOST_META` entry a job's row badge AND
  * detail-panel banner render from — so the two surfaces can never disagree
@@ -123,7 +128,7 @@ export const STALE_CLEAR_META: NonNullable<(typeof GHOST_META)["clear"]> = {
  */
 export function ghostMetaFor(job: GhostChecked, nowMs: number) {
     const stale = checkFreshness(job, nowMs) === "stale";
-    const meta = job.ghost_badge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[job.ghost_badge];
+    const meta = isStaleClear(job, nowMs) ? STALE_CLEAR_META : GHOST_META[job.ghost_badge];
     if (!meta || !stale) return meta;
     return { ...meta, explain: `${meta.explain} ${lastCheckedClause(latestCheckAt(job), nowMs)}` };
 }

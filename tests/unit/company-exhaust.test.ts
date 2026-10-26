@@ -520,8 +520,8 @@ describe("wikidataSector: the item that names the company decides", () => {
     assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme France", "banking")], "Acme"), "Banking");
   });
 
-  it("shows a sector only when exactly one industry remains after the generic filter", () => {
-    assert.equal(wikidataSector([item("Siemens", "electrical engineering", "electronics industry")], "Siemens"), null);
+  it("shows the chosen item's industries in stored order, generic ones dropped", () => {
+    assert.equal(wikidataSector([item("Siemens", "electrical engineering", "electronics industry")], "Siemens"), "Electrical Engineering, Electronics");
     assert.equal(wikidataSector([item("Acme", "general", "retail")], "Acme"), "Retail");
     assert.equal(wikidataSector([item("Acme", "general", "unknown")], "Acme"), null);
   });
@@ -544,8 +544,16 @@ describe("wikidataSector: the item that names the company decides", () => {
     assert.equal(wikidataSector([item("Acme", "industry", "software industry")], "Acme"), "Software");
   });
 
-  it("gives no sector for two agreeing items with different industries, or none at all", () => {
-    assert.equal(wikidataSector([item("Acme", "software industry", "mining industry")], "Acme"), null);
+  it("shows at most 3 industries of one item, in order", () => {
+    assert.equal(wikidataSector([item("FedEx", "logistics", "air freight", "courier", "express delivery")], "FedEx"), "Logistics, Air Freight, Courier");
+  });
+
+  it("shows industries that normalise to the same form once", () => {
+    assert.equal(wikidataSector([item("Acme", "software industry", "Software", "mining industry")], "Acme"), "Software, Mining");
+  });
+
+  it("gives no sector for two items with different industries, or none at all", () => {
+    assert.equal(wikidataSector([item("Eaton", "power management", "electrical equipment"), item("Eaton", "aerospace")], "Eaton"), null);
     assert.equal(wikidataSector([item("Acme", "banking"), item("Acme", "retail")], "Acme"), null);
     assert.equal(wikidataSector([], "Acme"), null);
   });

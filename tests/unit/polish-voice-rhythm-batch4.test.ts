@@ -165,19 +165,16 @@ describe("Phase 2 batch 4 — auth retry", () => {
 });
 
 describe("Phase 2 batch 4 — marketing TopBar", () => {
-    it("every signed-out surface (lean /jobs and marketing alike): ghost Sign in + filled Create account", () => {
+    it("every signed-out surface (lean /jobs and marketing alike): one quiet ghost Sign in, no Create account button", () => {
         const src = readFileSync(TOPBAR, "utf8");
         assert.equal(src.match(/data-testid="topbar-signin"/g)?.length, 1, "exactly one signed-out Sign in — no per-surface variant");
         assert.doesNotMatch(src, /\) : leanSurface \?/, "no lean-surface auth branch");
 
         const marketingSignIn = topBarAuthButtonBlock(src, "topbar-signin", 0);
         assert.match(marketingSignIn, /variant="ghost"/);
-        assert.match(marketingSignIn, /setAuthTab\("login"\)/);
-
-        const marketingCreate = topBarAuthButtonBlock(src, "topbar-create-account", 0);
-        assert.match(marketingCreate, /Create account/);
-        assert.match(marketingCreate, /setAuthTab\("signup"\)/);
-        assert.doesNotMatch(marketingCreate, /variant="ghost"/);
+        // The helper records surface "topbar" (signup-gate-helpers); here the click must call it, with the real sessionStorage, before opening the popover.
+        assert.match(marketingSignIn, /beginHeaderGateAttempt\(window\.sessionStorage,[^;]*\);\s*setAuthPopoverOpen\(true\)/);
+        assert.doesNotMatch(src, /topbar-create-account/, "the popover's own Create account tab is the one signup door");
 
         assert.doesNotMatch(src, /topbar-alerts-cta/);
     });
@@ -186,7 +183,7 @@ describe("Phase 2 batch 4 — marketing TopBar", () => {
         const src = readFileSync(join(ROOT, "tests/e2e/helpers/signed-out-auth-entry.ts"), "utf8");
         assert.match(src, /topbar-signin/);
         assert.match(src, /visibleSignInLocator/);
-        assert.match(src, /marketingTopBarCreateAccount/);
+        assert.doesNotMatch(src, /marketingTopBarCreateAccount/);
     });
 });
 

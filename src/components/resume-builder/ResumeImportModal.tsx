@@ -38,7 +38,6 @@ import {
     buildResumeFunnelPayload,
     classifyResumeError,
     classifyResumeFileType,
-    classifyResumeSizeBucket,
     type ResumeFunnelReason,
 } from "@/lib/analytics/resume-funnel";
 
@@ -219,7 +218,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             buildResumeFunnelPayload({
                 source,
                 file_type: classifyResumeFileType(extension),
-                size_bucket: classifyResumeSizeBucket(file.size),
                 ...funnelContext,
             }),
         );
@@ -283,8 +281,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 duration_ms: Date.now() - started,
                 parser_source: "rules",
                 engine: "rules",
-                section_count: local.data.parsed.experience.length + local.data.parsed.education.length,
-                warning_count: local.data.warnings?.length ?? 0,
                 ...funnelContext,
             }),
         );
@@ -428,8 +424,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         captureEvent(
             "resume_review_completed",
             buildResumeFunnelPayload({
-                section_count: data.experience.length + data.education.length,
-                warning_count: read.warnings?.length ?? 0,
                 ...funnelContext,
             }),
         );

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { CompanyCadenceStrip, cadenceStripHasContent } from "@/components/company/CompanyCadenceStrip";
+import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
 import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { SectionTitle } from "@/components/ui/heading";
@@ -9,11 +9,11 @@ import { PAY_SCOPE, type CompanyFacts, type Distribution } from "@/lib/companies
 import type { SectionId } from "@/lib/companies/company-sections";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { listedOnPostings, listedOnRoles, statedOfTotal } from "@/lib/companies/facts-copy";
-import { exhaustHiringRecord, trackingStartedInWindow } from "@/lib/companies/hiring-record";
+import { cadenceStripHasContent, exhaustHiringRecord, trackingStartedInWindow } from "@/lib/companies/hiring-record";
 import { categoryLabel } from "@/lib/companies/machine-token";
 import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";
-import { formatCount } from "@/lib/format";
+import { eventDate, formatCount } from "@/lib/format";
 import { openCountLabel } from "@/lib/companies/presentation";
 import { relatedHeading, type RelatedCompanies } from "@/lib/companies/related-companies";
 
@@ -130,7 +130,8 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
     const h = facts.hiring;
     const lines = [
       exhaustHiringRecord(exhaust, nowMs),
-      h.lastPostedAt && `Newest role posted ${h.lastPostedAt.slice(0, 10)}`,
+      h.lastPostedAt && eventDate(h.lastPostedAt) && `Newest role posted ${eventDate(h.lastPostedAt)}`,
+      h.checkedAt && eventDate(h.checkedAt) && `Last checked ${eventDate(h.checkedAt)}`,
       h.monitoredSince && !trackingStartedInWindow(h.monitoredSince, nowMs) && `Watched since ${monthYear(h.monitoredSince)}`,
     ].filter(Boolean);
     return (

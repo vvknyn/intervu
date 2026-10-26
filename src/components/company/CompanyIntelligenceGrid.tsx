@@ -79,7 +79,7 @@ export function CompanyIntelligenceGrid({
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group block py-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+                    className="group block py-4 transition-colors hover:bg-muted focus-visible:inset-outline-2 focus-visible:outline-brand"
                   >
                     <p className="text-base font-semibold leading-snug text-foreground group-hover:text-brand">{item.title}</p>
                     {item.summary && (

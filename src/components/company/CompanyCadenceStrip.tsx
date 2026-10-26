@@ -1,7 +1,7 @@
-import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { eventDate, formatCount } from "@/lib/format";
 import type { CadenceFacts, ExhaustSection, WeeklyCadence } from "@/lib/companies/exhaust";
+import { cadenceStripHasContent } from "@/lib/companies/hiring-record";
 import { cn } from "@/lib/utils";
-import { formatCount } from "@/lib/format";
 
 /** Bar heights as literal classes so Tailwind emits them; a week's bar takes
  *  the step nearest its share of the tallest week. */
@@ -25,13 +25,6 @@ function barTone(w: WeeklyCadence): string {
   if (w.inProgress) return "min-h-2 border border-dashed border-brand";
   if (w.firstTracked) return BACKLOG_TONE;
   return w.newListings === 0 ? "bg-border" : "bg-brand";
-}
-
-/** Whether `CompanyCadenceStrip` draws anything (see `verdictBandHasContent`). */
-export function cadenceStripHasContent(
-  cadence: ExhaustSection<CadenceFacts> | undefined,
-): cadence is NonNullable<ExhaustSection<CadenceFacts>> {
-  return !!cadence && cadence.data.weeks.length > 0;
 }
 
 /**

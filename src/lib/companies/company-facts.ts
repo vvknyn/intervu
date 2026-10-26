@@ -13,6 +13,7 @@ import type { WikidataItem } from "@/lib/companies/indexable";
 import { formatCount } from "@/lib/format";
 import type { OpenCount } from "@/lib/companies/open-count";
 import { categoryLabel, machineTokenLabel } from "@/lib/companies/machine-token";
+import { newestCheckAt } from "@/lib/companies/freshness";
 import { typicalPayText } from "@/lib/companies/presentation";
 import { evidencedSkills } from "@/lib/jobs/presentation";
 import { classifyCountryValue, rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
@@ -67,7 +68,8 @@ export interface CompanyFacts {
     openCountIsLowerBound: boolean;
     monitoredSince: string | null;
     lastPostedAt: string | null;
-    lastSeenAliveAt: string | null;
+    /** Newest check stamp over the fetched window (`newestCheckAt`); feeds `hiringFreshness`. */
+    checkedAt: string | null;
     cadence: WeeklyCadence[] | null;
   };
   mix: {
@@ -196,6 +198,9 @@ function countryName(value: string): string {
 /** A Wikidata description of more than one word: a single word adds nothing. */
 const describes = (item: WikidataItem) => (item.description && item.description.trim().split(/\s+/).length > 1 ? item.description : null);
 
+/** The shown sector: a lone industry bare, several labelled in the plural. */
+const sectorText = (sectors: readonly string[]) => (sectors.length > 1 ? `Industries: ${sectors.join(", ")}` : sectors[0]!);
+
 /** Identity facts per field: hiring.cafe's value first, else the one Wikidata value (see `pickWikidata`); the sector is `exhaust.sector` (hiring.cafe's industries), else Wikidata's, else none. Every source of a shown fact is named. */
 function buildIdentityFacts(exhaust: CompanyExhaust | null | undefined, wikidata: readonly WikidataItem[], name: string, domain: string, siteDescription: string | null | undefined) {
   const section = exhaust?.profile;
@@ -232,7 +237,7 @@ function buildIdentityFacts(exhaust: CompanyExhaust | null | undefined, wikidata
     ...(siteTagline ? [{ name: "company website" as const, url: `https://${domain}`, fetchedAt: null }] : []),
   ];
   const present = profile.tagline || profile.yearFounded != null || profile.employees || profile.hqCountry || profile.industries.length > 0;
-  return { profile: present ? profile : null, profileSources, sector: exhaust?.sector ?? wdSector?.value ?? null };
+  return { profile: present ? profile : null, profileSources, sector: exhaust?.sector ?? (wdSector ? sectorText(wdSector.value) : null) };
 }
 
 const newestIso = (dates: readonly (string | null | undefined)[]): string | null =>
@@ -274,7 +279,7 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
       openCountIsLowerBound: openCount.isLowerBound,
       monitoredSince: exhaust?.integrity?.data.trackedSinceIso ?? null,
       lastPostedAt: latestIso(jobs, (j) => j.posted_at),
-      lastSeenAliveAt: latestIso(jobs, (j) => j.last_observed_alive_at),
+      checkedAt: newestCheckAt(jobs),
       cadence: exhaust?.cadence?.data.weeks ?? null,
     },
     mix: {

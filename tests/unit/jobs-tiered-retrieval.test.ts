@@ -123,7 +123,7 @@ function installRoutedMock(opts: {
 
 describe("runTieredRetrieval — federated multi-search for bare role queries", () => {
     it("(a) federated request shape: federation.limit/offset, strict query first (weight 100, title/company/tags), whole-document second (weight 1, unscoped), no per-query facets/limit/offset", async () => {
-        const q = "software engineer";
+        const q = "quux engineer"; // not in the title alias graph: exactly the two tier queries
         await primeNonCompanyIntent(q);
         const calls = installRoutedMock({ federatedTotal: 2231, countTotal: 589 });
 
@@ -144,7 +144,7 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
         assert.ok(!("attributesToSearchOn" in whole), JSON.stringify(whole));
         assert.equal(whole.federationOptions.weight, 1);
         assert.equal(strict.matchingStrategy, "all", "tier 1 requires every word");
-        assert.equal(whole.matchingStrategy, "last", "tier 2 relaxes: partial matches rank below full ones, not dropped");
+        assert.equal(whole.matchingStrategy, "all", "tier 2 widens the fields, never drops words");
         assert.ok(!("limit" in whole) && !("offset" in whole) && !("facets" in whole), JSON.stringify(whole));
     });
 
@@ -271,9 +271,9 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
     });
 
     it("(i) no unknown-inclusive filter -> still exactly two queries", async () => {
-        await primeNonCompanyIntent("registered nurse");
+        await primeNonCompanyIntent("quux nurse");
         const calls = installRoutedMock({ federatedTotal: 5, countTotal: 2 });
-        await searchMeili({ q: "registered nurse", postedBucket: "30d", visaOnly: true });
+        await searchMeili({ q: "quux nurse", postedBucket: "30d", visaOnly: true });
         assert.equal(calls.find((c) => c.url.endsWith("/multi-search"))!.body.queries.length, 2);
     });
 
@@ -283,14 +283,14 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
     ];
     for (const [label, extra] of unknownInclusiveCases) {
         it(`(j) ${label}: a second query pair carries the unknown rows at half weight, known-only pair leads`, async () => {
-            const q = label === "work mode" ? "software engineer" : "registered nurse";
+            const q = label === "work mode" ? "quux engineer" : "quux nurse";
             await primeNonCompanyIntent(q);
             const calls = installRoutedMock({ federatedTotal: 9, countTotal: 3 });
             await searchMeili({ q, ...extra });
             const { queries } = calls.find((c) => c.url.endsWith("/multi-search"))!.body;
             assert.equal(queries.length, 4);
             assert.deepEqual(queries.map((x: any) => x.federationOptions.weight), [100, 1, 50, 0.5]);
-            assert.deepEqual(queries.map((x: any) => x.matchingStrategy), ["all", "last", "all", "last"]);
+            assert.deepEqual(queries.map((x: any) => x.matchingStrategy), ["all", "all", "all", "all"]);
             const unknownMarker = /IS NULL|NOT EXISTS/;
             assert.ok(!unknownMarker.test(queries[0].filter.join()) && !unknownMarker.test(queries[1].filter.join()), "known pair is strict");
             assert.ok(unknownMarker.test(queries[2].filter.join()) && unknownMarker.test(queries[3].filter.join()), "inclusive pair admits unknowns");

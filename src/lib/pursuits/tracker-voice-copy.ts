@@ -2,6 +2,12 @@
 
 export const TRACKER_PAGE_TITLE = "Tracker";
 
+/** The Tracker heading carries the open-role count the nav tab used to wear. */
+export function trackerPageHeading(openCount: number): string {
+    if (openCount <= 0) return TRACKER_PAGE_TITLE;
+    return `${TRACKER_PAGE_TITLE} · ${openCount} ${openCount === 1 ? "job" : "jobs"}`;
+}
+
 export const TRACKER_PAGE_SUBCOPY =
     "Your applications, from saved to offer. You decide what gets sent.";
 
