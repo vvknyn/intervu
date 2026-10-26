@@ -17,21 +17,57 @@ import { expect, test } from "./fixtures";
  * server instead of re-rendering is caught by the exact server-action count below.
  */
 const COMMIT_BOUND = 100;
+type Fiber = { flags: number; alternate: unknown; type: unknown; child: Fiber | null; sibling: Fiber | null };
 const countCommits = (page: Page) =>
   page.addInitScript(() => {
-    const w = window as unknown as { __commits: number; __REACT_DEVTOOLS_GLOBAL_HOOK__: unknown };
+    const w = window as unknown as { __commits: number; __names: Record<string, number>; __walked: number; __REACT_DEVTOOLS_GLOBAL_HOOK__: unknown };
     w.__commits = 0;
+    w.__names = {};
+    w.__walked = 0;
+    // Which components did work in a commit: sampled (first 300 per read) so a render loop is not slowed by the diagnosis.
+    const walk = (f: Fiber | null) => {
+      for (; f; f = f.sibling) {
+        if (f.flags & 1 && f.alternate && typeof f.type === "function") {
+          const n = (f.type as { displayName?: string; name: string }).displayName || f.type.name;
+          w.__names[n] = (w.__names[n] ?? 0) + 1;
+        }
+        walk(f.child);
+      }
+    };
     w.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
       supportsFiber: true,
       renderers: new Map(),
       inject: () => 1,
-      onCommitFiberRoot: () => void w.__commits++,
+      onCommitFiberRoot: (_id: number, root: { current: Fiber }) => {
+        w.__commits++;
+        if (w.__walked++ < 300) walk(root.current);
+      },
       onCommitFiberUnmount() {},
       onPostCommitFiberRoot() {},
       checkDCE() {},
     };
   });
-const commits = (page: Page) => page.evaluate(() => (window as unknown as { __commits: number }).__commits);
+/** The commit count, or a throw: a missing or non-numeric count means the hook is not live, and every comparison on it would be vacuous. */
+async function commits(page: Page): Promise<number> {
+  const n = await page.evaluate(() => (window as unknown as { __commits?: unknown }).__commits);
+  if (typeof n !== "number" || !Number.isFinite(n)) throw new Error(`hook not live: the commit counter reads ${String(n)}, not a number`);
+  return n;
+}
+/** Takes and clears the per-component tally of the commits since the last take. */
+const takeNames = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __names: Record<string, number>; __walked: number };
+    const names = w.__names;
+    w.__names = {};
+    w.__walked = 0;
+    return names;
+  });
+const topNames = (names: Record<string, number>) =>
+  Object.entries(names).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([n, c]) => `${n} x${c}`).join(", ") || "none sampled";
+/** Proves the counter is live before any wait trusts it: it is a number and it has risen from the page's first render. */
+async function assertHookLive(page: Page) {
+  await expect.poll(() => commits(page), { message: "hook not live: no React commit counted since the page rendered", timeout: 10_000 }).toBeGreaterThan(0);
+}
 
 /** Every next-action request the page makes: how many started, how many are still open, and how many asked for the saved-search counts. */
 function trackActions(page: Page) {
@@ -50,26 +86,34 @@ function trackActions(page: Page) {
   return t;
 }
 
+const sumNames = (ws: Record<string, number>[]) => {
+  const out: Record<string, number> = {};
+  for (const w of ws) for (const [n, c] of Object.entries(w)) out[n] = (out[n] ?? 0) + c;
+  return out;
+};
 const QUIET_SAMPLES = 4; // 4 x 500 ms = a 2 s window
-const SETTLE_BOUND_MS = 20_000;
+const SETTLE_BOUND_MS = 40_000;
 /**
  * Settled = no React commit and no new next-action request, and none still in flight, for a 2 s window
  * (a cold dev server commits while lazy chunks arrive, and a count reply that lands late re-renders and can
  * start the next ask). A loop never has such a window, so the wait is bounded and fails with what the last
  * window measured instead of running into the test timeout.
  */
-async function settle(page: Page, t: ReturnType<typeof trackActions>): Promise<{ commits: number }> {
+async function settle(page: Page, t: ReturnType<typeof trackActions>): Promise<{ commits: number; seconds: number }> {
+  await assertHookLive(page);
   const samples: { c: number; started: number }[] = [];
-  for (let quiet = 0, waited = 0; ; waited += 500) {
+  const windows: Record<string, number>[] = [];
+  for (let quiet = 0, start = Date.now(); ; ) {
     const c = await commits(page);
     const prev = samples.at(-1);
     quiet = prev && prev.c === c && prev.started === t.started && t.open === 0 ? quiet + 1 : 0;
     samples.push({ c, started: t.started });
-    if (quiet >= QUIET_SAMPLES) return { commits: c };
-    if (waited >= SETTLE_BOUND_MS) {
+    windows.push(await takeNames(page));
+    if (quiet >= QUIET_SAMPLES) return { commits: c, seconds: Math.round((Date.now() - start) / 1000) };
+    if (Date.now() - start >= SETTLE_BOUND_MS) {
       const first = samples[Math.max(0, samples.length - 1 - QUIET_SAMPLES)];
       throw new Error(
-        `never settled in ${SETTLE_BOUND_MS / 1000} s: last 2 s window had ${c - first.c} commits and ${t.started - first.started} new next-action requests (${t.open} still open); a settled page has 0 / 0 / 0`,
+        `never settled in ${SETTLE_BOUND_MS / 1000} s: last 2 s window had ${c - first.c} commits and ${t.started - first.started} new next-action requests (${t.open} still open); a settled page has 0 / 0 / 0; components that committed in it: ${topNames(sumNames(windows.slice(-QUIET_SAMPLES)))}`,
       );
     }
     await page.waitForTimeout(500);
@@ -79,6 +123,24 @@ async function settle(page: Page, t: ReturnType<typeof trackActions>): Promise<{
 const strictAsks = (n: number) => n * 2;
 
 const guestSearch = (id: string, q: string) => ({ id, name: q, href: `?q=${q}`, createdAt: "2026-10-01T00:00:00.000Z" });
+
+/** A node timer, not page.waitForTimeout: a page starved by a loop does not answer the protocol, and a wait that needs it hangs with it. */
+const sleep = (ms: number) => new Promise<"timed out">((r) => setTimeout(() => r("timed out"), ms));
+
+/** The saved list shows on a healthy page; a page starved by a loop never shows it, and the failure carries the last commit count it could still read. */
+async function expectListShown(page: Page, n: number, t: ReturnType<typeof trackActions>) {
+  let lastRead: number | string = "none";
+  let shown: number | string = "unreadable";
+  for (const start = Date.now(); ; await sleep(1_000)) {
+    const read = await Promise.race([commits(page), sleep(3_000)]);
+    if (typeof read === "number") lastRead = read;
+    shown = await Promise.race([page.getByTestId("saved-search-item").count(), sleep(3_000).then(() => "unreadable")]);
+    if (shown === n) return;
+    if (Date.now() - start >= 45_000) {
+      throw new Error(`saved list (${n} items) not shown in 45 s (showing ${shown}): last readable commit count ${lastRead}, ${t.started} next-action requests (${t.open} open)`);
+    }
+  }
+}
 
 async function openWithSaved(page: Page, saved: ReturnType<typeof guestSearch>[]) {
   await countCommits(page);
@@ -90,7 +152,7 @@ async function openWithSaved(page: Page, saved: ReturnType<typeof guestSearch>[]
   const actions = trackActions(page);
   await page.goto("/jobs?q=engineer");
   // The panel mounts with the search box, whether or not the list has answered.
-  if (saved.length) await expect(page.getByTestId("saved-search-item")).toHaveCount(saved.length, { timeout: 60_000 });
+  if (saved.length) await expectListShown(page, saved.length, actions);
   return actions;
 }
 
@@ -106,8 +168,10 @@ async function openWithSaved(page: Page, saved: ReturnType<typeof guestSearch>[]
  */
 for (const saved of [[], [guestSearch("a", "engineer"), guestSearch("b", "designer")]]) {
   test(`${saved.length} saved searches: the counts are asked for once each and 10 s idle commits stay under the bound`, { tag: ["@J-ALERTS-49"] }, async ({ page, diagnostics }, info) => {
+    test.setTimeout(150_000); // two settle waits of up to 40 s plus the 10 s idle
     const t = await openWithSaved(page, saved);
-    const { commits: c0 } = await settle(page, t);
+    const { commits: c0, seconds } = await settle(page, t);
+    info.annotations.push({ type: "settled", description: `${seconds} s` });
     const settled = t.asks;
     const startedAtSettle = t.started;
     await page.waitForTimeout(10_000);
@@ -124,12 +188,13 @@ for (const saved of [[], [guestSearch("a", "engineer"), guestSearch("b", "design
 }
 
 test("removing one of two saved searches asks again once, for the one left", { tag: ["@J-ALERTS-49"] }, async ({ page }, info) => {
+  test.setTimeout(150_000);
   const t = await openWithSaved(page, [guestSearch("a", "engineer"), guestSearch("b", "designer")]);
-  await settle(page, t);
+  info.annotations.push({ type: "settled", description: `${(await settle(page, t)).seconds} s` });
   const before = t.asks;
   await page.getByRole("button", { name: "Remove saved search designer" }).click();
   await expect(page.getByTestId("saved-search-item")).toHaveCount(1);
-  await settle(page, t);
+  info.annotations.push({ type: "settled", description: `${(await settle(page, t)).seconds} s` });
   info.annotations.push({ type: "measured", description: `removeAskDelta=${t.asks - before} (bound exactly 1)` });
   expect(t.asks - before, "count asks after removing one (exactly 1)").toBe(1);
 });
