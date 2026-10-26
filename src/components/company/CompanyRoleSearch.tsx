@@ -461,7 +461,7 @@ export function CompanyRoleSearch({
                     setSelectedJob(job);
                   }}
                   // control-scale-allow: full-width list row — its padding is content layout, not a bar control
-                  className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 border-b border-border pt-4 pb-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand cursor-pointer"
+                  className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 border-b border-border pt-4 pb-4 text-left transition-colors hover:bg-muted focus-visible:inset-outline-2 focus-visible:outline-brand cursor-pointer"
                 >
                   <div className="min-w-0">
                     <span className="inline-flex flex-wrap items-baseline gap-x-2">

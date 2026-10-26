@@ -69,7 +69,8 @@ test("TopBar and OG cards paint the locked raster, not bracket SVG geometry", ()
     assert.match(brand, /src=\{HEADER_MARK_SRC\}/);
     assert.match(brand, /HEADER_MARK_SRC = "\/velai-tile.png"/);
     assert.doesNotMatch(brand, /<svg/);
-    assert.match(topBar, /<BrandLockup/);
+    assert.match(topBar, /<BrandHomeLink/);
+    assert.match(brand, /<BrandLockup markClassName/);
     assert.match(og, /src=\{LOCKED_MARK_DATA_URI\}/);
     assert.match(pageCard, /src=\{LOCKED_MARK_DATA_URI\}/);
     assert.match(layout, /apple:\s*"\/apple-touch-icon\.png"/);
