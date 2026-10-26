@@ -1,7 +1,6 @@
 import type { CompanyFacts } from "./company-facts";
 import { roleCountText } from "./facts-copy";
-import { formatCount } from "@/lib/format";
-import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { eventDate, formatCount } from "@/lib/format";
 import { hiringFreshness } from "./freshness";
 
 export interface CompanyFaqItem {

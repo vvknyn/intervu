@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
 import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
 import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
-import { eventDate } from "@/components/company/CompanyChangeEvents";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { SectionTitle } from "@/components/ui/heading";
 import type { CompanyFaqItem } from "@/lib/companies/company-faq";
@@ -14,7 +13,7 @@ import { cadenceStripHasContent, exhaustHiringRecord, trackingStartedInWindow } 
 import { categoryLabel } from "@/lib/companies/machine-token";
 import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";
-import { formatCount } from "@/lib/format";
+import { eventDate, formatCount } from "@/lib/format";
 import { openCountLabel } from "@/lib/companies/presentation";
 import { relatedHeading, type RelatedCompanies } from "@/lib/companies/related-companies";
 
