@@ -1,8 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { deriveBoardRoot, pickBoardRoot } from "../../src/lib/companies/careers-board-root";
-import { categoryLabel } from "../../src/lib/companies/machine-token";
-import { resolveCareersUrl, resolveSector } from "../../src/lib/companies/exhaust";
+import { categoryLabel, wikidataLabel } from "../../src/lib/companies/machine-token";
+import { industryPeers } from "../../src/lib/companies/related-companies";
+import { resolveCareersUrl, resolveSector, wikidataSector } from "../../src/lib/companies/exhaust";
 
 describe("deriveBoardRoot: one real posting URL per ATS", () => {
   const cases: Array<[string, string]> = [
@@ -118,5 +119,33 @@ describe("categoryLabel: one display rule for every categorical company label", 
   it("a profile industry dedupes against the sector through the same rule", () => {
     const sector = resolveSector(["healthcare"]);
     assert.deepEqual(["healthcare", "biotech"].map(categoryLabel).filter((x) => x !== sector), ["Biotech"]);
+  });
+});
+
+describe("wikidataLabel: Wikidata industries are free text, not slugs", () => {
+  const cases: Array<[string, string]> = [
+    ["e-commerce", "E-Commerce"],
+    ["e-learning", "E-Learning"],
+    ["web hosting service", "Web Hosting Service"],
+    ["real estate industry", "Real Estate"],
+    ["aerospace industry", "Aerospace"],
+    ["industry", "Industry"],
+    ["software as a service", "Software As A Service"],
+    ["ai-infra", "AI-Infra"],
+  ];
+  for (const [raw, shown] of cases) it(`${raw} -> ${shown}`, () => assert.equal(wikidataLabel(raw), shown));
+
+  it("the slug path is unchanged", () => assert.equal(categoryLabel("ai-infra"), "AI Infra"));
+
+  it("the About sector keeps hyphens, strips 'industry' and dedupes the stripped forms", () => {
+    const item = (...industries: string[]) => [{ label: "Acme", industries }];
+    assert.equal(wikidataSector(item("e-commerce", "retail", "web hosting service"), "Acme"), "E-Commerce, Retail, Web Hosting Service");
+    assert.equal(wikidataSector(item("retail", "retail industry", "aerospace industry"), "Acme"), "Retail, Aerospace");
+  });
+
+  it("the related-companies heading shows the label, matching on the raw one", () => {
+    const own = [{ label: "Weichert", industries: ["real estate industry"] }];
+    const peers = [{ domain: "peer.com", openRoleCount: 1, computedAt: null, wikidataIndustries: [{ label: "Peer", industries: ["real estate industry"] }] }];
+    assert.equal(industryPeers(own, "Weichert", peers, "weichert.com")?.value, "Real Estate");
   });
 });

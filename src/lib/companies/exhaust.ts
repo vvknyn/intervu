@@ -15,7 +15,7 @@
  * database.
  */
 import { eventTypeLabel } from "@/lib/companies/events";
-import { categoryLabel } from "@/lib/companies/machine-token";
+import { categoryLabel, withoutIndustrySuffix, wikidataLabel } from "@/lib/companies/machine-token";
 import { siteKey } from "@/lib/companies/company-name";
 import type { WikidataItem } from "@/lib/companies/indexable";
 import { displayCompanyName } from "@/lib/jobs/presentation";
@@ -317,7 +317,7 @@ function isoDate(v: unknown): string | null {
 /** Default buckets and labels that classify the economy or a legal form, not the work.
  *  They are not a sector, so they must not shadow a real one further down the chain. */
 const NON_SECTORS = new Set([
-  "", "general", "unknown",
+  "", "general", "unknown", "industry",
   // labels that classify the economy or a legal form, not the work
   "service", "business-to-business", "business to business", "holding company", "holding company activities",
 ]);
@@ -332,11 +332,11 @@ export function resolveSector(industries: readonly string[] = []): string | null
   return null;
 }
 
-/** A Wikidata industry as a sector name: a trailing whole word "industry" dropped ("software industry" -> "software"), null when
+/** A Wikidata industry as a sector name: a trailing "industry" dropped ("software industry" -> "software"), null when
  *  what remains names no sector (empty, a NON_SECTORS label, or a "... sector of the economy" tier). */
 function sectorForm(industry: string): string | null {
   const raw = industry.trim();
-  const form = raw.replace(/\s*\bindustry$/i, "").trim();
+  const form = withoutIndustrySuffix(raw);
   const generic = [raw, form].some((x) => NON_SECTORS.has(x.toLowerCase())) || /sector of the economy$/i.test(form);
   return generic ? null : form;
 }
@@ -368,7 +368,7 @@ export function wikidataSectorPick(items: readonly WikidataItem[], displayName: 
     const form = sectorForm(x);
     if (form && !forms.has(form.toLowerCase())) forms.set(form.toLowerCase(), form);
   }
-  const value = [...forms.values()].slice(0, MAX_WIKIDATA_INDUSTRIES).map(categoryLabel);
+  const value = [...forms.values()].slice(0, MAX_WIKIDATA_INDUSTRIES).map(wikidataLabel);
   return value.length > 0 ? { value, item: picked.item } : null;
 }
 
