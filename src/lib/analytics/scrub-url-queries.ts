@@ -13,16 +13,18 @@
  */
 export function withoutQueryAndHash(value: string): string {
   if (!/[?#]/.test(value)) return value;
-  const absolute = /^https?:\/\//i.test(value);
-  if (!absolute && !(value.startsWith("/") && !value.startsWith("//"))) return value;
-  try {
-    const url = new URL(value, "https://velai.app");
-    url.search = "";
-    url.hash = "";
-    return absolute ? url.toString() : url.pathname;
-  } catch {
-    return value;
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const url = new URL(value);
+      url.search = "";
+      url.hash = "";
+      return url.toString();
+    } catch {
+      return value;
+    }
   }
+  // Site-relative: no host needed, cut at the first `?` or `#`.
+  return value.startsWith("/") && !value.startsWith("//") ? value.slice(0, value.search(/[?#]/)) : value;
 }
 
 /** A string property: each link inside a click's `$elements_chain` (`a:href="/jobs?q=nurse"...`) cleaned, then the whole value if it is itself an address. */
