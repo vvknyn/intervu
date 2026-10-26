@@ -15,8 +15,9 @@ import { cn } from "@/lib/utils";
  * dot-separated text links (requirement 1e); on a phone they wrapped into a
  * ragged centred paragraph with a "·" hanging off each line and 20px-tall
  * tap targets, the one run of plain-text controls among boxed ones
- * (2026-10-02 polish pass). Centred in a balanced `.wrap-row`, so no chip
- * strands on a line of its own.
+ * (2026-10-02 polish pass). Left-aligned in a balanced `.wrap-row`, so the
+ * chips share the search column's left edge and no chip strands on a line
+ * of its own.
  *
  * Reuses `indexCategories` — the field directory's single source of truth,
  * also read by page.tsx's `fieldDirectoryMenu` dropdown and
@@ -46,7 +47,7 @@ export function FrontDoorFieldLinks({ onSelectQuery }: { onSelectQuery: (q: stri
     }, [prefetchQuery]);
 
     return (
-        <div data-testid="front-door-field-links" className="mx-auto mt-3 w-full max-w-[960px] text-center">
+        <div data-testid="front-door-field-links" className="mt-3 w-full text-left">
             <p className="mb-2 text-xs font-semibold text-muted-foreground">Browse by field</p>
             <div className="wrap-row">
                 {indexCategories.map((cat) => (

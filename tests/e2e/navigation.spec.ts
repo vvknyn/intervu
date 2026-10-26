@@ -14,8 +14,8 @@ import { test as authTest } from './helpers/auth-gate';
  * gone — nav destinations live in the signed-in avatar's dropdown menu
  * (TopBar, data-testid="topbar-avatar"). Signed-out visitors — the
  * default state in these tests, no login fixture here — only see the
- * wordmark and Sign in — TopBar `topbar-signin` and
- * `topbar-create-account`. Menu-driven navigation tests below are
+ * wordmark and Sign in — TopBar `topbar-signin` (Create account is a tab
+ * inside that dialog). Menu-driven navigation tests below are
  * conditional on the avatar being visible.
  */
 test.describe('NAV - Navigation Tests', () => {

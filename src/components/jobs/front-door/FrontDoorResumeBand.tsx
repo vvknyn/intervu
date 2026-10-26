@@ -48,7 +48,7 @@ export function FrontDoorResumeBand({
             // so its square corners were the one unrounded panel on the page.
             className="@container mb-3 w-full rounded-panel bg-surface px-4 py-6 text-foreground sm:px-8"
         >
-            <div className="mx-auto grid max-w-[960px] gap-3 @lg:grid-cols-[minmax(0,1fr)_auto] @lg:items-center @lg:gap-6">
+            <div className="grid gap-3 @lg:grid-cols-[minmax(0,1fr)_auto] @lg:items-center @lg:gap-6">
                 <div>
                     <h2 className="text-xl font-semibold text-foreground">
                         See which live jobs fit you.

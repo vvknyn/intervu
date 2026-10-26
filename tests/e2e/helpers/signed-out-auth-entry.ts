@@ -11,11 +11,15 @@ export async function clickVisibleSignIn(page: Page): Promise<void> {
   await trigger.click();
 }
 
-/** Non-lean marketing routes — TopBar ghost Sign in + green Create account. */
+/** Non-lean marketing routes — TopBar ghost Sign in (Create account is a tab inside the dialog). */
 export function marketingTopBarSignIn(page: Page): Locator {
   return page.getByTestId('topbar-signin');
 }
 
-export function marketingTopBarCreateAccount(page: Page): Locator {
-  return page.getByTestId('topbar-create-account');
+/** Opens the auth dialog on the signup tab via Sign in → Create account tab. */
+export async function openHeaderSignupTab(page: Page): Promise<void> {
+  await clickVisibleSignIn(page);
+  const dialog = page.getByRole('dialog').filter({ has: page.getByTestId('auth-submit-button') });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('tab', { name: 'Create account' }).click();
 }

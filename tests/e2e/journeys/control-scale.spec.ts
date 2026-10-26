@@ -32,26 +32,25 @@ const returningVisitor = (page: Page) =>
     page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
 
 for (const path of ["/jobs", "/trends", "/about"]) {
-    test(`signed-out header on ${path}: one Sign in and one Create account, both on the md step`, { tag: ["@J-NAV-07", "@J-NAV-33"] }, async ({ page }) => {
+    test(`signed-out header on ${path}: exactly one Sign in on the md step, no separate Create account`, { tag: ["@J-NAV-07", "@J-NAV-33"] }, async ({ page }) => {
         await page.goto(path);
         const signIn = page.getByTestId("topbar-signin");
-        const create = page.getByTestId("topbar-create-account");
         await expect(signIn).toHaveCount(1);
-        await expect(create).toHaveCount(1);
+        await expect(page.getByTestId("topbar-create-account")).toHaveCount(0);
         await expect(signIn).toBeVisible({ timeout: 15_000 });
-        const heights = await Promise.all([signIn, create].map(async (l) => Math.round((await l.boundingBox())!.height)));
-        expect(heights).toEqual([MD, MD]);
+        expect(Math.round((await signIn.boundingBox())!.height)).toBe(MD);
     });
 }
 
-test("desktop header with a query: the docked search, Sign in and Create account share the md step", { tag: ["@J-NAV-33"] }, async ({ page, isMobile }) => {
+test("desktop header with a query: the docked search and Sign in share the md step", { tag: ["@J-NAV-33"] }, async ({ page, isMobile }) => {
     test.skip(isMobile, "the search docks into the header at lg and up only");
     await returningVisitor(page);
     await page.goto("/jobs?q=data+analyst");
-    const row = ["topbar-docked-search", "topbar-signin", "topbar-create-account"].map((id) => page.getByTestId(id));
+    const row = ["topbar-docked-search", "topbar-signin"].map((id) => page.getByTestId(id));
     for (const l of row) await expect(l).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("topbar-create-account")).toHaveCount(0);
     const heights = await Promise.all(row.map(async (l) => Math.round((await l.boundingBox())!.height)));
-    expect(heights).toEqual([MD, MD, MD]);
+    expect(heights).toEqual([MD, MD]);
 });
 
 test("/jobs search row: query, location and Search share the lg step", { tag: ["@J-JOBS-29"] }, async ({ page }) => {
@@ -202,21 +201,20 @@ for (const path of ["/jobs", "/jobs?q=data+analyst", "/trends", "/about"]) {
     });
 }
 
-test("header Sign in and Create account: 32px tall, 14px text at weight 500, on the loaded 500 cut", { tag: ["@J-NAV-38"] }, async ({ page }) => {
+test("header Sign in: 32px tall, 14px text at weight 500, on the loaded 500 cut", { tag: ["@J-NAV-38"] }, async ({ page }) => {
     await returningVisitor(page);
     for (const path of ["/jobs", "/trends", "/about"]) {
         await page.goto(path);
-        for (const id of ["topbar-signin", "topbar-create-account"]) {
-            const button = page.getByTestId(id);
-            await expect(button).toBeVisible({ timeout: 15_000 });
-            // Polled: the header re-renders once auth resolves, so a first read can land on a node on its way out.
-            const type = () =>
-                button.evaluate((el) => {
-                    const cs = getComputedStyle(el);
-                    return { height: Math.round(el.getBoundingClientRect().height), size: cs.fontSize, weight: cs.fontWeight };
-                });
-            await expect.poll(type, { message: `${id} on ${path}` }).toEqual({ height: MD, size: "14px", weight: "500" });
-        }
+        const button = page.getByTestId("topbar-signin");
+        await expect(button).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByTestId("topbar-create-account")).toHaveCount(0);
+        // Polled: the header re-renders once auth resolves, so a first read can land on a node on its way out.
+        const type = () =>
+            button.evaluate((el) => {
+                const cs = getComputedStyle(el);
+                return { height: Math.round(el.getBoundingClientRect().height), size: cs.fontSize, weight: cs.fontWeight };
+            });
+        await expect.poll(type, { message: `topbar-signin on ${path}` }).toEqual({ height: MD, size: "14px", weight: "500" });
         // The 500 is its own cut, not the 400 face drawn heavier: a 500 face of the page's sans has loaded.
         const loaded500 = await page.evaluate(async () => {
             await document.fonts.ready;

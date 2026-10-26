@@ -1,4 +1,4 @@
-import type { Page, Request } from "@playwright/test";
+import type { Locator, Page, Request } from "@playwright/test";
 import { gunzipSync } from "node:zlib";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
@@ -45,6 +45,25 @@ async function expectBoard(page: Page, timeout = FIRST_PAINT_MS) {
 
 /** The résumé-upload band a visitor with no résumé gets at rest (FrontDoorResumeBand). */
 const RESUME_BAND = 'section[aria-label="Add your resume"]';
+
+const FRONT_DOOR_COLUMN_TOLERANCE_PX = 2;
+
+/** Left and right edges of each locator's border box match within `FRONT_DOOR_COLUMN_TOLERANCE_PX`. */
+async function expectMatchingHorizontalEdges(locators: Locator[]) {
+  for (const locator of locators) {
+    await expect(locator).toBeVisible({ timeout: 15_000 });
+  }
+  const edges = await Promise.all(
+    locators.map(async (locator) => {
+      const box = (await locator.boundingBox())!;
+      return { left: box.x, right: box.x + box.width };
+    }),
+  );
+  const lefts = edges.map((e) => e.left);
+  const rights = edges.map((e) => e.right);
+  expect(Math.max(...lefts) - Math.min(...lefts)).toBeLessThanOrEqual(FRONT_DOOR_COLUMN_TOLERANCE_PX);
+  expect(Math.max(...rights) - Math.min(...rights)).toBeLessThanOrEqual(FRONT_DOOR_COLUMN_TOLERANCE_PX);
+}
 
 /**
  * Bare /jobs at rest is a front door, not a list: the search box, one h1, the résumé band,
@@ -103,6 +122,29 @@ test("a guest taps the week's count on the front door and gets that week's roles
   await expect(page).toHaveURL(/[?&]posted=7d/);
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the /jobs front door and results frame share one content column at desktop width", { tag: ["@J-JOBS-79"] }, async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/jobs");
+  await expect(page.locator(RESUME_BAND)).toBeVisible({ timeout: 15_000 });
+  await expectMatchingHorizontalEdges([
+    page.locator("[data-search-line]"),
+    page.getByTestId("jobs-toolbar"),
+    page.getByTestId("front-door-field-links"),
+    page.locator(RESUME_BAND),
+  ]);
+  await expect(page.getByTestId("topbar-create-account")).toHaveCount(0);
+  await expect(page.getByTestId("topbar-signin")).toHaveCount(1);
+
+  await page.goto("/jobs?posted=any");
+  await expect(page.getByTestId("jobs-results-frame")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("[data-search-line]")).toBeVisible();
+  await expectMatchingHorizontalEdges([
+    page.locator("[data-search-line]"),
+    page.getByTestId("jobs-toolbar"),
+    page.getByTestId("jobs-results-frame"),
+  ]);
 });
 
 for (const visitor of VISITORS) {
