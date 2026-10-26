@@ -299,6 +299,12 @@ describe("buildCompanyFacts", () => {
             assert.deepEqual(f.identity.profileSources, [{ name: "Wikidata", url: "https://www.wikidata.org/wiki/Q136756944", fetchedAt: null }]);
         });
 
+        it("one Wikidata item with several industries: shown plural, capped at 3, credited to Wikidata", () => {
+            const f = buildCompanyFacts(input({ name: "McGill", domain: "mcgill.ca", exhaust: exhaust(), wikidata: [{ label: "McGill", industries: ["higher education", "research", "healthcare", "publishing"], id: "Q1" }] }));
+            assert.equal(f.identity.sector, "Industries: Higher Education, Research, Healthcare");
+            assert.deepEqual(f.identity.profileSources.map((s) => s.name), ["Wikidata"]);
+        });
+
         it("no source naming one: empty, for a company other than bjak", () => {
             assert.equal(buildCompanyFacts(input({ exhaust: exhaust() })).identity.sector, null);
             assert.equal(buildCompanyFacts(input()).identity.sector, null);
