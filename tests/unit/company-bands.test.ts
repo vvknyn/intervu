@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { cadenceStripHasContent, CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
+import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
+import { cadenceStripHasContent } from "@/lib/companies/hiring-record";
 import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { buildWeeklyCadence, type CadenceFacts, type ExhaustSection, type HealthFacts } from "@/lib/companies/exhaust";
 
