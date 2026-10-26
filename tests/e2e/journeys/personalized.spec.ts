@@ -259,7 +259,7 @@ test("when no role from the last 30 days fits, the list holds the older roles th
   // The row's age is the list's own, in months once a posting is a month old.
   await expect(listRow(page, older.id).getByTestId("posted-age")).toHaveText("1mo ago");
   await expect(listRow(page, oldest.id).getByTestId("posted-age")).toHaveText("2mo ago");
-  await expect(page.getByTestId("result-line")).toHaveText("2 roles fit your résumé · all posted over 30 days ago");
+  await expect(page.getByTestId("result-line")).toHaveText("2 roles · ranked by fit");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
@@ -693,7 +693,9 @@ test("a short résumé's list still holds roles in its own line whose postings l
     withTools("aaaaaaaa-0000-4000-8000-000000000002", "Juniper Labs", 2),
     withTools("aaaaaaaa-0000-4000-8000-000000000003", "Fernway", 3),
   ];
-  // The same listing asking for French: an explicit ask the résumé does not show, so it is still left out.
+  // The same listing asking for French: an explicit ask the résumé does not show. That ranks the role
+  // lower (it stays in the list, so the headline counts it) rather than cutting it. A guest's free
+  // preview still stops at three rows, so this one is the row behind the sign-in gate.
   const french = described(posting("aaaaaaaa-0000-4000-8000-000000000004", "Technical Account Manager", "Maison Nord", "senior", 1), `${listingTools("Maison Nord", tools)}\n\nYou are fluent in French and English.`);
   await withAccountApplications(page, []);
   await answerResumeSearch(page, [french, ...roles], "journey-short-resume");
@@ -702,7 +704,7 @@ test("a short résumé's list still holds roles in its own line whose postings l
   await expect(page.getByTestId("job-row")).toHaveCount(3, { timeout: 60_000 });
   await expect(listRow(page, french.id)).toHaveCount(0);
   await expect(page.getByTestId("list-notice")).toHaveCount(0);
-  await expect(page.getByTestId("result-line")).toHaveText("3 roles fit your résumé · best fit first");
+  await expect(page.getByTestId("result-line")).toHaveText("4 roles · ranked by fit");
   await expect(page.getByTestId("list-left-out")).toHaveText("Left out of the 4 roles found: 1 asking for something your résumé doesn't show");
   expect(diagnostics.pageErrors).toEqual([]);
 });
@@ -775,7 +777,7 @@ test("a list where only older roles are posted and none fits holds the closest o
     await expect(row.getByTestId("posted-age")).toHaveText(/^[12]mo ago$/);
     await expect(row.getByTestId("match-chip")).toHaveText("Stretch");
   }
-  await expect(page.getByTestId("result-line")).toHaveText("2 closest roles · each a weaker fit, all posted over 30 days ago");
+  await expect(page.getByTestId("result-line")).toHaveText("2 roles · ranked by fit");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
@@ -925,7 +927,7 @@ test("the list tells what the Chrome extension does and links its store page, on
   await answerHubRoles(page);
   await openFitList(page);
   await expect(page.getByTestId("job-row")).toHaveCount(14, { timeout: 60_000 });
-  await expect(page.getByTestId("result-line")).toHaveText("14 roles fit your résumé · best fit first");
+  await expect(page.getByTestId("result-line")).toHaveText("14 roles · ranked by fit");
   await expectExtensionTile(page);
   // It is not a role: once, between the fourth row and the fifth.
   await expect(page.getByTestId("extension-tile")).toHaveCount(1);
@@ -1197,9 +1199,9 @@ test("the list gives each employer one row with its other roles inside it", { ta
   await answerResumeSearch(page, [orchard[0]!, orchard[1]!, northstar, orchard[2]!], "journey-employer-deck");
   await openFitList(page);
 
-  // Four roles fit, at two employers: two rows, not four, and a count that says both.
+  // Four roles, at two employers: two rows, not four. The headline counts the roles; the employers are the disclosure's first row.
   await expect(page.getByTestId("job-row")).toHaveCount(2, { timeout: 60_000 });
-  await expect(page.getByTestId("result-line")).toHaveText("4 roles fit your résumé at 2 employers · best fit first");
+  await expect(page.getByTestId("result-line")).toHaveText("4 roles · ranked by fit");
 
   // The row with roles inside it is Orchard CRM's; Northstar Data's has none.
   const more = page.getByTestId("employer-more");
