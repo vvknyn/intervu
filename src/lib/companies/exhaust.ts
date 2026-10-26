@@ -15,7 +15,7 @@
  * database.
  */
 import { eventTypeLabel } from "@/lib/companies/events";
-import { categoryLabel } from "@/lib/companies/machine-token";
+import { categoryLabel, withoutIndustrySuffix, wikidataLabel } from "@/lib/companies/machine-token";
 import { siteKey } from "@/lib/companies/company-name";
 import type { WikidataItem } from "@/lib/companies/indexable";
 import { displayCompanyName } from "@/lib/jobs/presentation";
@@ -317,7 +317,7 @@ function isoDate(v: unknown): string | null {
 /** Default buckets and labels that classify the economy or a legal form, not the work.
  *  They are not a sector, so they must not shadow a real one further down the chain. */
 const NON_SECTORS = new Set([
-  "", "general", "unknown",
+  "", "general", "unknown", "industry",
   // labels that classify the economy or a legal form, not the work
   "service", "business-to-business", "business to business", "holding company", "holding company activities",
 ]);
@@ -332,11 +332,11 @@ export function resolveSector(industries: readonly string[] = []): string | null
   return null;
 }
 
-/** A Wikidata industry as a sector name: a trailing whole word "industry" dropped ("software industry" -> "software"), null when
+/** A Wikidata industry as a sector name: a trailing "industry" dropped ("software industry" -> "software"), null when
  *  what remains names no sector (empty, a NON_SECTORS label, or a "... sector of the economy" tier). */
 function sectorForm(industry: string): string | null {
   const raw = industry.trim();
-  const form = raw.replace(/\s*\bindustry$/i, "").trim();
+  const form = withoutIndustrySuffix(raw);
   const generic = [raw, form].some((x) => NON_SECTORS.has(x.toLowerCase())) || /sector of the economy$/i.test(form);
   return generic ? null : form;
 }
@@ -354,20 +354,25 @@ export function pickWikidata<T>(items: readonly WikidataItem[], displayName: str
   return { value, item: first };
 }
 
-/** The sector from Wikidata's industry (P452), the fallback after {@link resolveSector}: the one industry (none when it has several) of the item
- *  {@link pickWikidata} selects; null when the selected items' industries differ. */
-export function wikidataSectorPick(items: readonly WikidataItem[], displayName: string): { value: string; item: WikidataItem } | null {
+/** Most Wikidata industries shown for one company. */
+export const MAX_WIKIDATA_INDUSTRIES = 3;
+
+/** The sectors from Wikidata's industry (P452), the fallback after {@link resolveSector}: the industries of the item {@link pickWikidata} selects,
+ *  in stored order, one per distinct {@link sectorForm}, at most {@link MAX_WIKIDATA_INDUSTRIES}; null when the selected items' industries differ
+ *  or none names a sector. */
+export function wikidataSectorPick(items: readonly WikidataItem[], displayName: string): { value: string[]; item: WikidataItem } | null {
   const picked = pickWikidata(items, displayName, (item) => (item.industries.length > 0 ? item.industries : null));
   if (!picked) return null;
   const forms = new Map<string, string>();
   for (const x of picked.value) {
     const form = sectorForm(x);
-    if (form) forms.set(form.toLowerCase(), form);
+    if (form && !forms.has(form.toLowerCase())) forms.set(form.toLowerCase(), form);
   }
-  return forms.size === 1 ? { value: categoryLabel([...forms.values()][0]!), item: picked.item } : null;
+  const value = [...forms.values()].slice(0, MAX_WIKIDATA_INDUSTRIES).map(wikidataLabel);
+  return value.length > 0 ? { value, item: picked.item } : null;
 }
 
-export const wikidataSector = (items: readonly WikidataItem[], displayName: string): string | null => wikidataSectorPick(items, displayName)?.value ?? null;
+export const wikidataSector = (items: readonly WikidataItem[], displayName: string): string | null => wikidataSectorPick(items, displayName)?.value.join(", ") ?? null;
 
 /** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x,
  *  jobs.ashbyhq.com/api/non-user-graphql): an `api.` / `<x>-api.` host or an `/api` path segment. A bare version

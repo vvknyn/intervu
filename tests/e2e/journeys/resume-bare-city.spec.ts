@@ -60,7 +60,9 @@ test("a bare city on the contact line is asked about above the ranked board; Yes
     expect(profile.location).toBe("Mississauga, Ontario, Canada");
     expect(profile).not.toHaveProperty("unconfirmedPlaces");
     // The answer re-ranks the board there.
-    await expect(page).toHaveURL(/[?&]country=Canada/);
+    // (the place is résumé-derived, so it shows as a chip and never in the address)
+    await expect(page.getByText("Location · Canada")).toBeVisible();
+    expect(new URL(page.url()).search).toBe("?sort=fit");
     expect(diagnostics.pageErrors).toEqual([]);
 });
 

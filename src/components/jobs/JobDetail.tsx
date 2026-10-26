@@ -308,7 +308,7 @@ export function fetchRelatedJobs(seedKey: string): Promise<RelatedJobs> {
 // a `.ctl-*` step pins a single-line height (32px), which squeezed both lines
 // flush against the hairlines and clipped their descenders (2026-09-30).
 // rounded-none: KEEP — a full-bleed list row, like JobCard's, not a discrete control.
-const RELATED_ROW_CLASS = "group block w-full cursor-pointer rounded-none bg-transparent text-left poster-list-inset-x transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live";
+const RELATED_ROW_CLASS = "group block w-full cursor-pointer rounded-none bg-transparent text-left poster-list-inset-x transition-colors duration-150 hover:bg-surface-hover focus-visible:inset-outline-2 focus-visible:outline-live";
 
 /**
  * A2 — "More like this" row (Curiosity / Serial Positioning Effect). Not a
@@ -547,7 +547,7 @@ export function JobDetail({
     useEffect(() => {
         setDescExpanded(false);
     }, [job.id]);
-    useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
+    useJobViewedCapture({ job, source });
     // Identity-header location line — same progressive-disclosure idiom as
     // the description clamp above, for aggregator-feed `location` strings
     // that stuff many semicolon-joined locations into one field (see
