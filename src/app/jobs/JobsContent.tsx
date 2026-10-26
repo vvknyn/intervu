@@ -141,7 +141,6 @@ import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { jobActionSize, toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { resultSetAnalyticsId } from "@/lib/analytics/result-set-id";
-import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
@@ -2545,7 +2544,6 @@ export function JobsContent({
                 // How old the opened role was: whether searchers open fresh
                 // roles or older ones is what the posted-date window is tuned on.
                 ...postedAgeAnalyticsProps(hit),
-                ...matchAnalyticsProps(matchScores?.get(id) ?? null),
             });
         }
         const alreadyOpened = openedIds.has(id);
@@ -3678,7 +3676,6 @@ export function JobsContent({
             // `useResultImpressions` is armed with for the currently-rendered
             // result set (SPEC §5), never the search log's `searchId`.
             ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
-            ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
         });
         gatedOpenPosting(job);
     };
@@ -3733,7 +3730,6 @@ export function JobsContent({
             toast.success("Applied — nice work");
             captureEvent("job_marked_applied", {
                 job_id: job.id,
-                ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
             });
         } catch (e) {
             setOptimisticPursuits((prev) => {
@@ -3811,7 +3807,6 @@ export function JobsContent({
                 toast.success(GUEST_SAVE_TOAST);
                 captureEvent("job_saved", {
                     job_id: job.id,
-                    ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
                 });
             } catch (e) {
                 setOptimisticPursuits((prev) => {

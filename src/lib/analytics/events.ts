@@ -2,14 +2,7 @@ import { getPostHogClient, isPostHogLoaded } from "@/lib/analytics/posthog-clien
 import { trackToLedger } from "@/lib/telemetry/client";
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import type { AuthContinuityFields, AuthEventContext } from "@/lib/analytics/auth-event-payload";
-import type {
-  ResumeErrorClass,
-  ResumeFileType,
-  ResumeFunnelReason,
-  ResumeInputSource,
-  ResumeParserEngine,
-  ResumeSizeBucket,
-} from "@/lib/analytics/resume-funnel";
+import type { ResumeFunnelProps } from "@/lib/analytics/resume-funnel";
 import {
   ANALYTICS_EVENTS,
   type AnalyticsEventKey,
@@ -42,18 +35,6 @@ export type TurnstileSurface = "signup" | "contact" | "waitlist" | "follow_email
 /** Where a job result/apply/view/share originated. */
 export type EventSource = "serp" | "co" | "board" | "email" | "direct";
 
-/** Match-quality fields shared by job funnel events — all optional and omitted
- *  entirely when no résumé score exists (never null or a fabricated 0). */
-export type MatchQualityAnalyticsProps = {
-  match_label: "Strong" | "Good" | "Stretch";
-  match_score: number;
-  match_band: "strong" | "good" | "stretch";
-  /** Present when the role is outside every country the candidate can work in: the chip said "Outside Canada", not `match_label`. */
-  match_outside?: true;
-  /** The chip read "Country unclear": the role doesn't say which countries it hires in. */
-  match_place_unclear?: true;
-};
-
 export interface EventPayloads {
   search_submitted: {
     query_length: number;
@@ -74,16 +55,16 @@ export interface EventPayloads {
     /** Whole days since the opened role was posted (`posted_ts`), floored at
      *  0. Absent when the row has no posted date (never a fabricated 0). */
     posted_age_days?: number;
-  } & Partial<MatchQualityAnalyticsProps>;
+  };
   apply_clicked: {
     job_id: string;
     source: EventSource;
     /** Same `query_id` contract as `result_clicked` above. */
     query_id?: string;
-  } & Partial<MatchQualityAnalyticsProps>;
+  };
   job_saved: {
     job_id: string;
-  } & Partial<MatchQualityAnalyticsProps>;
+  };
   company_followed: {
     company_domain: string;
   };
@@ -106,20 +87,20 @@ export interface EventPayloads {
     job_id: string;
     company_domain: string | null;
     source: EventSource;
-  } & Partial<MatchQualityAnalyticsProps>;
+  };
   job_unsaved: {
     job_id: string;
   };
   job_marked_applied: {
     job_id: string;
-  } & Partial<MatchQualityAnalyticsProps>;
+  };
   job_shared: {
     job_id: string;
     method: "native" | "clipboard";
   };
   job_match_expanded: {
     job_id: string;
-  } & Partial<MatchQualityAnalyticsProps>;
+  };
 
   company_viewed: {
     company_domain: string;
@@ -236,15 +217,15 @@ export interface EventPayloads {
   };
   resume_uploaded: { surface?: string };
 
-  resume_gate_shown: ResumeFunnelEventPayload;
-  resume_upload_started: ResumeFunnelEventPayload;
-  resume_upload_selected: ResumeFunnelEventPayload;
-  resume_upload_accepted: ResumeFunnelEventPayload;
-  resume_upload_rejected: ResumeFunnelEventPayload;
-  resume_parse_started: ResumeFunnelEventPayload;
-  resume_parse_succeeded: ResumeFunnelEventPayload;
-  resume_parse_failed: ResumeFunnelEventPayload;
-  resume_review_completed: ResumeFunnelEventPayload;
+  resume_gate_shown: ResumeFunnelProps;
+  resume_upload_started: ResumeFunnelProps;
+  resume_upload_selected: ResumeFunnelProps;
+  resume_upload_accepted: ResumeFunnelProps;
+  resume_upload_rejected: ResumeFunnelProps;
+  resume_parse_started: ResumeFunnelProps;
+  resume_parse_succeeded: ResumeFunnelProps;
+  resume_parse_failed: ResumeFunnelProps;
+  resume_review_completed: ResumeFunnelProps;
 
   /** /pricing mounted. */
   pricing_viewed: { signed_in: boolean };
@@ -276,24 +257,6 @@ export interface EventPayloads {
     done: number;
     skipped: number;
   };
-}
-
-export interface ResumeFunnelEventPayload {
-  reason?: ResumeFunnelReason;
-  source?: ResumeInputSource;
-  file_type?: ResumeFileType;
-  size_bucket?: ResumeSizeBucket;
-  latency_ms?: number;
-  duration_ms?: number;
-  parser_source?: ResumeParserEngine;
-  engine?: ResumeParserEngine;
-  error_class?: ResumeErrorClass;
-  error_code?: ResumeErrorClass;
-  surface?: string;
-  signed_in?: boolean;
-  section_count?: number;
-  warning_count?: number;
-  edited?: boolean;
 }
 
 /**
