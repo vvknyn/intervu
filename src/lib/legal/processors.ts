@@ -1,3 +1,4 @@
+import { DELETED_WHEN } from "@/lib/retention/rules";
 import { MAX_MONTHS, MIN_MONTHS, PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 
 /**
@@ -31,7 +32,7 @@ export const PROCESSORS: readonly Processor[] = [
     receives: "Everything you give Velai: your account, saved résumé and matches, searches you run.",
     why: "To run Velai.",
     retention:
-      "Kept until you delete it. Résumés and matches are deleted 90 days after paid time ends. The anonymous search record is deleted after 90 days.",
+      `Kept until you delete it. Résumés and matches are deleted ${DELETED_WHEN}. The anonymous search record is deleted after 90 days.`,
     hosts: [],
     packages: [],
   },

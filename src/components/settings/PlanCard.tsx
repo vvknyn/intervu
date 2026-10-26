@@ -4,10 +4,10 @@ import Link from "next/link";
 import { formatPaidUntil, PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 import { Button } from "@/components/ui/button";
 import { usePlan } from "@/lib/account/plan";
-import { DELETE_AFTER_DAYS } from "@/lib/retention/delete-after";
+import { DELETED_WHEN } from "@/lib/retention/rules";
 
 const FREE_LINE = "Search, matching with a résumé kept on your device, the tracker and saved jobs are free.";
-const FULL_LINE = `When it ends, search and on-device matching stay free. A résumé saved on Velai is deleted ${DELETE_AFTER_DAYS} days later unless you add a month.`;
+const FULL_LINE = `When it ends, search and on-device matching stay free. A résumé saved on Velai is deleted ${DELETED_WHEN}. Add a month to keep it.`;
 
 /** The account's plan, above the Settings tabs. Reserves its height while loading so "Free" never flashes. */
 export function PlanCard() {

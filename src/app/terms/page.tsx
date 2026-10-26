@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MAX_MONTHS, MIN_MONTHS, PRO_MONTHLY_PRICE, REFUND_DAYS } from "@/app/pricing/offer";
+import { DELETED_WHEN } from "@/lib/retention/rules";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { LegalDocFrame, LegalDocHeader } from "@/components/legal/LegalDocHeader";
@@ -76,7 +77,7 @@ export default function TermsPage() {
           may request a full refund within {REFUND_DAYS} days of paying, for any reason, by contacting us from the email
           address you paid with. Payment processing is handled by our payment provider under its own terms; we do
           not see or store your card details. When paid access ends, the free features keep working, and a résumé
-          saved to your account is kept for a limited time before it is deleted, as described in the{" "}
+          saved to your account is deleted {DELETED_WHEN}, as described in the{" "}
           <Link href="/privacy">Privacy Policy</Link>.
         </p>
 

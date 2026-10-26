@@ -31,6 +31,8 @@ Checkout refuses (503) unless `STRIPE_PRICE_ID`'s `unit_amount` equals `MONTH_PR
 | `RESUME_RETENTION_CRON_SECRET` | Bearer for `POST /api/retention/resumes`; unset, the route answers 503. |
 | `ORPHAN_ACCOUNTS_CRON_SECRET` | Bearer for `POST /api/ops/orphan-accounts` (report only); unset, the route answers 503. |
 
-`deploy/run-resume-retention.sh` is a DRY RUN unless given `--apply`. It is not scheduled by the repo; install the daily cron at go-live.
+`deploy/run-resume-retention.sh` is a DRY RUN unless given `--apply`. It is not scheduled by the repo; install an HOURLY cron at go-live (the site promises deletion within an hour after paid time ends).
 
-Go-live order: run the launch grant with `--apply` BEFORE the first retention `--apply`. Otherwise never-paid accounts with a stored résumé hit the 90-day deadline immediately. Read a dry-run's counts first.
+The rule (numbers in `src/lib/retention/rules.ts`): one warning email in the 7 days before `access_until`; the saved résumé is deleted once `access_until` has passed, whether or not the email went out. Just before deleting, the run recomputes access from Stripe and re-reads the profile, so a renewal the webhook has not delivered yet keeps the résumé; if the recompute fails, nothing is deleted and the run counts an error. An account that never had access gets a first-seen stamp, which is its end.
+
+Go-live order: run the launch grant with `--apply` BEFORE the first retention `--apply`. Otherwise never-paid accounts with a stored résumé are deleted on the first run after the stamp. Read a dry-run's counts first.

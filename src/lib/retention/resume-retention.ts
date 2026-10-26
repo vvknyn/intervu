@@ -1,16 +1,18 @@
 /**
  * Résumé retention: a stored résumé and what is derived from it (RESUME_SUBSET, in the primary
- * and the mirror store) are deleted 90 days after the account's paid/granted time ends, but only
- * after a warning email was sent for that end and 7 days have passed since it. A later purchase
- * moves `end`, so the warning stamp (`retention_warned_for` = the `end` it was sent for) re-arms
- * by itself. Never deletes the account, tracker, saved jobs or anything that
+ * and the mirror store) are deleted when the account's paid/granted time ends (the rule is in
+ * retention/rules.ts). One warning email goes out in the 7 days before; it is a courtesy, never a gate.
+ * Just before deleting, access is recomputed from Stripe, so a renewal the webhook has not delivered
+ * yet keeps the résumé. A later purchase moves `end`, so the warning stamp (`retention_warned_for` =
+ * the `end` it was sent for) re-arms by itself. Never deletes the account, tracker, saved jobs or anything that
  * is not résumé-derived.
  */
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 
 import { eraseMirrorStore, type ProcessorStatus } from "@/lib/account/erase-account";
 import { accessUntil } from "@/lib/billing/access";
-import { DELETE_AFTER_MS } from "@/lib/retention/delete-after";
+import { recomputeAccess } from "@/lib/billing/recompute";
+import { DELETED_WHEN, WARN_BEFORE_MS } from "@/lib/retention/rules";
 import { runUserDataPlan, type FoundDoc } from "@/lib/db/user-data";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isReachableEmail } from "@/lib/auth/minted-email";
@@ -18,51 +20,38 @@ import { workosEmailForUid } from "@/lib/email/digest/send";
 import { sendEmail } from "@/lib/email/send";
 import { getSiteUrl } from "@/lib/seo/constants";
 
-const DAY_MS = 86_400_000;
-export { DELETE_AFTER_MS };
-export const WARN_AFTER_MS = 83 * DAY_MS;
-
 export type RetentionAction = "none" | "warn" | "delete" | "anomaly";
-
-export const WARN_GAP_MS = 7 * DAY_MS;
 
 export interface RetentionState {
     /** accessUntil(profile), or retention_first_seen_at when the account never had access; 0 = neither. */
     end: number;
     now: number;
     warnedFor: unknown;
-    warnedAt: unknown;
-    /** Whether a warning can be delivered. An account with no address is deleted on schedule, unwarned. */
+    /** Whether a warning can be delivered. Only gates the warning; deletion never waits on it. */
     hasEmail: boolean;
 }
 
 /**
- * Pure. Delete only after a warning was sent for THIS end and a full week has passed since it;
- * otherwise warn now and push deletion out. No address to warn = delete on the 90-day mark.
+ * Pure. Delete once the end has passed, warned or not. Before it, warn once per end in the last
+ * WARN_BEFORE_MS if an address exists.
  */
 export function retentionAction(s: RetentionState): RetentionAction {
     if (s.end <= 0) return "anomaly";
-    const warned = s.warnedFor === s.end;
-    if (s.now >= s.end + DELETE_AFTER_MS) {
-        if (!s.hasEmail) return "delete";
-        if (!warned) return "warn";
-        return typeof s.warnedAt === "number" && s.now >= s.warnedAt + WARN_GAP_MS ? "delete" : "none";
-    }
-    if (s.now >= s.end + WARN_AFTER_MS && !warned && s.hasEmail) return "warn";
+    if (s.now >= s.end) return "delete";
+    if (s.now >= s.end - WARN_BEFORE_MS && s.warnedFor !== s.end && s.hasEmail) return "warn";
     return "none";
 }
 
 const formatDate = (ms: number) =>
     new Date(ms).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
 
-/** Plain notice: the two dates and a pricing link, nothing else. */
+/** Plain notice: the end date, what happens then, and a pricing link. */
 export function buildRetentionWarning(end: number, siteUrl: string): { subject: string; text: string } {
-    const deleteOn = formatDate(end + DELETE_AFTER_MS);
     return {
-        subject: `Your saved résumé will be deleted on ${deleteOn}`,
+        subject: `Your saved résumé will be deleted on ${formatDate(end)}`,
         text: [
-            `Your paid time on Velai ended on ${formatDate(end)}. We delete saved résumés 90 days after that.`,
-            `Add a month before ${deleteOn} to keep it, or do nothing and it will be removed.`,
+            `Your paid time on Velai ends on ${formatDate(end)}. A résumé saved on Velai is deleted ${DELETED_WHEN}.`,
+            `Add a month before then to keep it, or do nothing and it will be removed.`,
             `${siteUrl}/pricing`,
         ].join("\n\n"),
     };
@@ -167,6 +156,8 @@ export interface RetentionDeps {
     withMirror: typeof withMirrorStore;
     emailFor: (uid: string) => Promise<string | null>;
     send: (to: string, message: { subject: string; text: string }) => Promise<{ sent: boolean }>;
+    /** Re-derives access_until from Stripe and stores it; throws on failure. */
+    recompute: (uid: string) => Promise<number>;
 }
 
 /**
@@ -184,6 +175,7 @@ const realDeps = (): RetentionDeps => ({
     withMirror: withMirrorStore,
     emailFor: retentionEmailForUid,
     send: (to, message) => sendEmail({ to, kind: "transactional", ...message }),
+    recompute: (uid) => recomputeAccess(uid),
 });
 
 /** One pass over every profile. Counts only; `apply` false = dry run. */
@@ -203,28 +195,32 @@ export async function runResumeRetention(opts: { apply: boolean; now?: number; d
         const profile = doc.data();
         try {
             const end = retentionEnd(profile);
-            // Nothing can be due before the warning mark, so skip the reads below until it is.
-            if (end > 0 && now < end + WARN_AFTER_MS) continue;
+            // Nothing can be due before the warning window, so skip the reads below until it opens.
+            if (end > 0 && now < end - WARN_BEFORE_MS) continue;
             if (!(await findResumeOps(doc.id, db)).length && !(await mirrorHoldsResume(deps, doc.id))) continue;
             counts.scanned += 1;
 
             if (end <= 0) {
-                // Never had access: the clock starts the first time we see the résumé.
+                // Never had access: the clock starts the first time we see the résumé; that stamp is the end.
                 if (opts.apply) await doc.ref.set({ retention_first_seen_at: now }, { merge: true });
                 counts.no_access_period += 1;
                 continue;
             }
-            const to = await deps.emailFor(doc.id);
-            const action = retentionAction({ end, now, warnedFor: profile.retention_warned_for, warnedAt: profile.retention_warned_at, hasEmail: Boolean(to) });
+            // The address only matters for the warning; a lookup outage must not hold up a due deletion.
+            const to = now < end ? await deps.emailFor(doc.id) : null;
+            if (now < end && !to) counts.no_email += 1;
+            const action = retentionAction({ end, now, warnedFor: profile.retention_warned_for, hasEmail: Boolean(to) });
             if (action === "delete") {
                 if (opts.apply) {
-                    // The snapshot is old by now: a purchase since then moves access_until, so decide again on the live doc.
+                    // A renewal Stripe holds may not have reached the profile yet (webhook lag): recompute first.
+                    // A throw lands in the catch below: counted, nothing deleted.
+                    await deps.recompute(doc.id);
+                    // The snapshot is old by now: re-read the live doc and decide again.
                     const live = (await doc.ref.get()).data() ?? {};
-                    if (retentionAction({ end: retentionEnd(live), now, warnedFor: live.retention_warned_for, warnedAt: live.retention_warned_at, hasEmail: Boolean(to) }) !== "delete") continue;
+                    if (retentionAction({ end: retentionEnd(live), now, warnedFor: live.retention_warned_for, hasEmail: false }) !== "delete") continue;
                     await deleteResumeData(doc.id, db);
                     if ((await deps.withMirror(doc.id, (mirror) => deleteResumeData(doc.id, mirror))) === "not-configured") counts.mirror_unreachable += 1;
                 }
-                if (!to) counts.no_email += 1;
                 counts.deleted += 1;
             } else if (action === "warn" && to) {
                 if (opts.apply) {

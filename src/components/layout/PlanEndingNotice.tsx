@@ -7,6 +7,7 @@ import { X } from "@phosphor-icons/react";
 import { formatPaidUntil } from "@/app/pricing/offer";
 import { Button } from "@/components/ui/button";
 import { usePlan } from "@/lib/account/plan";
+import { DELETED_WHEN } from "@/lib/retention/rules";
 
 /** Keyed by the end date, so a later purchase (a new end) shows the notice again. */
 export const planEndingDismissKey = (until: number) => `plan-ending-dismissed:${until}`;
@@ -47,7 +48,7 @@ export function PlanEndingNotice() {
             >
                 <div className="flex-1">
                     <p className="leading-snug text-foreground">
-                        Your full access ends {formatPaidUntil(plan.until)}. Search stays free — add a month to keep résumé tailoring and saved copies.
+                        Your full access ends {formatPaidUntil(plan.until)}. Search stays free. A résumé saved on Velai is deleted {DELETED_WHEN}. Add a month to keep it.
                     </p>
                     <Button asChild variant="outline" size="sm" className="mt-2">
                         <Link href="/pricing" prefetch={false}>Add months</Link>

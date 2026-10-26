@@ -1,6 +1,6 @@
 /**
  * POST /api/retention/resumes — the résumé retention run
- * (lib/retention/resume-retention.ts), called daily by the host cron
+ * (lib/retention/resume-retention.ts), called hourly by the host cron
  * (deploy/run-resume-retention.sh). Guard:
  * `RESUME_RETENTION_CRON_SECRET` (its own secret, compared in constant time) as a bearer; unset means always 503.
  *

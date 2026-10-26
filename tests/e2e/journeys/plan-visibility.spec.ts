@@ -76,6 +76,7 @@ test("the ending notice shows within 7 days of the end, stays off /pricing, and 
   await page.goto("/jobs");
   const notice = page.getByTestId("plan-ending-notice");
   await expect(notice).toContainText("Your full access ends", { timeout: 30_000 });
+  await expect(notice).toContainText("deleted within an hour after your paid time ends");
   await expect(notice.getByRole("link", { name: "Add months" })).toHaveAttribute("href", "/pricing");
 
   await page.goto("/pricing");
