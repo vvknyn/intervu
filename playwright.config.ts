@@ -50,7 +50,7 @@ export default defineConfig({
     // WebKit is the engine on the phones people use; only the specs that check engine-specific UI run on it.
     {
       name: 'webkit',
-      testMatch: /saved-search-label\.spec\.ts/,
+      testMatch: /saved-search-(label|privacy|idle)\.spec\.ts/,
       use: { ...devices['Desktop Safari'] },
     },
   ],

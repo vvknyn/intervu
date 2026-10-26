@@ -4,6 +4,7 @@ import {
     addSavedSearch,
     effectiveSavedSearchState,
     hrefFromJobsUrlState,
+    mayCountSavedSearch,
     mergedSavedSearchRow,
     originField,
     savedSearchDisplay,
@@ -12,6 +13,7 @@ import {
     RESUME_KEYWORDS_LABEL,
     type SavedSearch,
 } from "../../src/lib/jobs/saved-searches";
+import { isResumeOwnSearch } from "../../src/lib/jobs/search-payload";
 import { DEFAULT_URL_STATE } from "../../src/lib/jobs/url-state";
 
 const OLD_Q = '"Product Manager" OR "Program Manager" OR "Growth PM"';
@@ -84,4 +86,29 @@ test("origin survives the guest store, the sign-in merge and rejects anything bu
     assert.equal(mergedSavedSearchRow({ name: "n", href: "?q=a", createdAt: "2026-01-01T00:00:00Z", origin: "resume" }, undefined).origin, "resume");
     assert.deepEqual(originField("anything"), {});
     assert.deepEqual(originField(undefined), {});
+});
+
+test("résumé words go to the server only inside the résumé's own search", () => {
+    const pack = { q: NEW_Q };
+    assert.equal(isResumeOwnSearch(true, NEW_Q, pack), true);
+    assert.equal(isResumeOwnSearch(true, `  ${NEW_Q} `, { q: ` ${NEW_Q}` }), true);
+    assert.equal(isResumeOwnSearch(true, "engineer", pack), false); // a query typed beside Rank by fit
+    assert.equal(isResumeOwnSearch(false, NEW_Q, pack), false); // the same words typed, not ranked by fit
+    assert.equal(isResumeOwnSearch(true, NEW_Q, null), false); // no résumé on the device
+});
+
+test("a résumé-origin search is counted only while the résumé's own search is open; any other always", () => {
+    const fromResume = row(OLD_Q, { origin: "resume" });
+    assert.equal(mayCountSavedSearch(fromResume, false), false);
+    assert.equal(mayCountSavedSearch(fromResume, true), true);
+    for (const s of [row(OLD_Q), row("designer", { name: "mine" })]) {
+        assert.equal(mayCountSavedSearch(s, false), true);
+        assert.equal(mayCountSavedSearch(s, true), true);
+    }
+});
+
+test("applying a résumé-origin search is the résumé's own search (sort=fit); others keep their sort", () => {
+    assert.equal(effectiveSavedSearchState(row(OLD_Q, { origin: "resume" }), NEW_Q).sort, "fit");
+    assert.equal(effectiveSavedSearchState(row(OLD_Q), NEW_Q).sort, null);
+    assert.equal(effectiveSavedSearchState(row(OLD_Q, { origin: "resume" }), null).sort, null);
 });

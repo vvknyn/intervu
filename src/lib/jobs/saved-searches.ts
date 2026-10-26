@@ -47,7 +47,18 @@ export function effectiveSavedSearchState(
     resumeQuery: string | null,
 ): JobsUrlState {
     const state = jobsUrlStateFromSavedHref(s.href);
-    return s.origin === "resume" && resumeQuery?.trim() ? { ...state, q: resumeQuery } : state;
+    // `sort=fit` makes it the résumé's own search: applying it takes the marked, never-logged path.
+    return s.origin === "resume" && resumeQuery?.trim() ? { ...state, q: resumeQuery, sort: "fit" } : state;
+}
+
+/**
+ * Whether a saved search may be sent to the server for its "N new" count now. A résumé-origin one carries the
+ * CURRENT résumé's terms, so it goes only while the board is running the résumé's own search
+ * (`isResumeOwnSearch`, `resumeSearchOpen`); the stored terms never stand in, since the count would then disagree
+ * with the terms the chip shows. Any other saved search is the searcher's own words.
+ */
+export function mayCountSavedSearch(s: Pick<SavedSearch, "origin">, resumeSearchOpen: boolean): boolean {
+    return s.origin !== "resume" || resumeSearchOpen;
 }
 
 /** The terms of a boolean query: `"A" OR "B"` (or `A OR B`) → [A, B]; a plain query → itself. */

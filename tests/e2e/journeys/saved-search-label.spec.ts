@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
@@ -35,6 +35,18 @@ async function openWithSavedSearches(page: Page) {
 
 const chip = (page: Page, name: string) => page.getByTestId('saved-search-item').filter({ hasText: name });
 
+/** Points at the chip until its tooltip is open (Radix marks the trigger `data-state`): a hover that lands before the page's code ran opens nothing, so it is repeated. */
+async function openTooltip(page: Page, target: Locator) {
+    await expect(async () => {
+        await page.mouse.move(0, 0);
+        await target.hover();
+        await expect(target).toHaveAttribute('data-state', /open/, { timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    // The screenshot and the box are read once the entrance animation has ended.
+    await page.getByRole('tooltip').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+}
+
 test.describe('saved-search chip label — pointer device', () => {
     test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -47,12 +59,22 @@ test.describe('saved-search chip label — pointer device', () => {
         await expect(chip(page, 'designer')).toBeVisible();
         await expect(page.getByText('OR "Program Manager"')).toHaveCount(0);
 
-        await chip(page, 'Résumé keywords').hover();
+        await openTooltip(page, chip(page, 'Résumé keywords'));
         await expect(page.getByRole('tooltip')).toHaveText(TERMS);
+        // It never covers the header's Search / Pricing / Sign in / Create account.
+        // The role=tooltip node is a 1px screen-reader copy; the visible box is the popper wrapper.
+        const tip = (await page.locator('[data-radix-popper-content-wrapper]').boundingBox())!;
+        for (const id of ['search-submit', 'topbar-pricing', 'topbar-signin', 'topbar-create-account']) {
+            const nav = await page.locator('header').getByTestId(id).first().boundingBox();
+            expect(nav, `${id} is in the header`).not.toBeNull();
+            const apart = tip.x + tip.width <= nav!.x || nav!.x + nav!.width <= tip.x || tip.y + tip.height <= nav!.y || nav!.y + nav!.height <= tip.y;
+            expect(apart, `tooltip ${JSON.stringify(tip)} overlaps ${id} ${JSON.stringify(nav)}`).toBe(true);
+        }
         await page.screenshot({ path: `${SHOTS}/${info.project.name}-1440-hover.png` });
 
         await page.mouse.move(0, 0);
         await chip(page, 'Data Analyst +1 more').focus();
+        await expect(chip(page, 'Data Analyst +1 more')).toHaveAttribute('data-state', /open/);
         await expect(page.getByRole('tooltip').filter({ hasText: 'Data Analyst' })).toHaveText('Data Analyst, BI Analyst');
 
         await chip(page, 'Data Analyst +1 more').blur();
@@ -73,7 +95,12 @@ test.describe('saved-search chip label — touch', () => {
         const triggers = page.getByTestId('saved-search-terms-trigger');
         await expect(triggers).toHaveCount(2); // résumé + legacy; the typed and single-term chips have none
         await triggers.first().tap();
-        await expect(page.getByTestId('saved-search-terms').getByRole('listitem')).toHaveText(['Product Manager', 'Program Manager', 'Growth PM']);
+        const popover = page.getByTestId('saved-search-terms');
+        await expect(popover.getByRole('listitem')).toHaveText(['Product Manager', 'Program Manager', 'Growth PM']);
+        await popover.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+        const box = await popover.boundingBox();
+        const view = page.viewportSize()!;
+        expect(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= view.width && box.y + box.height <= view.height, `popover ${JSON.stringify(box)} inside ${view.width}x${view.height}`).toBe(true);
         await page.screenshot({ path: `${SHOTS}/${info.project.name}-390-terms.png` });
     });
 });

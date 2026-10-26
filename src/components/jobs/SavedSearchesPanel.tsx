@@ -24,6 +24,7 @@ import {
     deleteSavedSearch,
     effectiveSavedSearchState,
     hrefFromJobsUrlState,
+    mayCountSavedSearch,
     persistSavedSearch,
     savedSearchDisplay,
     savedSearchId,
@@ -47,6 +48,7 @@ export function SavedSearchesPanel({
     canSave,
     onApply,
     resumeQuery,
+    resumeSearchOpen,
     derivedQuery = null,
     onBeforeGuestSave,
     compact = false,
@@ -62,6 +64,8 @@ export function SavedSearchesPanel({
     onApply: (state: JobsUrlState) => void;
     /** The query the CURRENT résumé's fit derives, or null with no résumé on the device. A résumé-origin saved search follows it. */
     resumeQuery: string | null;
+    /** The board is running the résumé's own search (`isResumeOwnSearch`): the only time a résumé-origin chip is counted. */
+    resumeSearchOpen: boolean;
     /** The fit-derived query this page's search carries, null while the search is the visitor's own: a save records its origin from it. */
     derivedQuery?: string | null;
     /**
@@ -92,7 +96,7 @@ export function SavedSearchesPanel({
     const saved = savedProp.filter((s) => !removedIds.has(s.id));
     // The count effect keys on CONTENT: `saved` is a new array every render, and the effect's own
     // setState re-renders, so keying on it refetched every count in a loop.
-    const countsKey = JSON.stringify(saved.map((s) => [s.id, s.href, s.origin ?? null, resumeQuery]));
+    const countsKey = JSON.stringify(saved.filter((s) => mayCountSavedSearch(s, resumeSearchOpen)).map((s) => [s.id, s.href, s.origin ?? null, resumeQuery]));
     // A guest sees the signup gate instead of a name
     // field; the search they meant to save is saved once they sign in.
     const [gated, setGated] = useState<PendingSavedSearch | null>(null);
@@ -324,7 +328,7 @@ export function SavedSearchesPanel({
                             {terms ? (
                                 <Tooltip>
                                     <TooltipTrigger asChild>{chip}</TooltipTrigger>
-                                    <TooltipContent>{terms.join(", ")}</TooltipContent>
+                                    <TooltipContent side="bottom" align="start">{terms.join(", ")}</TooltipContent>
                                 </Tooltip>
                             ) : (
                                 chip
