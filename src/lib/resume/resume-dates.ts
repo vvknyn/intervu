@@ -16,7 +16,7 @@ export const OPEN_END = "(?:(?:till|to|until)\\s+)?date\\b|(?:present|current|no
 
 /** Requires a range separator — bare graduation years like "2016" do not match. */
 export const DATE_RANGE_RE = new RegExp(
-    `(${DATE_TOKEN})\\s*(?:-|–|—|\\s+(?:to|till|until)\\s+|\\s+-\\s+)\\s*(${DATE_TOKEN}|${OPEN_END})`,
+    `(${DATE_TOKEN})\\s*(?:[-–—\\u2010-\\u2015\\u2212]+|\\s+(?:to|till|until)\\s+)\\s*(${DATE_TOKEN}|${OPEN_END})`,
     "i",
 );
 

@@ -137,3 +137,36 @@ export function computeYearsOfExperience(experience: ResumeExperience[], now: Da
     const months = merged.reduce((sum, r) => sum + Math.max(0, fullMonthsBetween(r.start, r.end)), 0);
     return Math.floor(months / 12);
 }
+
+/** "with 9 years of experience", "1 year of experience", "8+ years of experience". */
+const STATED_YEARS_RE = /(\d+)\s*\+?\s+years?\s+of\s+experience/i;
+/** "8+ years" with no "of experience", the fallback when dates yield nothing. */
+const PLUS_YEARS_RE = /(\d+)\+\s*years/i;
+/** A month name or a numeric month ("05/2019"). "Present" is not a month. */
+const MONTH_IN_DATES_RE = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\d{1,2}[./-]\d{4}/i;
+
+/**
+ * Year-only ranges ("2015 – Present") have no month, so counting from January
+ * runs one or two years ahead of the "N years of experience" the résumé states.
+ * A career whose dates add up to under a year ("Jan–Aug" plus a summer term)
+ * floors to 0 against that same sentence. When the two are that close, the
+ * sentence wins. A month-precise history that disagrees by more than that
+ * keeps the dates.
+ */
+export function reconcileStatedYears(
+    experience: Array<{ dates?: string }>,
+    summary: string,
+    computed: number | null,
+): number {
+    const stated = summary.match(STATED_YEARS_RE);
+    const statedYears = stated ? Number(stated[1]) : null;
+    if (computed === null) {
+        const plus = summary.match(PLUS_YEARS_RE);
+        return statedYears ?? (plus ? Number(plus[1]) : 0);
+    }
+    if (statedYears === null) return computed;
+    const dated = experience.map((e) => e.dates?.trim() ?? "").filter(Boolean);
+    const yearOnly = dated.length > 0 && dated.every((d) => !MONTH_IN_DATES_RE.test(d));
+    if ((yearOnly || computed === 0) && computed >= statedYears - 1 && computed <= statedYears + 2) return statedYears;
+    return computed;
+}

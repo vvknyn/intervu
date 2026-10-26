@@ -22,7 +22,7 @@ import { markdownResumeToPlainText } from "@/lib/resume/markdown-text";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { unwrapHardWrappedLines } from "@/lib/resume/unwrap-lines";
 import { resumeCountriesFromLocation } from "@/lib/jobs/resume-location";
-import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
+import { computeYearsOfExperience, reconcileStatedYears } from "@/lib/resume/years-of-experience";
 import { ENTRY_DATES_RE, HAS_DATE_RE, MONTH } from "./resume-dates";
 import { resumeLayoutLines } from "./resume-layout-lines";
 import { TITLE_WORD_RE, cleanRoleTitle } from "./title-text";
@@ -268,8 +268,14 @@ function looksLikeNextLineCompany(line: string): boolean {
 /** The section a heading line opens ("WORK HISTORY" -> experience), or null
  *  when the line is not a heading or opens a section a résumé export has no
  *  place for ("Certifications"). */
+/** A heading's first letter is a capital. "tools" under "standards and" is a wrapped word, not a Tools section. */
+function headingIsCased(line: string): boolean {
+    const letter = headingText(line).match(/\p{L}/u)?.[0];
+    return !letter || letter === letter.toUpperCase();
+}
+
 function isSectionHeader(line: string): ResumeSection | null {
-    if (/^skills?:\s+\S/i.test(line.trim()) || !decorationAllowsHeading(line)) return null;
+    if (!headingIsCased(line) || /^skills?:\s+\S/i.test(line.trim()) || !decorationAllowsHeading(line)) return null;
     const key = normalizeSectionKey(line);
     // Fuzzy header heuristics only on heading-shaped lines — a sentence that
     // mentions "experience" or "skills" is prose, not a section break.
@@ -301,7 +307,7 @@ const EXTRA_SECTION_RE = new RegExp(`^(?:professional |relevant |selected |key )
 /** The heading of a section beyond the five modelled ones, or null. */
 export function extraSectionHeading(line: string): string | null {
     const trimmed = headingText(line);
-    if (!trimmed || trimmed.length > 50 || isSectionHeader(line) || !decorationAllowsHeading(line)) return null;
+    if (!trimmed || trimmed.length > 50 || !headingIsCased(line) || isSectionHeader(line) || !decorationAllowsHeading(line)) return null;
     return EXTRA_SECTION_RE.test(trimmed) ? trimmed : null;
 }
 
@@ -458,13 +464,30 @@ function isDateOnlyLine(line: string): boolean {
 }
 
 /**
+ * The dated line names a place and nothing else. "Toronto, ON | 2017 – 2020" is.
+ * "Humber River Health, Toronto, ON · Mar 2021 – Present" is not: the hospital
+ * sits in front of the place, and the line above is only the job title.
+ */
+function dateLineIsPlaceOnly(line: string): boolean {
+    if (!isDateOnlyLine(line)) return false;
+    const match = line.match(ENTRY_DATES_RE);
+    if (!match) return false;
+    const rest = trimEdgePunctuation(line.replace(match[0], "")).replace(/\s*[|·]\s*/g, ", ");
+    if (!rest) return true;
+    const parts = rest.split(/,\s*/).map((part) => part.trim()).filter(Boolean);
+    const { names, place } = splitTrailingPlace(parts);
+    return !(place && names.length > 0);
+}
+
+/**
  * "Software Engineer | Beta Systems" over a line that holds only its dates:
  * the next entry's header, not the last line of this one's description.
  */
 function isRoleLineOverDates(lines: string[], i: number): boolean {
-    const line = lineAt(lines, i);
+    // A scan often reads the line's colon ("Role, Employer :").
+    const line = lineAt(lines, i).replace(/[:;]+\s*$/, "");
     if (BULLET_RE.test(line) || ENTRY_DATES_RE.test(line)) return false;
-    if (line.split(/\s+/).length > 12 || /[.!?;:]$/.test(line) || !ROLE_COMPANY_SPLIT_RE.test(line)) return false;
+    if (line.split(/\s+/).length > 12 || /[.!?]$/.test(line) || !ROLE_COMPANY_SPLIT_RE.test(line)) return false;
     return isDateOnlyLine(lineAt(lines, i + 1));
 }
 
@@ -585,7 +608,9 @@ function parseExperienceBlock(lines: string[], anyName = false): { entries: Omit
         keep(unread.filter((n) => !used.includes(n)).map((n) => lines[n]));
         unread = [];
         if (!company.trim() && !role.trim()) return keep([...header, ...descLines]);
-        entries.push({ company: company.trim(), role: role.trim(), dates, description: asBullets(descLines) });
+        // A scan reads a stray "fi" or "l" after "(fictional)". A real company word is longer, or capitalised ("Ltd").
+        const companyName = company.trim().replace(/\s+[a-z]{1,2}$/, "");
+        entries.push({ company: companyName, role: role.trim(), dates, description: asBullets(descLines) });
     };
     // Company over title is the usual order of a two-line entry header.
     let titleOverCompany = false;
@@ -666,6 +691,20 @@ function parseExperienceBlock(lines: string[], anyName = false): { entries: Omit
             const nextDateMatch = nextLine.match(ENTRY_DATES_RE);
             if (nextDateMatch && !BULLET_RE.test(nextLine)) {
                 const dates = nextDateMatch[0];
+                // "Senior Accountant, Northgate Retail" over "Markham, ON | 2020 – Present":
+                // the dated line is only the place, and the line above already names the role and the employer.
+                // A title alone over "Oakwood Primary School, Manchester · 2018 – Present" is not this:
+                // that company sits on the dated line, and the branch below reads it.
+                const headerLine = line.replace(/[:;]+\s*$/, "");
+                if (dateLineIsPlaceOnly(nextLine) && ROLE_COMPANY_SPLIT_RE.test(headerLine)) {
+                    const header = parseRoleCompanyFromLine(headerLine, "");
+                    if (header.role && header.company) {
+                        const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2, anyName);
+                        push(header.company, header.role, dates, descLines, [line, nextLine]);
+                        i = nextIndex;
+                        continue;
+                    }
+                }
                 let { role, company } = parseRoleCompanyFromLine(nextLine, dates);
                 // "Primary School Teacher" over "Oakwood Primary School, Manchester · 09/2018 – Present":
                 // the line above names the role, the dated line the company and its place.
@@ -812,7 +851,11 @@ const HEADER_LABEL_RE = /^\p{L}[\p{L} ]{1,18}:\s+/u;
 
 /** The candidate's name as printed on their name line: "Amara Okafor, RN" → "Amara Okafor". */
 function nameOfLine(line: string): string {
-    return line.replace(HEADER_LABEL_RE, "").replace(/\s[—–]\s.*$|[,|·•].*$/u, "").trim();
+    const printed = line.replace(HEADER_LABEL_RE, "").replace(/\s[—–]\s.*$|[,|·•].*$/u, "").trim();
+    // "AHMED HASSAN" is the name, stored as "Ahmed Hassan". A one- or two-letter token stays capped ("AJ").
+    if (!printed || printed !== printed.toUpperCase() || !/\p{L}/u.test(printed)) return printed;
+    return printed.toLowerCase().replace(/\p{L}+/gu, (word) =>
+        word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1));
 }
 
 /**
@@ -1449,11 +1492,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         : parseSkillsBlock((sections.header ?? []).filter(isListLine));
 
     const computedYoE = computeYearsOfExperience(tempExperience, new Date());
-    let yearsOfExperience = computedYoE !== null ? computedYoE : 0;
-    if (computedYoE === null) {
-        const summaryYoE = generatedSummary.match(/(\d+)\+\s*years/i);
-        if (summaryYoE) yearsOfExperience = Number(summaryYoE[1]);
-    }
+    const yearsOfExperience = reconcileStatedYears(tempExperience, generatedSummary, computedYoE);
 
     return {
         profile: {

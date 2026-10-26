@@ -15,6 +15,8 @@ const CONNECTOR_START_RE =
     /^(?:and|or|to|for|with|across|from|including|while|that|which|into|under|by|as|on|in|at|of|the|a|an)\b/i;
 
 const EM_DASH_START_RE = /^[\u2014\u2013—-]/;
+/** The line above stopped on a word that needs the next line ("standards and", "across a"). */
+const DANGLING_END_RE = /\b(?:and|or|to|for|with|across|from|including|while|that|which|into|under|by|as|on|in|at|of|the|a|an|their|its)\s*$/i;
 
 /** Typical résumé action-verb openings for a new bullet after sentence end. */
 const ACTION_VERB_START_RE =
@@ -78,7 +80,12 @@ function isWrapContinuation(line: string, previousItem: string): boolean {
 
     if (startsWithLowercase(trimmed)) return true;
     if (startsWithConnectorOrDash(trimmed)) return true;
-    if (!previousEndedWithSentence(previousItem)) return true;
+    // Two achievements often have no period ("Teach 26 students…" / "Raised EQAO…").
+    // A wrap that still needs its last words ends on "and" or "a", so it stays one bullet.
+    if (!previousEndedWithSentence(previousItem)) {
+        if (DANGLING_END_RE.test(previousItem)) return true;
+        return !looksLikeNewBulletAfterSentence(trimmed);
+    }
 
     return false;
 }

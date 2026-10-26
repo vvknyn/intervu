@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 // Test the REAL shared chokepoint (tsx resolves the @/ alias from tsconfig).
-import { computeYearsOfExperience } from '@/lib/resume/years-of-experience';
+import { computeYearsOfExperience, reconcileStatedYears } from '@/lib/resume/years-of-experience';
 import type { ResumeExperience } from '@/types/resume';
 
 function exp(dates: string, id = 'e1'): ResumeExperience {
@@ -55,6 +55,39 @@ describe('computeYearsOfExperience', () => {
         const now = new Date(2026, 0, 1);
         const years = computeYearsOfExperience([exp('Jan 2021')], now); // no separator/end at all
         assert.equal(years, 5);
+    });
+
+    it('a stated "N years of experience" wins when year-only dates are one or two high, and when short dated work floors to 0', () => {
+        const now = new Date(2026, 9, 26);
+        const yearOnly = computeYearsOfExperience(
+            [exp('2015 - 2017'), exp('2017 - 2020'), exp('2020 - Present')],
+            now,
+        );
+        assert.equal(yearOnly, 11);
+        assert.equal(
+            reconcileStatedYears(
+                [{ dates: '2015 - 2017' }, { dates: '2017 - 2020' }, { dates: '2020 - Present' }],
+                'CPA with 9 years of experience in month-end close.',
+                yearOnly,
+            ),
+            9,
+        );
+        assert.equal(
+            reconcileStatedYears(
+                [{ dates: 'Jan 2015 - Present' }],
+                'Claims 9 years of experience.',
+                11,
+            ),
+            11,
+        );
+        assert.equal(
+            reconcileStatedYears(
+                [{ dates: 'Jan 2025 - Aug 2025' }, { dates: 'May 2024 - Aug 2024' }],
+                'Recent graduate with 1 year of experience from co-op terms.',
+                0,
+            ),
+            1,
+        );
     });
 
     it('returns null when no entry has a usable date', () => {

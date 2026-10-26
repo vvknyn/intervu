@@ -61,21 +61,28 @@ function isProse(place: string): boolean {
  * segment is not place-shaped. `marked` is true when a label or work-mode
  * qualifier said "this is where I am".
  */
-export function parsePlaceSegment(segment: string | undefined | null): { parts: string[]; marked: boolean } {
+export function parsePlaceSegment(segment: string | undefined | null): { parts: string[]; marked: boolean; qualifier: string } {
     const raw = (segment ?? "").trim();
-    const none = { parts: [], marked: false };
+    const none = { parts: [], marked: false, qualifier: "" };
     if (isNotPlaceText(raw)) return none;
     let s = raw.replace(/^[^\p{L}\p{N}(]+/u, "");
     const marked = LOCATION_LABEL_RE.test(s) || WORK_MODE_RE.test(s);
     s = s.replace(LOCATION_LABEL_RE, "").replace(WORK_MODE_PAREN_RE, "").replace(WORK_MODE_EDGE_RE, "");
     s = s.replace(EDGE_PUNCT_RE, "");
     s = s.match(/^\((.*)\)$/)?.[1].trim() ?? s;
+    // "Toronto, ON (open to remote in Canada)": the parenthetical qualifies the place, it doesn't erase it.
+    let qualifier = "";
+    const trailing = s.match(/^(.*\S)\s*\(([^)]*)\)\s*$/);
+    if (trailing?.[1] && trailing[2].trim()) {
+        qualifier = trailing[2].trim();
+        s = trailing[1].trim();
+    }
     const parts = s.split(",").map((p) => p.trim()).filter(Boolean);
     while (parts.length > 0 && /\d/.test(parts[0])) parts.shift();
     if (parts.length > 0) parts[parts.length - 1] = parts[parts.length - 1].replace(DIGIT_TOKENS_TAIL_RE, "");
     const kept = parts.filter(Boolean);
     const shaped = kept.length >= 1 && kept.length <= 3 && kept.every((p) => p.length <= 40 && PLACE_PART_RE.test(p));
-    return shaped && !isProse(kept.join(" ")) ? { parts: kept, marked } : none;
+    return shaped && !isProse(kept.join(" ")) ? { parts: kept, marked, qualifier } : none;
 }
 
 /** A comma part after the first names a country, state/province or its code (`Ontario`, `TX`, `UK`). */
@@ -152,7 +159,10 @@ export function sanitizeContactLine(line: string | undefined | null): string | n
 
 /** Drop summary fragments mistakenly stored as location; keep real places only. */
 export function sanitizeLocation(location: string | undefined | null): string {
-    return parsePlaceSegment(location).parts.join(", ");
+    const { parts, qualifier } = parsePlaceSegment(location);
+    if (parts.length === 0) return "";
+    const place = parts.join(", ");
+    return qualifier ? `${place} (${qualifier})` : place;
 }
 
 /**

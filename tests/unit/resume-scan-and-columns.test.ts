@@ -88,5 +88,9 @@ describe("scanned PDF: pictures of pages, read on the device", () => {
 
     it("tidies what the engine makes of bullets and Roman numerals", () => {
         assert.equal(tidyOcrText("« Led a crew\n+ Enhanced DBS check\nCertificate Ill in Electrotechnology"), "• Led a crew\n• Enhanced DBS check\nCertificate III in Electrotechnology");
+        assert.equal(
+            tidyOcrText("309A License « Ontario Code + PLC «Motor Controls\n• Led crews of 3 apprentices |"),
+            "309A License , Ontario Code , PLC , Motor Controls\n• Led crews of 3 apprentices",
+        );
     });
 });

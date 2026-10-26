@@ -1,0 +1,678 @@
+{
+  "generated": "2026-10-26",
+  "note": "All people, companies and contact details are fictional (example.com). Velai accepts .pdf/.docx/.txt/.md (.doc rejected); scanned PDFs go through in-browser OCR.",
+  "resumes": [
+    {
+      "file": "01_nurse_priya_desai.pdf",
+      "format": "PDF exported from DOCX via LibreOffice",
+      "field": "Nursing",
+      "name": "Priya Desai",
+      "email": "priya.desai@example.com",
+      "phone": "(905) 555-0142",
+      "location": "Mississauga, ON",
+      "current_title": "Registered Nurse",
+      "titles": [
+        "Registered Nurse, Emergency Department",
+        "Registered Nurse, Medical-Surgical"
+      ],
+      "employers": [
+        "Trillium Health Partners (fictional unit)",
+        "William Osler Health System (fictional unit)"
+      ],
+      "years_of_experience": 7,
+      "target_role": "Registered Nurse (Emergency)",
+      "seniority": "mid",
+      "skills": [
+        "Triage (CTAS)",
+        "Patient Assessment",
+        "IV Therapy",
+        "Medication Administration",
+        "ACLS",
+        "PALS",
+        "Wound Care",
+        "Epic EMR",
+        "Infection Control",
+        "Patient Education",
+        "Critical Thinking"
+      ],
+      "education": [
+        {
+          "degree": "Bachelor of Science in Nursing",
+          "school": "Toronto Metropolitan University",
+          "year": "2019"
+        }
+      ],
+      "certifications": [
+        "RN, College of Nurses of Ontario",
+        "ACLS",
+        "PALS"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "02_accountant_marcus_chen.pdf",
+      "format": "PDF styled like a Google Docs export",
+      "field": "Accounting",
+      "name": "Marcus Chen",
+      "email": "marcus.chen@example.com",
+      "phone": "(647) 555-0187",
+      "location": "Markham, ON",
+      "current_title": "Senior Accountant",
+      "titles": [
+        "Senior Accountant",
+        "Staff Accountant",
+        "Audit Associate"
+      ],
+      "employers": [
+        "Northgate Retail Group (fictional)",
+        "Lakeshore Logistics Inc. (fictional)",
+        "Bay & Front LLP (fictional)"
+      ],
+      "years_of_experience": 9,
+      "target_role": "Senior Accountant / Accounting Manager",
+      "seniority": "senior",
+      "skills": [
+        "Month-End Close",
+        "IFRS",
+        "ASPE",
+        "Financial Reporting",
+        "Account Reconciliation",
+        "NetSuite",
+        "Excel (Power Query, Pivot Tables)",
+        "Audit Coordination",
+        "HST Filings",
+        "Budgeting & Forecasting",
+        "Intercompany Accounting",
+        "Fixed Asset Accounting"
+      ],
+      "education": [
+        {
+          "degree": "Bachelor of Commerce, Accounting",
+          "school": "York University (Schulich)",
+          "year": "2015"
+        }
+      ],
+      "certifications": [
+        "CPA, CPA Ontario"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "03_electrician_daniel_okafor_scanned.pdf",
+      "format": "Scanned image-only PDF (no text layer, noise + slight rotation)",
+      "field": "Skilled trades",
+      "name": "Daniel Okafor",
+      "email": "daniel.okafor@example.com",
+      "phone": "(905) 555-0119",
+      "location": "Hamilton, ON",
+      "current_title": "Licensed Electrician (309A)",
+      "titles": [
+        "Industrial Electrician",
+        "Construction Electrician",
+        "Electrical Apprentice"
+      ],
+      "employers": [
+        "Steeltown Fabrication Ltd. (fictional)",
+        "Niagara Power Contracting (fictional)",
+        "Bayfront Electric (fictional)"
+      ],
+      "years_of_experience": 12,
+      "target_role": "Industrial Electrician",
+      "seniority": "senior",
+      "skills": [
+        "309A License",
+        "Ontario Electrical Safety Code",
+        "PLC Troubleshooting",
+        "Motor Controls",
+        "Conduit Bending",
+        "Blueprint Reading",
+        "Three-Phase Power",
+        "Lockout/Tagout",
+        "Panel Installation",
+        "Fire Alarm Systems"
+      ],
+      "education": [
+        {
+          "degree": "Electrical Techniques Diploma",
+          "school": "Mohawk College",
+          "year": "2012"
+        }
+      ],
+      "certifications": [
+        "309A Certificate of Qualification",
+        "Working at Heights",
+        "WHMIS"
+      ],
+      "expect_ocr": true
+    },
+    {
+      "file": "04_teacher_sarah_mitchell.docx",
+      "format": "DOCX",
+      "field": "Education",
+      "name": "Sarah Mitchell",
+      "email": "sarah.mitchell@example.com",
+      "phone": "(289) 555-0163",
+      "location": "Oakville, ON",
+      "current_title": "Elementary School Teacher",
+      "titles": [
+        "Grade 4/5 Teacher",
+        "Long-Term Occasional Teacher"
+      ],
+      "employers": [
+        "Halton District School Board (fictional school)",
+        "Peel District School Board (fictional school)"
+      ],
+      "years_of_experience": 5,
+      "target_role": "Elementary Teacher (Junior/Intermediate)",
+      "seniority": "mid",
+      "skills": [
+        "Ontario Curriculum",
+        "Differentiated Instruction",
+        "Classroom Management",
+        "IEP Development",
+        "Literacy Instruction",
+        "Google Classroom",
+        "Assessment & Evaluation",
+        "Special Education Part 1",
+        "Parent Communication",
+        "STEM Integration"
+      ],
+      "education": [
+        {
+          "degree": "Bachelor of Education",
+          "school": "Brock University",
+          "year": "2020"
+        },
+        {
+          "degree": "Bachelor of Arts, English",
+          "school": "McMaster University",
+          "year": "2019"
+        }
+      ],
+      "certifications": [
+        "Ontario Certified Teacher (OCT)",
+        "Special Education Part 1"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "05_logistics_lead_ahmed_hassan.txt",
+      "format": "Plain text (.txt)",
+      "field": "Logistics / supply chain",
+      "name": "Ahmed Hassan",
+      "email": "ahmed.hassan@example.com",
+      "phone": "(416) 555-0128",
+      "location": "Brampton, ON",
+      "current_title": "Logistics Team Lead",
+      "titles": [
+        "Logistics Team Lead",
+        "Shipping Coordinator",
+        "Warehouse Associate"
+      ],
+      "employers": [
+        "Peel Distribution Centre (fictional)",
+        "Highway 407 Freight (fictional)",
+        "Maple Fulfillment (fictional)"
+      ],
+      "years_of_experience": 8,
+      "target_role": "Logistics Supervisor / Warehouse Operations Lead",
+      "seniority": "mid",
+      "skills": [
+        "Warehouse Operations",
+        "Inventory Control",
+        "SAP EWM",
+        "Manhattan WMS",
+        "Shipping & Receiving",
+        "Lean / 5S",
+        "Forklift Certified",
+        "Team Leadership",
+        "KPI Reporting",
+        "Route Planning",
+        "Health & Safety (JHSC)"
+      ],
+      "education": [
+        {
+          "degree": "Diploma, Supply Chain and Operations",
+          "school": "Sheridan College",
+          "year": "2016"
+        }
+      ],
+      "certifications": [
+        "Forklift Certification",
+        "JHSC Certified Member"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "06_paralegal_elena_rossi_twocol.pdf",
+      "format": "Two-column designed PDF (coloured sidebar)",
+      "field": "Legal",
+      "name": "Elena Rossi",
+      "email": "elena.rossi@example.com",
+      "phone": "(416) 555-0174",
+      "location": "Toronto, ON",
+      "current_title": "Licensed Paralegal",
+      "titles": [
+        "Litigation Paralegal",
+        "Legal Assistant"
+      ],
+      "employers": [
+        "King & Adelaide Law LLP (fictional)",
+        "Danforth Legal Services (fictional)"
+      ],
+      "years_of_experience": 4,
+      "target_role": "Litigation Paralegal",
+      "seniority": "mid",
+      "skills": [
+        "Civil Litigation",
+        "Small Claims Court",
+        "Legal Research",
+        "Drafting Pleadings",
+        "Affidavits of Documents",
+        "Clio",
+        "PCLaw",
+        "E-Filing (Civil Submissions Online)",
+        "Client Intake",
+        "Court Scheduling"
+      ],
+      "education": [
+        {
+          "degree": "Paralegal Diploma",
+          "school": "Seneca Polytechnic",
+          "year": "2020"
+        }
+      ],
+      "certifications": [
+        "Paralegal Licence (P1), Law Society of Ontario"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "07_newgrad_dev_jordan_lee_onepage.pdf",
+      "format": "One-page PDF (exported from DOCX via LibreOffice)",
+      "field": "Software (entry level)",
+      "name": "Jordan Lee",
+      "email": "jordan.lee@example.com",
+      "phone": "(519) 555-0136",
+      "location": "Waterloo, ON",
+      "current_title": "Junior Software Developer",
+      "titles": [
+        "Software Developer Co-op",
+        "Software Developer Co-op"
+      ],
+      "employers": [
+        "Grand River Fintech (fictional)",
+        "Uptown Health Apps (fictional)"
+      ],
+      "years_of_experience": 1,
+      "target_role": "Junior Software Developer / New Grad Software Engineer",
+      "seniority": "junior",
+      "skills": [
+        "Python",
+        "JavaScript",
+        "TypeScript",
+        "React",
+        "Node.js",
+        "SQL",
+        "Git",
+        "REST APIs",
+        "Docker",
+        "Java"
+      ],
+      "education": [
+        {
+          "degree": "Bachelor of Computer Science (Co-op)",
+          "school": "University of Waterloo",
+          "year": "2026"
+        }
+      ],
+      "certifications": [],
+      "expect_ocr": false
+    },
+    {
+      "file": "08_senior_pm_natalie_brooks_long.pdf",
+      "format": "Long multi-page PDF (3+ pages)",
+      "field": "Product management",
+      "name": "Natalie Brooks",
+      "email": "natalie.brooks@example.com",
+      "phone": "(647) 555-0151",
+      "location": "Toronto, ON",
+      "current_title": "Senior Product Manager",
+      "titles": [
+        "Senior Product Manager",
+        "Product Manager",
+        "Associate Product Manager",
+        "Business Analyst"
+      ],
+      "employers": [
+        "Queen West Payments (fictional)",
+        "Liberty Village Analytics (fictional)",
+        "Yonge Street Software (fictional)",
+        "Bloor Consulting Group (fictional)"
+      ],
+      "years_of_experience": 11,
+      "target_role": "Senior Product Manager / Group Product Manager",
+      "seniority": "senior",
+      "skills": [
+        "Product Strategy",
+        "Roadmapping",
+        "User Research",
+        "A/B Testing",
+        "SQL",
+        "Amplitude",
+        "Jira",
+        "OKRs",
+        "Pricing & Packaging",
+        "Stakeholder Management",
+        "B2B SaaS",
+        "Agile / Scrum",
+        "Go-to-Market",
+        "API Products"
+      ],
+      "education": [
+        {
+          "degree": "MBA",
+          "school": "Ivey Business School, Western University",
+          "year": "2015"
+        },
+        {
+          "degree": "Bachelor of Engineering, Systems Design",
+          "school": "University of Waterloo",
+          "year": "2013"
+        }
+      ],
+      "certifications": [
+        "Certified Scrum Product Owner (CSPO)"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "09_software_engineer_wei_zhang.docx",
+      "format": "DOCX",
+      "field": "Software engineering",
+      "name": "Wei Zhang",
+      "email": "wei.zhang@example.com",
+      "phone": "(416) 555-0190",
+      "location": "Toronto, ON (open to remote in Canada)",
+      "current_title": "Software Engineer",
+      "titles": [
+        "Software Engineer II",
+        "Software Engineer",
+        "Junior Developer"
+      ],
+      "employers": [
+        "Spadina Commerce (fictional)",
+        "Distillery Data Co. (fictional)",
+        "Harbourfront Labs (fictional)"
+      ],
+      "years_of_experience": 6,
+      "target_role": "Senior Software Engineer (Backend)",
+      "seniority": "senior",
+      "skills": [
+        "Go",
+        "Python",
+        "PostgreSQL",
+        "Kafka",
+        "AWS",
+        "Kubernetes",
+        "Terraform",
+        "gRPC",
+        "Redis",
+        "CI/CD",
+        "System Design",
+        "Microservices"
+      ],
+      "education": [
+        {
+          "degree": "Bachelor of Applied Science, Computer Engineering",
+          "school": "University of Toronto",
+          "year": "2019"
+        }
+      ],
+      "certifications": [
+        "AWS Certified Developer – Associate"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "10_data_scientist_fatima_noor_twocol.pdf",
+      "format": "Two-column PDF",
+      "field": "Data science",
+      "name": "Fatima Noor",
+      "email": "fatima.noor@example.com",
+      "phone": "(613) 555-0145",
+      "location": "Ottawa, ON",
+      "current_title": "Data Scientist",
+      "titles": [
+        "Data Scientist",
+        "Junior Data Scientist"
+      ],
+      "employers": [
+        "Rideau Telecom (fictional)",
+        "Capital Analytics Office (fictional)"
+      ],
+      "years_of_experience": 3,
+      "target_role": "Data Scientist (Machine Learning)",
+      "seniority": "mid",
+      "skills": [
+        "Python",
+        "pandas",
+        "scikit-learn",
+        "PyTorch",
+        "SQL",
+        "Machine Learning",
+        "NLP",
+        "Time Series Forecasting",
+        "Tableau",
+        "A/B Testing",
+        "Statistics",
+        "Airflow",
+        "Databricks"
+      ],
+      "education": [
+        {
+          "degree": "Master of Science, Statistics",
+          "school": "University of Ottawa",
+          "year": "2022"
+        },
+        {
+          "degree": "Bachelor of Mathematics",
+          "school": "Carleton University",
+          "year": "2020"
+        }
+      ],
+      "certifications": [],
+      "expect_ocr": false
+    },
+    {
+      "file": "11_slp_hannah_kowalski_scanned.pdf",
+      "format": "Scanned image-only one-page PDF (no text layer)",
+      "field": "Healthcare / rehab",
+      "name": "Hannah Kowalski",
+      "email": "hannah.kowalski@example.com",
+      "phone": "(905) 555-0171",
+      "location": "Vaughan, ON",
+      "current_title": "Speech-Language Pathologist",
+      "titles": [
+        "Speech-Language Pathologist",
+        "Speech-Language Pathologist"
+      ],
+      "employers": [
+        "York Region Children's Therapy (fictional)",
+        "Lakeridge Rehab Clinic (fictional)"
+      ],
+      "years_of_experience": 6,
+      "target_role": "Speech-Language Pathologist (Pediatric)",
+      "seniority": "mid",
+      "skills": [
+        "Speech & Language Assessment",
+        "Articulation Therapy",
+        "AAC",
+        "Fluency Disorders",
+        "Dysphagia / Feeding",
+        "CELF-5",
+        "Hanen Certified",
+        "Treatment Planning",
+        "Parent Coaching",
+        "IEP Collaboration"
+      ],
+      "education": [
+        {
+          "degree": "Master of Health Science, Speech-Language Pathology",
+          "school": "University of Toronto",
+          "year": "2019"
+        }
+      ],
+      "certifications": [
+        "Registered SLP, CASLPO"
+      ],
+      "expect_ocr": true
+    },
+    {
+      "file": "12_occupational_therapist_ravi_patel.docx",
+      "format": "DOCX",
+      "field": "Healthcare / rehab",
+      "name": "Ravi Patel",
+      "email": "ravi.patel@example.com",
+      "phone": "(416) 555-0133",
+      "location": "Scarborough, ON",
+      "current_title": "Occupational Therapist",
+      "titles": [
+        "Occupational Therapist",
+        "OT Resident"
+      ],
+      "employers": [
+        "East GTA Home Care (fictional)",
+        "Sunnybrook Outpatient Rehab (fictional placement)"
+      ],
+      "years_of_experience": 2,
+      "target_role": "Occupational Therapist (Community / Home Care)",
+      "seniority": "junior",
+      "skills": [
+        "Functional Assessment",
+        "Home Safety Assessment",
+        "ADL Retraining",
+        "Assistive Devices",
+        "Seating & Mobility",
+        "Cognitive Assessment (MoCA)",
+        "Treatment Planning",
+        "Clinical Documentation",
+        "Client-Centred Practice"
+      ],
+      "education": [
+        {
+          "degree": "Master of Science, Occupational Therapy",
+          "school": "McMaster University",
+          "year": "2024"
+        }
+      ],
+      "certifications": [
+        "Registered OT, COTO"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "13_psychologist_dr_amara_singh_long.pdf",
+      "format": "Long multi-page PDF (3+ pages) styled like a Google Docs export",
+      "field": "Mental health",
+      "name": "Amara Singh",
+      "email": "amara.singh@example.com",
+      "phone": "(905) 555-0158",
+      "location": "Richmond Hill, ON",
+      "current_title": "Clinical Psychologist",
+      "titles": [
+        "Clinical Psychologist & Clinical Director",
+        "Staff Psychologist",
+        "Psychology Resident"
+      ],
+      "employers": [
+        "Hillcrest Psychology Group (fictional)",
+        "North York Mental Health Centre (fictional)",
+        "Ontario Shores (fictional residency)"
+      ],
+      "years_of_experience": 14,
+      "target_role": "Clinical Psychologist",
+      "seniority": "senior",
+      "skills": [
+        "Psychological Assessment",
+        "CBT",
+        "DBT",
+        "EMDR",
+        "Trauma-Informed Care",
+        "Diagnostic Interviewing (DSM-5-TR)",
+        "Psychometric Testing",
+        "Clinical Supervision",
+        "Group Therapy",
+        "Risk Assessment",
+        "Program Evaluation"
+      ],
+      "education": [
+        {
+          "degree": "PhD, Clinical Psychology",
+          "school": "York University",
+          "year": "2013"
+        },
+        {
+          "degree": "BA (Hons), Psychology",
+          "school": "Queen's University",
+          "year": "2007"
+        }
+      ],
+      "certifications": [
+        "Registered Psychologist, College of Psychologists and Behaviour Analysts of Ontario"
+      ],
+      "expect_ocr": false
+    },
+    {
+      "file": "14_truck_driver_az_kevin_murphy.txt",
+      "format": "Plain text (.txt)",
+      "field": "Transportation",
+      "name": "Kevin Murphy",
+      "email": "kevin.murphy@example.com",
+      "phone": "(905) 555-0124",
+      "location": "Milton, ON",
+      "current_title": "AZ Truck Driver",
+      "titles": [
+        "AZ Long-Haul Driver",
+        "AZ Regional Driver"
+      ],
+      "employers": [
+        "401 Corridor Transport (fictional)",
+        "Halton Reefer Lines (fictional)"
+      ],
+      "years_of_experience": 10,
+      "target_role": "AZ / Class A Long-Haul Truck Driver",
+      "seniority": "senior",
+      "skills": [
+        "AZ Licence (Class A)",
+        "Cross-Border (FAST/ACE)",
+        "Hours of Service (ELD)",
+        "Pre-Trip Inspections",
+        "Dry Van",
+        "Reefer",
+        "Flatbed Securement",
+        "TDG Certified",
+        "Defensive Driving",
+        "Clean Driver Abstract"
+      ],
+      "education": [
+        {
+          "degree": "AZ Truck Driver Training (MELT)",
+          "school": "Fleet Safety Driving School (fictional)",
+          "year": "2016"
+        },
+        {
+          "degree": "Ontario Secondary School Diploma",
+          "school": "Milton District High School",
+          "year": "2008"
+        }
+      ],
+      "certifications": [
+        "AZ Licence",
+        "TDG",
+        "FAST Card"
+      ],
+      "expect_ocr": false
+    }
+  ]
+}
