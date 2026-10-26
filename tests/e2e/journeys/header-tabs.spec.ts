@@ -108,11 +108,10 @@ test("header count-chip text meets WCAG AA contrast against its real backdrop", 
   await page.addStyleTag({ content: "*, *::before, *::after { transition: none !important; }" });
   const header = page.locator('[data-region="header"]');
   await expect(page.getByTestId("topbar-follow-alerts-count")).toBeVisible({ timeout: 30_000 });
-  // Résumé and the Tracker count are lg-only, so they are measured when the header shows them.
-  // The Tracker chip renders because the mock answers every empty-body action (follows AND applications) with one row.
+  // Résumé is lg-only, so it is measured when the header shows it. The Tracker count left the nav (it is in the /yours heading).
   const targets = [
     page.getByTestId("topbar-follow-alerts-count"),
-    ...((page.viewportSize()?.width ?? 0) >= 1024 ? [header.getByTestId("topbar-resume"), header.getByTestId("topbar-tracker-badge")] : []),
+    ...((page.viewportSize()?.width ?? 0) >= 1024 ? [header.getByTestId("topbar-resume")] : []),
   ];
   for (const target of targets) {
     await expect(target).toBeVisible();

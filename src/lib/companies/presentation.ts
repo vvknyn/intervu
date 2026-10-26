@@ -17,11 +17,13 @@ import type { OpenCount } from "./open-count";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { exhaustHiringRecord } from "./hiring-record";
-import { formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
+import { STALE_CLEAR_META, formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { formatCount } from "@/lib/format";
+import { STATUS_FILL } from "@/lib/ui/status-tokens";
+import { hiringFreshness, newestCheckAt, type HiringFreshness } from "@/lib/companies/freshness";
 
 /**
  * The open-role count as a string, everywhere the page shows it.
@@ -201,6 +203,10 @@ export type CompanyHiringAnswer = {
   /** At least one live role — the page uses it for the live indicator only;
    *  the words are already decided below. */
   hasOpenRoles: boolean;
+  /** The header's status dot, read from the same `hiringFreshness` fact as
+   *  `headline`: green "Live" only over a current check, otherwise the role
+   *  rows' neutral "Not recently verified" tone. Null with no open roles. */
+  dot: { cls: string; label: string } | null;
   /** The direct answer to "Is X hiring?", as one sentence. Rendered verbatim
    *  on the page AND handed to the FAQPage structured data, so the machine
    *  answer and the human answer cannot drift apart. */
@@ -212,6 +218,12 @@ export type CompanyHiringAnswer = {
    *  unavailable. No other source states it. */
   trackRecord: string | null;
 };
+
+/** "live on Velai right now" only over a current check; otherwise "listed", dated when we can. */
+export function listedClaim({ fresh, checkedOn }: HiringFreshness): string {
+  if (fresh) return "live on Velai right now";
+  return checkedOn ? `listed on Velai, last checked ${checkedOn}` : "listed on Velai";
+}
 
 /**
  * Answers the question the page's own `<title>` asks.
@@ -241,17 +253,23 @@ export function buildCompanyHiringAnswer(
   nowMs: number,
 ): CompanyHiringAnswer {
   const hasOpenRoles = data.openCount > 0;
+  const freshness = hiringFreshness(newestCheckAt(data.jobs), nowMs);
   const roles = data.openCount === 1 ? "open role" : "open roles";
   // The box database's record (job_listings) is the only source of the
   // opened/closed record, the one the integrity band and "Hiring now" print.
   return {
     hasOpenRoles,
+    dot: hasOpenRoles
+      ? freshness.fresh
+        ? { cls: "bg-live", label: "Live" }
+        : { cls: STATUS_FILL.intv, label: STALE_CLEAR_META.label }
+      : null,
     // No "No" on the empty branch: the page knows what Velai tracks, not
     // whether the employer is hiring somewhere it can't see. It reports the
     // former and lets the reader draw the latter. No "Yes —" on the other:
     // the count is the answer (rulebook 2026-09, GROUP-D: dash-free).
     headline: hasOpenRoles
-      ? `${openCountText(data)} ${roles} live on Velai right now`
+      ? `${openCountText(data)} ${roles} ${listedClaim(freshness)}`
       : "Velai isn't tracking any live open roles right now",
     liveCheck: buildLiveCheckFact(data, nowMs),
     trackRecord: exhaustHiringRecord(data.exhaust, nowMs),
@@ -302,16 +320,31 @@ export function typicalPayText(jobs: PublicJob[]): string | null {
   return lo === hi ? `${currency} ${lo}/yr` : `${currency} ${lo}–${hi}/yr`;
 }
 
-/** Real page data only — degrades to a generic line when there are zero open
- *  roles rather than fabricating a count, and says "at least" rather than
- *  stating a floor as a total. */
+/** The page's one freshness fact (the header's, `hiringFreshness`) over the loaded window. */
+function pageFreshness(data: CompanyPageData): HiringFreshness {
+  return hiringFreshness(newestCheckAt(data.jobs), data.nowMs);
+}
+
+/** Real page data only. "live, verified" is said only over a current check
+ *  (`hiringFreshness`, the same fact as the header); otherwise it says "listed"
+ *  with the last-checked date. Degrades to a generic line with zero open roles
+ *  rather than fabricating a count, and says "at least" for a floor. */
 export function companyMetaDescription(data: CompanyPageData): string {
   if (data.openCount > 0) {
     const roles = data.openCount === 1 ? "role" : "roles";
     const count = data.openCountIsLowerBound ? `at least ${formatCount(data.openCount)}` : formatCount(data.openCount);
-    return `${data.name} has ${count} live, verified open ${roles} tracked on Velai, screened for ${GHOST_JOB_TERM} risk.`;
+    const freshness = pageFreshness(data);
+    if (freshness.fresh) return `${data.name} has ${count} live, verified open ${roles} tracked on Velai, screened for ${GHOST_JOB_TERM} risk.`;
+    const checked = freshness.checkedOn ? `, last checked ${freshness.checkedOn}` : "";
+    return `${data.name} has ${count} open ${roles} listed on Velai${checked}, screened for ${GHOST_JOB_TERM} risk.`;
   }
-  return `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on Velai.`;
+  return `Track job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on Velai.`;
+}
+
+/** SERP/OG/Twitter title: "Live verified" only over a current check, like the description. */
+export function companyMetaTitle(data: CompanyPageData): string {
+  const jobs = data.openCount > 0 && !pageFreshness(data).fresh ? "Open roles" : "Live verified jobs";
+  return `Is ${data.name} hiring? ${jobs} & ${GHOST_JOB_TERM} risk`;
 }
 
 /**
@@ -341,7 +374,7 @@ export async function buildCompanyPageMetadata(
   data: CompanyPageData,
   fetchInSitemapSet: typeof fetchCompanyInSitemapSet = fetchCompanyInSitemapSet,
 ): Promise<Metadata> {
-  const title = `Is ${data.name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`;
+  const title = companyMetaTitle(data);
   const description = companyMetaDescription(data);
   const indexability = resolveCompanyIndexability({ inSitemapSet: await fetchInSitemapSet(data.domain) });
   const path = companyBoardPath(data.domain);

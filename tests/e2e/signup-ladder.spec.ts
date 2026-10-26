@@ -1,7 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   clickVisibleSignIn,
-  marketingTopBarCreateAccount,
   marketingTopBarSignIn,
   visibleSignInLocator,
 } from './helpers/signed-out-auth-entry';
@@ -39,22 +38,22 @@ test.describe('SIGNUP-LADDER - TopBar auth CTA contract', () => {
     const signIn = await visibleSignInLocator(page);
     await expect(signIn).toBeVisible();
     await expect(signIn).toHaveText('Sign in');
-    await expect(page.getByTestId('topbar-create-account')).toBeHidden();
+    await expect(page.getByTestId('topbar-create-account')).toHaveCount(0);
 
     await clickVisibleSignIn(page);
     await expect(page.getByRole('dialog')).toBeVisible();
   });
 
-  test('TC-LADDER-002: marketing /about shows TopBar Sign in + Create account', async ({ page }) => {
+  test('TC-LADDER-002: marketing /about shows the one TopBar Sign in; Create account is a tab in the dialog', async ({ page }) => {
     await page.goto('/about');
     await page.waitForLoadState('networkidle');
 
     await expect(marketingTopBarSignIn(page)).toBeVisible();
-    await expect(marketingTopBarCreateAccount(page)).toBeVisible();
-    await expect(marketingTopBarCreateAccount(page)).toHaveText('Create account');
+    await expect(page.getByTestId('topbar-create-account')).toHaveCount(0);
 
-    await marketingTopBarCreateAccount(page).click();
+    await marketingTopBarSignIn(page).click();
     await expect(page.getByRole('dialog')).toBeVisible();
+    await page.getByRole('tab', { name: 'Create account' }).click();
     await expect(page.getByRole('heading', { name: 'Create account', level: 1 })).toBeVisible();
   });
 
@@ -65,6 +64,6 @@ test.describe('SIGNUP-LADDER - TopBar auth CTA contract', () => {
 
     await expect(page.getByTestId('topbar-avatar')).toBeVisible();
     await expect(page.getByTestId('topbar-signin')).toBeHidden();
-    await expect(page.getByTestId('topbar-create-account')).toBeHidden();
+    await expect(page.getByTestId('topbar-create-account')).toHaveCount(0);
   });
 });

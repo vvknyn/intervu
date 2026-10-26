@@ -1,4 +1,4 @@
-import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { eventDate } from "@/lib/format";
 import { resolveFundingOrListingCell } from "@/lib/companies/exhaust";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { prettyEnum } from "@/lib/jobs/presentation";

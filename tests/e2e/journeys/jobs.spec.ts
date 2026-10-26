@@ -120,7 +120,7 @@ for (const visitor of VISITORS) {
     await expectBoard(page, 30_000);
     const meta = page.getByTestId("job-row-meta");
     await expect(meta.first()).toBeVisible();
-    // Clamped to at most two lines (the full string is in `title`), never the old single-line ellipsis.
+    // Clamped to at most two lines (wrapped in full, no tooltip), never the old single-line ellipsis.
     const tooTall = await meta.evaluateAll((els) => els.filter((e) => e.clientHeight > 2 * parseFloat(getComputedStyle(e).lineHeight) + 1).length);
     expect(tooTall).toBe(0);
   });

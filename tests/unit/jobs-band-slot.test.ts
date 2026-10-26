@@ -23,7 +23,7 @@ describe("the one band slot", () => {
         const listSlot = mounts[1];
         assert.ok(listSlot < PAGE.indexOf("<BoardVisitBanner"), "band precedes the list's banners");
         assert.ok(listSlot < PAGE.indexOf("<ExtensionTile"));
-        assert.ok(listSlot < PAGE.indexOf("data-testid=\"resume-read-strip\""));
+        assert.ok(listSlot < PAGE.indexOf("{resumeReadStripEl}"));
         assert.equal(PAGE.split("<FrontDoorResumeBand").length - 1, 1, "one element, mounted via resumeBandEl");
         assert.doesNotMatch(PAGE, /frontDoorBandVisible/, "no trailing mount keyed on the old gate");
     });

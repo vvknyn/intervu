@@ -100,15 +100,15 @@ describe("dock trigger: presence follows the search, not scroll position", () =>
 });
 
 describe("dock chips: sourced from activeFilterEntries only", () => {
-    it("the dock effect's chip list maps FacetBar leftovers — not duplicates of dropdown chips", () => {
+    it("the dock effect's chip list maps every active filter — there are no facet dropdowns to duplicate", () => {
         const src = stripComments(JOBS);
         assert.match(
             src,
             // 6feaf72c (#366) routes them through buildDockedChips, which prepends the location-default chip.
-            /chips:\s*buildDockedChips\([^)]*unnamedEntries\.map\(\(entry\)\s*=>\s*\({\s*key:\s*entry\.key,\s*label:\s*chipLabelForEntry\(entry\)\s*}\)\)/,
-            "header chips must use entriesNeedingOwnChip(activeEntries) so FacetBar-owned filters are not duplicated",
+            /chips:\s*buildDockedChips\([^)]*activeEntries\.map\(\(entry\)\s*=>\s*\({\s*key:\s*entry\.key,\s*label:\s*chipLabelForEntry\(entry\)\s*}\)\)/,
+            "header chips must map every entry of activeEntries: Filters is the one place to change them",
         );
-        assert.match(src, /entriesNeedingOwnChip\(activeEntries, facetBarRepresents/);
+        assert.doesNotMatch(src, /FacetBar|entriesNeedingOwnChip/);
     });
 
     it("the toolbar's own copy stands down once the header owns the search", () => {
@@ -118,7 +118,7 @@ describe("dock chips: sourced from activeFilterEntries only", () => {
         // active" is the duplicate-affordance regression this whole feature
         // was built to avoid repeating.
         const src = stripComments(JOBS);
-        assert.match(src, /!headerDockActive && unnamedEntries\.map/);
+        assert.match(src, /!headerDockActive && activeEntries\.length > 0/);
         assert.match(src, /showsFiltersToggle\(facetsMountSite\) && !headerDockActive/);
     });
 });
