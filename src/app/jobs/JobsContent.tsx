@@ -5859,11 +5859,12 @@ export function JobsContent({
                                 every other SETTLED panel (ask, not-connected, error, empty)
                                 gets it here, once, above the panel, docked or not (the header
                                 never carries it). "loading" is excluded: a refinement goes
-                                list -> loading -> list (stale hits still show as loading), and
-                                mounting the control in the loading step would remount it twice
-                                per refinement, re-firing every saved search's new-count request
-                                each time. The empty panel's own `searchAlertSlot` is the Job
-                                alert, not this. */}
+                                list -> loading -> list, and loading replaces the list with the
+                                splash (stale hits are not kept on screen). The control leaves
+                                with the list and comes back with it, which is one count burst.
+                                Mounting it here during the splash would be a second mount in
+                                that same refinement and would count every saved search again.
+                                The empty panel's own `searchAlertSlot` is the Job alert, not this. */}
                             {resultsPanel !== "list" && resultsPanel !== "loading" && savedSearchControl && (
                                 <div data-testid="jobs-saved-searches-row" className="mb-3 flex px-[var(--list-inset)] text-sm empty:hidden">
                                     {savedSearchControl}
