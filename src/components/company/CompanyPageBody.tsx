@@ -69,7 +69,7 @@ export function CompanyPageBody({
   const ghostPctIsCompanyWide = sampleCoversAllRoles(data);
   const hiring = buildCompanyHiringAnswer(data, data.nowMs);
   const staleShare = staleShareText(data);
-  const faq = buildCompanyFaq(data.facts);
+  const faq = buildCompanyFaq(data.facts, data.nowMs);
   const roles = (
     <CompanyRoleSearch
       jobs={data.jobs}

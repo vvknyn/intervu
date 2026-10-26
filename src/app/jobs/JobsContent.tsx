@@ -141,8 +141,8 @@ import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { jobActionSize, toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { resultSetAnalyticsId } from "@/lib/analytics/result-set-id";
-import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
+import { resultClickedPayload } from "@/lib/analytics/result-payloads";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
@@ -316,7 +316,7 @@ import {
 import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters, derivedByFit, withoutResumeDerived, type FitApplication } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters, derivedByFit, listShapedByResume, withoutResumeDerived, type FitApplication } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, omitsPastSenior, resumeDefaultLanguages, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { scoringPreferences } from "@/lib/agent-preferences-read";
@@ -2528,10 +2528,7 @@ export function JobsContent({
         // One call site covers both SERP rows and the detail pane's "also in"
         // rail, because `onOpenRelated` is wired to this same function.
         if (rank >= 0) {
-            captureEvent("result_clicked", {
-                position: rank,
-                job_id: id,
-                source: "serp",
+            captureEvent("result_clicked", resultClickedPayload({ jobId: id, position: rank, resumeShaped: listShapedByResume(fitActiveRef.current, resumeDerivedRef.current) }, {
                 // Keyed on `resultRef.current?.searchId`, NOT `lastSearchId`:
                 // a load-more page fetch mints its own `lastSearchId` but
                 // `setResult` never overwrites `searchId` when appending a
@@ -2545,8 +2542,7 @@ export function JobsContent({
                 // How old the opened role was: whether searchers open fresh
                 // roles or older ones is what the posted-date window is tuned on.
                 ...postedAgeAnalyticsProps(hit),
-                ...matchAnalyticsProps(matchScores?.get(id) ?? null),
-            });
+            }));
         }
         const alreadyOpened = openedIds.has(id);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
@@ -3222,7 +3218,7 @@ export function JobsContent({
     // `result_clicked`/`apply_clicked` read (via `resultRef.current
     // ?.searchId`) so impressions and the clicks they produce always join
     // on one query_id: the list's analytics id, not `searchId` itself.
-    useResultImpressions(resultsListRef, "serp", resultSetAnalyticsId(result?.searchId));
+    useResultImpressions(resultsListRef, "serp", resultSetAnalyticsId(result?.searchId), listShapedByResume(fitActive, resumeDerivedRef.current));
     useListRenderTiming({
         searchId: result?.searchId,
         rows: result?.hits.length ?? 0,
@@ -3678,7 +3674,6 @@ export function JobsContent({
             // `useResultImpressions` is armed with for the currently-rendered
             // result set (SPEC §5), never the search log's `searchId`.
             ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
-            ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
         });
         gatedOpenPosting(job);
     };
@@ -3733,7 +3728,6 @@ export function JobsContent({
             toast.success("Applied — nice work");
             captureEvent("job_marked_applied", {
                 job_id: job.id,
-                ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
             });
         } catch (e) {
             setOptimisticPursuits((prev) => {
@@ -3811,7 +3805,6 @@ export function JobsContent({
                 toast.success(GUEST_SAVE_TOAST);
                 captureEvent("job_saved", {
                     job_id: job.id,
-                    ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
                 });
             } catch (e) {
                 setOptimisticPursuits((prev) => {
@@ -5499,7 +5492,7 @@ export function JobsContent({
                         with the chip row under it. */}
                     <div
                         data-testid="jobs-toolbar-rows"
-                        className="no-scrollbar flex w-full min-w-0 items-center gap-2 overflow-x-auto @2xl:block @2xl:overflow-x-clip"
+                        className="no-scrollbar scroll-hit flex w-full min-w-0 items-center gap-2 overflow-x-auto @2xl:block @2xl:overflow-x-clip"
                     >
                     {showJobsToolbarRow && (
                     <div

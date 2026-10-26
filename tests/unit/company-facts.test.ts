@@ -127,7 +127,7 @@ describe("buildCompanyFacts", () => {
         );
         assert.equal(f.hiring.openCount, 1240);
         assert.equal(f.hiring.lastPostedAt, "2026-10-01T00:00:00Z");
-        assert.equal(f.hiring.lastSeenAliveAt, "2026-10-20T00:00:00Z");
+        assert.equal(f.hiring.checkedAt, "2026-10-20T00:00:00Z");
         assert.deepEqual(f.mix.workType, { buckets: [{ value: "Remote", count: 700 }, { value: "Hybrid", count: 100 }], stated: 800, total: 1240 });
         assert.deepEqual(f.mix.visaSponsorship, { sponsors: 30, stated: 100, total: 1240 });
         assert.deepEqual(f.mix.countries?.buckets, [{ value: "United States", count: 950 }]);

@@ -134,6 +134,15 @@ export function derivedByFit(base: JobsUrlState, fit: FitApplication): FitApplic
 }
 
 /**
+ * Whether the list on screen was shaped by the résumé: ranked by fit (its order) or built from what the fit
+ * derived (its query, facets, window; they stay in the state when the visitor switches the sort away). Analytics
+ * for such a list carry neither its order nor its rows (`resultClickedPayload`, `resultsImpressedPayload`).
+ */
+export function listShapedByResume(rankedByFit: boolean, derived: FitApplication | null): boolean {
+    return rankedByFit || derived != null;
+}
+
+/**
  * The state as it is written to an address: whatever the résumé's fit derived (its query, its facets, its window)
  * stays out, and `sort=fit` alone says the list is ranked by fit. The address reaches the Referer header, access
  * logs, a reload and the sign-up and sign-in links, so résumé-derived words leave the browser only in the search

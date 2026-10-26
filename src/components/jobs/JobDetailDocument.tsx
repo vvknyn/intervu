@@ -325,7 +325,7 @@ export function JobDetailDocument({
     const blocks = formatDescription(job.description);
     const exceptionMark = rowExceptionMark(job, now);
 
-    useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
+    useJobViewedCapture({ job, source });
 
     const [related, setRelated] = useState<RelatedJobs>(NO_RELATED);
     // A string key, not the job object — see JobDetail.tsx.

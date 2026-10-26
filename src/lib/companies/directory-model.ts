@@ -196,6 +196,9 @@ export const DIRECTORY_READER = { read: readMemo };
 
 export const getDirectory = (): Promise<ListedDirectory> => DIRECTORY_READER.read();
 
+/** Whether the BUILT directory lists `domain`, never waiting on or starting a build (false when none is built yet). The snapshot the sitemap and letter pages list from. */
+export const isListedInBuiltDirectory = (domain: string): boolean => flights.__velaiDirectoryFlight?.value?.companies.some((c) => c.domain === domain) ?? false;
+
 /**
  * Whether `domain` is listed: the one rule that makes a company page indexable (see indexable.ts).
  * A directory that cannot be read rejects: a failed read is not a membership answer, so the page

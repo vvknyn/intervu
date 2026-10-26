@@ -4,7 +4,7 @@ import { resolveIndexableCompanies } from "@/lib/seo/sitemap-entries";
 import type { OpenCount } from "./open-count";
 import type { CompanyFacts } from "./company-facts";
 import { searchJobs } from "@/lib/jobs/search";
-import { categoryLabel } from "./machine-token";
+import { wikidataLabel } from "./machine-token";
 import { pickWikidata } from "./exhaust";
 import type { FacetKey, JobSearchParams, JobSearchResult } from "@/lib/jobs/types";
 
@@ -61,7 +61,7 @@ export function industryPeers(
   const peers = indexable.filter((c) => c.domain !== self).map((c) => ({ domain: c.domain, shared: sharedByAll(c) }));
   for (const label of own) {
     const named = peers.filter((p) => p.shared.includes(industryKey(label)));
-    if (named.length) return { value: categoryLabel(label), hitDomains: named.flatMap((p) => p.shared.map(() => p.domain)) };
+    if (named.length) return { value: wikidataLabel(label), hitDomains: named.flatMap((p) => p.shared.map(() => p.domain)) };
   }
   return null;
 }

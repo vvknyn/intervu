@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
 import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
 import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
+import { eventDate } from "@/components/company/CompanyChangeEvents";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { SectionTitle } from "@/components/ui/heading";
 import type { CompanyFaqItem } from "@/lib/companies/company-faq";
@@ -130,7 +131,8 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
     const h = facts.hiring;
     const lines = [
       exhaustHiringRecord(exhaust, nowMs),
-      h.lastPostedAt && `Newest role posted ${h.lastPostedAt.slice(0, 10)}`,
+      h.lastPostedAt && eventDate(h.lastPostedAt) && `Newest role posted ${eventDate(h.lastPostedAt)}`,
+      h.checkedAt && eventDate(h.checkedAt) && `Last checked ${eventDate(h.checkedAt)}`,
       h.monitoredSince && !trackingStartedInWindow(h.monitoredSince, nowMs) && `Watched since ${monthYear(h.monitoredSince)}`,
     ].filter(Boolean);
     return (
