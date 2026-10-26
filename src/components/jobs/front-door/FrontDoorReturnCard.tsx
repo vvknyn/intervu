@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "@phosphor-icons/react";
 import { countNewSinceAction } from "@/actions/jobs";
+import { Dismissible } from "@/components/ui/dismissible";
 import { formatNewSinceVisit } from "@/lib/jobs/format-new-since-visit";
 import { DEFAULT_URL_STATE } from "@/lib/jobs/url-state";
 import { hasVisitCursor, readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
@@ -85,36 +85,32 @@ export function FrontDoorReturnCard({
     return (
         <div
             data-testid="front-door-return-card"
-            className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-[var(--list-inset)] pb-3 pt-2 text-sm"
+            className="mb-3 border-b border-border px-[var(--list-inset)] pb-3 pt-2 text-sm"
         >
-            <div className="min-w-0">
-                <p className="truncate font-semibold text-foreground">{recentQuery}</p>
-                {newCount && (
-                    <p className="mt-0.5 text-xs font-semibold text-brand">
-                        {formatNewSinceVisit(newCount)} since your last visit
-                    </p>
-                )}
-            </div>
-            <span className="inline-flex shrink-0 items-center gap-2">
-                <button
-                    type="button"
-                    onClick={() => onRerun(recentQuery)}
-                    className="ctl-md ctl-button border border-border bg-surface px-3 text-foreground transition-colors hover:bg-muted"
-                >
-                    Run search
-                </button>
-                <button
-                    type="button"
-                    aria-label="Dismiss"
-                    onClick={() => {
-                        dismissForSession();
-                        setDismissed(true);
-                    }}
-                    className="ctl-md ctl-button flex ctl-square items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    <X size={16} aria-hidden />
-                </button>
-            </span>
+            <Dismissible
+                onDismiss={() => {
+                    dismissForSession();
+                    setDismissed(true);
+                }}
+            >
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                    <div className="min-w-0">
+                        <p className="truncate font-semibold text-foreground">{recentQuery}</p>
+                        {newCount && (
+                            <p className="mt-0.5 text-xs font-semibold text-brand">
+                                {formatNewSinceVisit(newCount)} since your last visit
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => onRerun(recentQuery)}
+                        className="ctl-md ctl-button border border-border bg-surface px-3 text-foreground transition-colors hover:bg-muted"
+                    >
+                        Run search
+                    </button>
+                </div>
+            </Dismissible>
         </div>
     );
 }

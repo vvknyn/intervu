@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "@phosphor-icons/react";
 import Link from "next/link";
 import { McpHandoffActions } from "@/components/mcp/McpHandoffActions";
+import { Dismissible } from "@/components/ui/dismissible";
 import { type JobHandoffInput } from "@/lib/mcp/job-handoff";
 import { readMcpHandoffNoteDismissed, writeMcpHandoffNoteDismissed } from "@/lib/mcp/handoff-note-dismiss";
 import { cn } from "@/lib/utils";
@@ -78,43 +78,33 @@ export function McpHandoffNote({
         setDismissed(true);
     };
 
-    const dismissButton = dismissible ? (
-        <button
-            type="button"
-            aria-label="Dismiss"
-            data-testid="mcp-handoff-dismiss"
-            onClick={dismiss}
-            className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-muted-foreground hover:bg-background hover:text-foreground"
-        >
-            <X size={16} aria-hidden />
-        </button>
-    ) : null;
-
-    if (!job) {
-        return (
-            <div className={cn("flex items-start gap-2 rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
-                <div className="min-w-0 flex-1">
-                    {copy.heading && <p className="mb-1 font-semibold text-foreground">{copy.heading}</p>}
-                    {copy.sentence}{" "}
-                    <Link href="/connect" className="font-semibold text-brand underline underline-offset-4 hover:text-brand">
-                        Connect it once
-                    </Link>
-                </div>
-                {dismissButton}
-            </div>
-        );
-    }
+    const body = job ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="min-w-[16ch] flex-1">
+                {copy.heading && <span className="block font-semibold text-foreground">{copy.heading}</span>}
+                {copy.sentence}
+            </p>
+            <McpHandoffActions job={job} />
+        </div>
+    ) : (
+        <>
+            {copy.heading && <p className="mb-1 font-semibold text-foreground">{copy.heading}</p>}
+            {copy.sentence}{" "}
+            <Link href="/connect" className="font-semibold text-brand underline underline-offset-4 hover:text-brand">
+                Connect it once
+            </Link>
+        </>
+    );
 
     return (
         <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <p className="min-w-[16ch] flex-1">
-                    {copy.heading && <span className="block font-semibold text-foreground">{copy.heading}</span>}
-                    {copy.sentence}
-                </p>
-                <McpHandoffActions job={job} />
-                {dismissButton}
-            </div>
+            {dismissible ? (
+                <Dismissible onDismiss={dismiss} dismissTestId="mcp-handoff-dismiss">
+                    {body}
+                </Dismissible>
+            ) : (
+                body
+            )}
         </div>
     );
 }
