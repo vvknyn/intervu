@@ -15,6 +15,7 @@ import {
     trackerResumeMetaLabel,
     visibleTrackerBoardColumns,
 } from "../../src/lib/pursuits/tracker-display";
+import { trackerPageHeading } from "../../src/lib/pursuits/tracker-voice-copy";
 import type { Pursuit } from "../../src/lib/pursuits/types";
 
 function pursuit(overrides: Partial<Pursuit> = {}): Pursuit {
@@ -160,6 +161,12 @@ test("countOpenPursuits leaves rejected and withdrawn roles out of the Tracker c
     assert.equal(countOpenPursuits(stages.map((status) => pursuit({ status }))), 5);
     assert.equal(countOpenPursuits([pursuit({ status: "rejected" }), pursuit({ status: "withdrawn" })]), 0);
     assert.equal(countOpenPursuits([]), 0);
+});
+
+test("trackerPageHeading carries the open count, singular and plural, and stays bare at zero", () => {
+    assert.equal(trackerPageHeading(0), "Tracker");
+    assert.equal(trackerPageHeading(1), "Tracker · 1 job");
+    assert.equal(trackerPageHeading(12), "Tracker · 12 jobs");
 });
 
 test("groupPursuitsByBoardColumn buckets by boardColumn exhaustively", () => {

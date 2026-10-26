@@ -22,8 +22,8 @@ test.describe('JOBS-UNDERSTOOD', () => {
         await expect(note).toContainText(/remote/i);
         await expect(note).toContainText('Canada');
 
-        // The work mode lands on its standing Work-mode chip; the place on an ordinary removable chip.
-        await expect(page.getByTestId('facet-chip-work-mode')).toContainText('Remote');
+        // The work mode and the place each land on an ordinary removable chip.
+        await expect(page.getByTestId('active-filter-chip').filter({ hasText: 'Remote' })).toBeVisible();
         const placeChip = page.getByTestId('active-filter-chip').filter({ hasText: 'Canada' });
         await expect(placeChip).toBeVisible();
         await expect(page).toHaveURL(/work=remote/);

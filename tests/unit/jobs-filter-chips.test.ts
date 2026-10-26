@@ -3,11 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { pickRemoteFacetValue, nextSalaryPreset } from "../../src/components/jobs/FilterChipsRow";
 import {
-    entriesNeedingOwnChip,
     chipLabelForEntry,
     facetKeyLabel,
+    taggedShareCaption,
 } from "../../src/components/jobs/FilterPanel";
-import { FACET_BAR_FACETS, facetBarRepresents } from "../../src/components/jobs/FacetBar";
 import { FACETABLE_KEYS, type FacetKey } from "../../src/lib/jobs/types";
 
 // Controller resolution #1 (Task 10): the "Remote" chip must derive its
@@ -64,46 +63,6 @@ test("steps UP from an off-ladder value instead of clearing", () => {
 
 test("wraps an off-ladder value above every preset back to Any", () => {
     assert.equal(nextSalaryPreset(999_000), 0);
-});
-
-/**
- * The toolbar's per-filter chip row was removed 2026-08-15 as "duplicate
- * information" — correct for the filters the FacetBar shows as dropdowns,
- * wrong for the ones it doesn't. `location_country` is set from the location
- * box and has no chip anywhere, so setting a location left "Clear filters
- * (1)" naming nothing. These pin the rule that decides which entries the
- * toolbar has to name itself.
- */
-test("entriesNeedingOwnChip: keeps only what the FacetBar has no control for", () => {
-    const entries = [
-        { key: "location_country:Bangalore" },
-        { key: "work_type:remote" },
-        { key: "experience_level:senior" },
-        { key: "employment_type:contract" },
-        { key: "salaryMin" },
-        { key: "postedBucket" },
-        { key: "visaOnly" },
-    ];
-    const kept = entriesNeedingOwnChip(entries, facetBarRepresents(true)).map((e) => e.key);
-    assert.deepEqual(kept, ["location_country:Bangalore", "employment_type:contract", "visaOnly"]);
-});
-
-test("entriesNeedingOwnChip: when the backend can't do posted-date, the bar hides that chip — so the toolbar must name it", () => {
-    const entries = [{ key: "postedBucket" }, { key: "work_type:remote" }];
-    assert.deepEqual(
-        entriesNeedingOwnChip(entries, facetBarRepresents(false)).map((e) => e.key),
-        ["postedBucket"],
-        "a filter the bar stopped rendering is no longer represented by it",
-    );
-});
-
-test("facetBarRepresents never claims a facet that isn't facetable — a typo here would silently hide a chip forever", () => {
-    for (const f of FACET_BAR_FACETS) {
-        assert.ok(
-            (FACETABLE_KEYS as readonly string[]).includes(f.key),
-            `${f.key} is not in FACETABLE_KEYS`,
-        );
-    }
 });
 
 test("chipLabelForEntry: a facet entry names its filter; a standalone entry is already a phrase", () => {
@@ -164,3 +123,12 @@ test("the quick-filter row cannot open the panel at all", () => {
     // It is still a quick-filter row, not an empty div.
     assert.match(chipsRowCode, /aria-label="Quick filters"/);
 });
+
+for (const kind of ["work", "visa"] as const) {
+    test(`taggedShareCaption(${kind}): null none, 0 says none list it, under 0.5% says under 1%, else ~N%`, () => {
+        assert.equal(taggedShareCaption(null, kind), undefined);
+        assert.match(taggedShareCaption(0, kind)!, /^no roles here list (work mode|sponsorship info)$/);
+        assert.match(taggedShareCaption(0.003, kind)!, /under 1% of roles$/);
+        assert.match(taggedShareCaption(0.42, kind)!, /~42% of roles$/);
+    });
+}

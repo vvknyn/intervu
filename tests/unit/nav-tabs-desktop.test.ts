@@ -35,7 +35,7 @@ test("the nav has exactly one résumé entry and it points at /resume, not the A
 
 test("resumeTabLabel reflects résumé presence, connected and not", () => {
     assert.equal(resumeTabLabel(false), "Add résumé");
-    assert.equal(resumeTabLabel(true), "Résumé & AI");
+    assert.equal(resumeTabLabel(true), "Résumé");
 });
 
 test("NAV_TABS no longer markets /prep or /resume-builder as top-level nav", () => {

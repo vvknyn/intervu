@@ -285,9 +285,10 @@ export function SavedSearchesPanel({
                     {saved.map((s) => (
                         <li key={s.id} className={cn(
                             compact
-                                ? "inline-flex items-center gap-1"
+                                ? "inline-flex items-center gap-1 text-sm text-muted-foreground"
                                 : "inline-flex ctl-lg items-center gap-1 rounded-pill bg-muted px-2.5",
                         )}>
+                            {compact && <span>Saved:</span>}
                             <button
                                 type="button"
                                 data-testid="saved-search-item"
@@ -297,7 +298,7 @@ export function SavedSearchesPanel({
                                 }}
                                 className={cn(
                                     compact
-                                        ? "max-w-[8rem] truncate text-xs text-foreground underline underline-offset-2 hover:no-underline"
+                                        ? "max-w-[14rem] truncate text-sm text-muted-foreground transition-colors hover:text-foreground hover:underline"
                                         : "max-w-[10rem] truncate text-xs text-foreground hover:underline",
                                 )}
                                 title={s.name}
@@ -307,16 +308,16 @@ export function SavedSearchesPanel({
                             {(newCounts[s.id]?.value ?? 0) >= 1 && (
                                 <span
                                     data-testid="saved-search-new-count"
-                                    className="text-xs font-semibold text-brand"
+                                    className="text-sm text-muted-foreground"
                                 >
-                                    +{formatCorpusCount(newCounts[s.id])}
+                                    · {formatCorpusCount(newCounts[s.id])} new
                                 </span>
                             )}
                             <button
                                 type="button"
                                 data-testid="saved-search-remove"
                                 onClick={() => void removeSaved(s)}
-                                className="text-muted-foreground hover:text-foreground ml-0.5"
+                                className="ml-1.5 inline-flex size-8 items-center justify-center text-muted-foreground hover:text-foreground"
                                 aria-label={`Remove saved search ${s.name}`}
                             >
                                 <X />

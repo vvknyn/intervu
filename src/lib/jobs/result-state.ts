@@ -666,6 +666,31 @@ export function resolveJobsResultsPanel(input: {
 }
 
 /**
+ * Whether the saved-search row above the results panel is mounted, and the
+ * memory the next panel reads.
+ *
+ * The list's action row is the control's home while a list is showing, so
+ * the above-panel row stays off for "list" and for a splash that follows a
+ * list. Mounting a second copy during that splash counted every saved
+ * search again in the same refinement. A settled non-list panel (ask,
+ * not-connected, error, empty) is the other home. A splash that follows one
+ * of those keeps the same row: the first search often settles empty, then
+ * a support probe refetches, and dropping the row for that splash counted
+ * every saved search a second time. The first splash, before any settled
+ * panel, mounts nothing.
+ */
+export function holdSavedSearchAbovePanel(
+    panel: JobsResultsPanel,
+    held: boolean,
+): { show: boolean; held: boolean } {
+    const nextHeld = panel === "list" ? false : panel === "loading" ? held : true;
+    return {
+        show: panel !== "list" && (panel !== "loading" || nextHeld),
+        held: nextHeld,
+    };
+}
+
+/**
  * A4 — the end-of-list line's honesty check. `hits.length` stops growing at
  * TWO different ceilings that page.tsx's own `hasMore` conflates into one
  * "no more to load" signal: the corpus is genuinely exhausted, OR pagination

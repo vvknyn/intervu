@@ -1382,8 +1382,8 @@ test("calm pass R4: backdrop-filter exists only in the one `material-bar` utilit
 test("material-bar fill hides content without the blur (alpha floor + reduced-transparency)", () => {
     const util = GLOBALS.replace(/\/\*[\s\S]*?\*\//g, "").match(/@utility material-bar\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
     const alpha = Number(util.match(/^\s{2}background-color:\s*rgb\(var\(--background\) \/ ([\d.]+)\)/m)?.[1]);
-    // 0.94 keeps white text under the bar at 1.13:1 against the fill; 0.85 leaves 1.48:1 (readable).
-    assert.ok(alpha >= 0.94, `material-bar fill alpha ${alpha} is below the 0.94 legibility floor`);
+    // 0.98 (user ruling Oct 25: 0.94 ghosted text in WebKit) is the floor; 0.94 kept white text under the bar at 1.13:1 against the fill; 0.85 leaves 1.48:1 (readable).
+    assert.ok(alpha >= 0.98, `material-bar fill alpha ${alpha} is below the 0.98 ghosting floor`);
     assert.match(
         util,
         /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*background-color: rgb\(var\(--background\)\);/,
