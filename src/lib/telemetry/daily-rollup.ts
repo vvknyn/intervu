@@ -155,3 +155,33 @@ export function toCompanyDailyRows(byGroup: ReadonlyMap<string, DailyMetrics>): 
     return { company_domain: key, day, ...metrics };
   });
 }
+
+/** One `results_impressed` ledger event, reduced to what volume needs.
+ *  `positioned` is false for a résumé-shaped list, whose `job_ids`/`positions`
+ *  were deliberately not sent (listShapedByResume) — it still has `count`. */
+export interface ImpressionEventCount {
+  day: string;
+  count: number;
+  positioned: boolean;
+}
+
+export interface ImpressionVolume {
+  /** Every impression, from `count` — shaped or not. */
+  total: number;
+  /** The subset with job_ids + positions, i.e. the only ones per-job
+   *  impressions and position-corrected CTR can see. */
+  positioned: number;
+}
+
+/** Per-day impression volume. Shaped events add to `total` only: no
+ *  positions, so nothing to correct by, and never a fabricated position. */
+export function impressionVolumeByDay(events: readonly ImpressionEventCount[]): Map<string, ImpressionVolume> {
+  const byDay = new Map<string, ImpressionVolume>();
+  for (const { day, count, positioned } of events) {
+    const v = byDay.get(day) ?? { total: 0, positioned: 0 };
+    v.total += count;
+    if (positioned) v.positioned += count;
+    byDay.set(day, v);
+  }
+  return byDay;
+}

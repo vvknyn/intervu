@@ -141,8 +141,8 @@ import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { jobActionSize, toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { resultSetAnalyticsId } from "@/lib/analytics/result-set-id";
-import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
+import { resultClickedPayload } from "@/lib/analytics/result-payloads";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
@@ -314,7 +314,7 @@ import {
 import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters, derivedByFit, listShapedByResume, withoutResumeDerived, type FitApplication } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, omitsPastSenior, resumeDefaultLanguages, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { scoringPreferences } from "@/lib/agent-preferences-read";
@@ -1149,6 +1149,10 @@ export function JobsContent({
         getSuppressLocationDefaultSnapshot,
         getSuppressLocationDefaultServerSnapshot,
     );
+    // What the résumé's fit put in the search (its query, facets, window): kept out of the address, which the
+    // Referer, logs and the sign-up links carry (`withoutResumeDerived`). Null while the search is the visitor's own.
+    const resumeDerivedRef = useRef<FitApplication | null>(null);
+    const addressState = (state: JobsUrlState) => withoutResumeDerived(state, resumeDerivedRef.current);
     // Assembles the full URL-state object from current component state, with
     // `overrides` layered on top for the field(s) actually changing at the
     // call site. `jobId` defaults to whatever the URL currently holds, so a
@@ -1200,7 +1204,7 @@ export function JobsContent({
     // Native history never scrolls on its own, so the old `{ scroll: false
     // }` is simply the default now, not something to replicate.
     const applyUrlState = (next: JobsUrlState, history: "replace" | "push") => {
-        const target = `${pathname}${serializeJobsUrl(next)}`;
+        const target = `${pathname}${serializeJobsUrl(addressState(next))}`;
         if (typeof window !== "undefined" && target === `${window.location.pathname}${window.location.search}`) {
             return;
         }
@@ -2510,10 +2514,7 @@ export function JobsContent({
         // One call site covers both SERP rows and the detail pane's "also in"
         // rail, because `onOpenRelated` is wired to this same function.
         if (rank >= 0) {
-            captureEvent("result_clicked", {
-                position: rank,
-                job_id: id,
-                source: "serp",
+            captureEvent("result_clicked", resultClickedPayload({ jobId: id, position: rank, resumeShaped: listShapedByResume(fitActiveRef.current, resumeDerivedRef.current) }, {
                 // Keyed on `resultRef.current?.searchId`, NOT `lastSearchId`:
                 // a load-more page fetch mints its own `lastSearchId` but
                 // `setResult` never overwrites `searchId` when appending a
@@ -2527,8 +2528,7 @@ export function JobsContent({
                 // How old the opened role was: whether searchers open fresh
                 // roles or older ones is what the posted-date window is tuned on.
                 ...postedAgeAnalyticsProps(hit),
-                ...matchAnalyticsProps(matchScores?.get(id) ?? null),
-            });
+            }));
         }
         const alreadyOpened = openedIds.has(id);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
@@ -2878,7 +2878,7 @@ export function JobsContent({
     // user action.
     useEffect(() => {
         const parsed = parseJobsUrl(searchParams);
-        const current = buildUrlState();
+        const current = addressState(buildUrlState());
         // Compare everything except `job`: `job` is intentionally excluded
         // because `buildUrlState()` sources its `jobId` straight from
         // `searchParams.get("job")` (the same value `parsed.jobId` just
@@ -3204,7 +3204,7 @@ export function JobsContent({
     // `result_clicked`/`apply_clicked` read (via `resultRef.current
     // ?.searchId`) so impressions and the clicks they produce always join
     // on one query_id: the list's analytics id, not `searchId` itself.
-    useResultImpressions(resultsListRef, "serp", resultSetAnalyticsId(result?.searchId));
+    useResultImpressions(resultsListRef, "serp", resultSetAnalyticsId(result?.searchId), listShapedByResume(fitActive, resumeDerivedRef.current));
     useListRenderTiming({
         searchId: result?.searchId,
         rows: result?.hits.length ?? 0,
@@ -3659,7 +3659,6 @@ export function JobsContent({
             // `useResultImpressions` is armed with for the currently-rendered
             // result set (SPEC §5), never the search log's `searchId`.
             ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
-            ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
         });
         gatedOpenPosting(job);
     };
@@ -3714,7 +3713,6 @@ export function JobsContent({
             toast.success("Applied — nice work");
             captureEvent("job_marked_applied", {
                 job_id: job.id,
-                ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
             });
         } catch (e) {
             setOptimisticPursuits((prev) => {
@@ -3792,7 +3790,6 @@ export function JobsContent({
                 toast.success(GUEST_SAVE_TOAST);
                 captureEvent("job_saved", {
                     job_id: job.id,
-                    ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
                 });
             } catch (e) {
                 setOptimisticPursuits((prev) => {
@@ -4036,6 +4033,7 @@ export function JobsContent({
             // An address with its own intent is theirs: fit only ranks it (the résumé terms still score every row).
             setSortOverride(null);
             setFitActive(true);
+            resumeDerivedRef.current = derivedByFit(base, fit);
             applyUrlState(fitRankUrlState(base, fit), "replace");
             return;
         }
@@ -4048,6 +4046,7 @@ export function JobsContent({
         setQuery(fit.q);
         setSortOverride(null);
         setFitActive(true);
+        resumeDerivedRef.current = fit;
         applyUrlState(fitUrlState(base, fit), "replace");
     };
 
@@ -4842,7 +4841,7 @@ export function JobsContent({
     const savedSearchControl = canSaveSearch ? (
         <SavedSearchesPanel
             saved={savedSearches}
-            urlState={buildUrlState()}
+            urlState={addressState(buildUrlState())}
             canSave={false}
             onApply={applySavedSearch}
             compact

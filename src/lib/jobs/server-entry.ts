@@ -15,7 +15,7 @@ import type { ServerUser } from "@/lib/auth/workos-identity";
 import { RESUME_IMPORTER_PARAM } from "@/lib/auth/post-auth-destination";
 import { DEFAULT_URL_STATE, parseJobsUrl, serializeJobsUrl, type JobsUrlState } from "@/lib/jobs/url-state";
 import { viewerDefaults } from "@/lib/jobs/viewer-defaults";
-import { fitApplication, fitRankUrlState } from "@/lib/jobs/for-you/pack-filters";
+import { derivedByFit, fitApplication, fitRankUrlState, withoutResumeDerived } from "@/lib/jobs/for-you/pack-filters";
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import type { ResumeData } from "@/types/resume";
 
@@ -53,7 +53,7 @@ export function fitEntryPath(
     current: JobsUrlState = DEFAULT_URL_STATE,
 ): string {
     const fit = fitApplication(resume, agentPrefs, { facets: current.facets, postedExplicit: current.postedExplicit ?? false });
-    return `/jobs${serializeJobsUrl(fitRankUrlState(current, fit))}`;
+    return `/jobs${serializeJobsUrl(withoutResumeDerived(fitRankUrlState(current, fit), derivedByFit(current, fit)))}`;
 }
 
 export interface JobsEntryInput {
