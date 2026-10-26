@@ -63,7 +63,13 @@ async function expectFrontDoor(page: Page, timeout = FIRST_PAINT_MS) {
  * 30 days), not the typed-search default of 90 days.
  */
 async function expectPackWindow(page: Page) {
-  await expect(page).toHaveURL(new RegExp(`[?&]posted=${PACK_POSTED_BUCKET}\\b`));
+  await expect(page.getByTestId("result-line")).toContainText("last 30 days", { timeout: 30_000 });
+}
+
+/** A résumé-ranked list's address names the sort and nothing the résumé derived: no query, place or window. */
+function expectBareFitAddress(page: Page) {
+  const url = new URL(page.url());
+  expect(url.search).toBe("?sort=fit");
 }
 
 /** Fresh = empty storage. Previous-session = the visit cookie is set but velai.onboarding.completed is not. */
@@ -275,6 +281,14 @@ test("a returning guest with a résumé in this browser opens /jobs on their top
   await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
   await expect(page.getByTestId("job-row")).toHaveCount(3);
   await expectPackWindow(page);
+  // The résumé's role, place and window stay out of the address, and so out of the sign-up links.
+  expectBareFitAddress(page);
+  await expect(fitGate(page).locator('a[href^="/auth/start"]')).toHaveAttribute("href", /next=%2Fjobs%3Fsort%3Dfit$/);
+  // A reload on that address derives the same list from the résumé kept in this browser.
+  await page.reload();
+  await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(3);
+  expectBareFitAddress(page);
   // A résumé is on file: no upload band, and not the front door's week count.
   await expect(page.locator(RESUME_BAND)).toHaveCount(0);
   await expect(page.getByTestId("front-door-week-count")).toHaveCount(0);
@@ -928,10 +942,11 @@ signedInTest("a fit list on the résumé's own query shows an empty box that sea
   await returningVisitor(page);
   await withResume(page, "Toronto, Ontario, Canada");
   await answerFitList(page, [remoteRole("fit-a", "Software Engineer", "Remote, Canada"), remoteRole("fit-b", "Software Engineer", "Remote, Canada")], "e2e-rank-keeps-query");
-  // The résumé's own query is in the address but not in the box.
+  // The résumé's own query is in neither the address nor the box.
   await page.goto("/jobs");
   await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
   await expect(page.getByTestId("job-row")).toHaveCount(2, { timeout: 60_000 });
+  expectBareFitAddress(page);
   await expect(page.getByLabel("Search", { exact: true }).first()).toHaveValue("");
   await expect(page.getByLabel("Search", { exact: true }).first()).toHaveAttribute("placeholder", "Search within your matches");
   // A search the visitor typed stays theirs when they rank it by fit.

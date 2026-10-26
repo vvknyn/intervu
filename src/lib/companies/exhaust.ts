@@ -354,20 +354,25 @@ export function pickWikidata<T>(items: readonly WikidataItem[], displayName: str
   return { value, item: first };
 }
 
-/** The sector from Wikidata's industry (P452), the fallback after {@link resolveSector}: the one industry (none when it has several) of the item
- *  {@link pickWikidata} selects; null when the selected items' industries differ. */
-export function wikidataSectorPick(items: readonly WikidataItem[], displayName: string): { value: string; item: WikidataItem } | null {
+/** Most Wikidata industries shown for one company. */
+export const MAX_WIKIDATA_INDUSTRIES = 3;
+
+/** The sectors from Wikidata's industry (P452), the fallback after {@link resolveSector}: the industries of the item {@link pickWikidata} selects,
+ *  in stored order, one per distinct {@link sectorForm}, at most {@link MAX_WIKIDATA_INDUSTRIES}; null when the selected items' industries differ
+ *  or none names a sector. */
+export function wikidataSectorPick(items: readonly WikidataItem[], displayName: string): { value: string[]; item: WikidataItem } | null {
   const picked = pickWikidata(items, displayName, (item) => (item.industries.length > 0 ? item.industries : null));
   if (!picked) return null;
   const forms = new Map<string, string>();
   for (const x of picked.value) {
     const form = sectorForm(x);
-    if (form) forms.set(form.toLowerCase(), form);
+    if (form && !forms.has(form.toLowerCase())) forms.set(form.toLowerCase(), form);
   }
-  return forms.size === 1 ? { value: categoryLabel([...forms.values()][0]!), item: picked.item } : null;
+  const value = [...forms.values()].slice(0, MAX_WIKIDATA_INDUSTRIES).map(categoryLabel);
+  return value.length > 0 ? { value, item: picked.item } : null;
 }
 
-export const wikidataSector = (items: readonly WikidataItem[], displayName: string): string | null => wikidataSectorPick(items, displayName)?.value ?? null;
+export const wikidataSector = (items: readonly WikidataItem[], displayName: string): string | null => wikidataSectorPick(items, displayName)?.value.join(", ") ?? null;
 
 /** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x,
  *  jobs.ashbyhq.com/api/non-user-graphql): an `api.` / `<x>-api.` host or an `/api` path segment. A bare version
