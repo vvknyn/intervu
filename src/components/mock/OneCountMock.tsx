@@ -11,7 +11,7 @@ import type { MatchScore } from "@/lib/match/score";
 const NOW = Date.parse("2026-10-15T12:00:00Z");
 const DAY = 86_400_000;
 const job = (id: string, employer: string, ageDays: number): PublicJob =>
-    ({ id, title: "Product Manager", company: employer, company_domain: `${employer}.com`, apply_url: "https://example.com", posted_at: new Date(NOW - ageDays * DAY).toISOString() }) as PublicJob;
+    ({ id, title: "Product Manager", company: employer, company_domain: `${employer}.com`, apply_url: "/apply", posted_at: new Date(NOW - ageDays * DAY).toISOString() }) as PublicJob;
 const score = (total: number, extra: Partial<MatchScore> = {}): MatchScore => ({ total, role: "own", components: [{ key: "relevance", label: "Relevance", detail: "t", score: total / 100 }], ...extra });
 
 /** 37 fit roles, 12 ranked lower (a level cut), 5 left out (older than the window), at 30 employers. */
@@ -28,7 +28,7 @@ function fixture() {
 const rowClass = "mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground";
 const Alert = () => (
     <span data-testid="mock-job-alert" className="flex items-center gap-2 text-foreground">
-        Job alert <span aria-hidden className="inline-block h-5 w-9 rounded-full bg-muted" />
+        Job alert <span aria-hidden className="inline-block h-5 w-9 rounded-pill bg-muted" />
     </span>
 );
 
