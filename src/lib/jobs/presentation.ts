@@ -1860,6 +1860,19 @@ export function seamSummary(seamIndex: number, total: number, hitsLength: number
 }
 
 /**
+ * The seam line for a tiered result (`runTieredRetrieval`): above it, every hit has all the typed words in its title,
+ * company or keywords, or a title that is another name for the job; below it, every hit has all of them somewhere
+ * else in the posting. `shownAbove` is the count the reader sees (after "hide viewed"). The hits below are counted
+ * from the whole result, not from what is loaded: the groups are merged one after the other, so once the first hit
+ * below the divider is loaded every hit above it is too, and `total - loadedAbove` is exactly the hits below.
+ */
+export function tieredSeamSummary(shownAbove: number, total: number, loaded: PublicJob[]): string {
+    const below = Math.max(total - loaded.filter((hit) => hit.tier === 1).length, 0);
+    const lead = shownAbove === 1 ? "1 role matches" : `${shownAbove.toLocaleString()} roles match`;
+    return `${lead} every word in the title, company or keywords, or a title for the same job · ${below.toLocaleString()} more have them elsewhere in the posting`;
+}
+
+/**
  * The seam line's copy for a sorted mode's seam (`partitionByTitleMatch`),
  * where the block below the seam is drawn from the CURRENTLY LOADED page
  * only — most of what's still unloaded further down the sort order is

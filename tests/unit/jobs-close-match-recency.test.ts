@@ -177,7 +177,7 @@ function installMock(respond: (call: Call) => unknown): Call[] {
     return calls;
 }
 
-describe("searchMeili — details requested for relevance only, never returned", () => {
+describe("searchMeili — details are requested for ranking checks, never returned", () => {
     it("a relevance-sorted typed search asks for details, reorders the close matches and strips them", async () => {
         const q = "rust"; // a tech-skill query: plain single-index pass
         await primeNonCompanyIntent(q);
@@ -223,7 +223,7 @@ describe("searchMeili — details requested for relevance only, never returned",
     // "fit"): the client re-sorts the page by fit score (ranked.ts), so it
     // never sees an order this function produced except among equal fits.
     for (const sort of ["newest", "salary_desc"] as const) {
-        it(`an explicit sort (${sort}) never asks for details and keeps the engine's order`, async () => {
+        it(`an explicit sort (${sort}) keeps the engine's order and never returns details`, async () => {
             const q = "rust";
             await primeNonCompanyIntent(q);
             const page = [
@@ -233,8 +233,8 @@ describe("searchMeili — details requested for relevance only, never returned",
             const calls = installMock(() => ({ hits: page, totalHits: 2 }));
             const result = await searchMeili({ q, sort, limit: 20, offset: 0 });
             assert.ok(calls.length > 0);
-            assert.ok(calls.every((c) => !("showRankingScoreDetails" in c.body)), JSON.stringify(calls.map((c) => c.body)));
             assert.deepEqual(ids(result.hits), ["a", "b"]);
+            assert.ok(result.hits.every((h) => !hasDetails(h)));
         });
     }
 

@@ -81,6 +81,8 @@ import {
     partitionByTitleMatch,
     resolveHeadlineTotal,
     seamSummary,
+    seamSummarySorted,
+    tieredSeamSummary,
     shortDate,
     tieredSeamIndex,
 } from "@/lib/jobs/presentation";
@@ -372,6 +374,10 @@ let lastSearchId = "";
  *  there is visible here for free instead of needing a second widened type
  *  kept in sync by hand. */
 type JobsSearchActionResult = Awaited<ReturnType<typeof searchJobsActionRaw>>;
+
+/** Spreading one employer's rows apart is a Relevance courtesy. An explicit sort is the user's order, kept as the engine sent it. */
+const spreadEmployers = (hits: PublicJob[], params: Pick<JobSearchParams, "q" | "sort">) =>
+    resolveEffectiveSort(params) === "relevance" ? interleaveByCompany(hits) : hits;
 
 /** A first search the server already ran for this landing, with the instant
  *  its rows were rendered against (/jobs/first-rows, server-first-rows.ts). */
@@ -1356,7 +1362,7 @@ export function JobsContent({
     // below stores one; that effect then takes the same result again
     // (JobsRouteGate seeds it), so the rows don't change on hydration.
     const [result, setResult] = useState<JobsSearchActionResult | null>(() =>
-        initialSearch ? { ...initialSearch.result, hits: interleaveByCompany(initialSearch.result.hits) } : null,
+        initialSearch ? { ...initialSearch.result, hits: spreadEmployers(initialSearch.result.hits, initialSearch.params) } : null,
     );
     const resultRef = useRef<JobsSearchActionResult | null>(null);
     resultRef.current = result;
@@ -2232,7 +2238,7 @@ export function JobsContent({
                 // downstream read of "this fetch's hits" below uses the same
                 // interleaved array so "hits[0]" means the same row the list
                 // actually renders first.
-                const interleavedHits = interleaveByCompany(r.hits);
+                const interleavedHits = spreadEmployers(r.hits, { q: query, sort: backendSort });
                 setResult({ ...r, hits: interleavedHits });
                 setResultSearchKey(searchKey);
                 absorbUnderstood(r);
@@ -3293,7 +3299,7 @@ export function JobsContent({
                 // appending — the same chokepoint as the first-page fetch
                 // above, applied per-page rather than over the whole
                 // accumulated list (see `interleaveByCompany`'s doc comment).
-                const fresh = interleaveByCompany(r.hits.filter((h) => !seen.has(h.id)));
+                const fresh = spreadEmployers(r.hits.filter((h) => !seen.has(h.id)), { q: query, sort: backendSort });
                 return fresh.length ? { ...prev, hits: [...prev.hits, ...fresh] } : prev;
             });
         } catch {
@@ -6265,7 +6271,11 @@ export function JobsContent({
                                                     data-testid="relevance-seam"
                                                     className="mb-1 pt-4 pb-1 text-xs text-muted-foreground"
                                                 >
-                                                    {seamSummary(seamIndex, total, displayHits.length)}
+                                                    {displayHits.some((h) => h.tier !== undefined)
+                                                        ? tieredSeamSummary(seamIndex, total, result?.hits ?? [])
+                                                        : sortScopedSeam
+                                                          ? seamSummarySorted(seamIndex)
+                                                          : seamSummary(seamIndex, total, displayHits.length)}
                                                 </p>,
                                                 ...rows,
                                             ];

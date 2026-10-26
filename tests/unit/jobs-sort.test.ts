@@ -8,7 +8,7 @@ import {
     compareJobsBySort,
     coerceSortToSupported,
     shouldScopeTextMatchToTitle,
-    isPageSorted,
+    isSortedWithinGroups,
     sortOptionLabel,
     sortTriggerLabel,
 } from '../../src/lib/jobs/sort';
@@ -128,12 +128,12 @@ describe('compareJobsBySort salary_desc', () => {
     });
 });
 
-describe('isPageSorted', () => {
+describe('isSortedWithinGroups', () => {
     it('treats equal-ms ties as sorted — bulk-ingested docs legitimately share one posted_ts millisecond', () => {
         const a = mkJob({ id: 'a', posted_at: '2026-01-05T00:00:00Z' });
         const b = mkJob({ id: 'b', posted_at: '2026-01-05T00:00:00Z' });
         const c = mkJob({ id: 'c', posted_at: '2026-01-04T00:00:00Z' });
-        assert.equal(isPageSorted([a, b, c], 'newest'), true);
+        assert.equal(isSortedWithinGroups([a, b, c], 'newest'), true);
     });
 
     it('flags an out-of-order newest page — the sort-integrity defect this guard exists for', () => {
@@ -142,20 +142,37 @@ describe('isPageSorted', () => {
         const newerAgain = mkJob({ id: 'c', posted_at: '2026-01-06T00:00:00Z' });
         // newest-first with an order-restart in the middle — exactly the shape
         // `searchCutoffMs` produced on a partially-applied sort.
-        assert.equal(isPageSorted([newer, older, newerAgain], 'newest'), false);
+        assert.equal(isSortedWithinGroups([newer, older, newerAgain], 'newest'), false);
     });
 
     it('checks salary_desc order too, not just newest', () => {
         const high = mkJob({ id: 'a', salary_max: 200_000 });
         const low = mkJob({ id: 'b', salary_max: 100_000 });
         const higher = mkJob({ id: 'c', salary_max: 250_000 });
-        assert.equal(isPageSorted([high, low], 'salary_desc'), true);
-        assert.equal(isPageSorted([high, low, higher], 'salary_desc'), false);
+        assert.equal(isSortedWithinGroups([high, low], 'salary_desc'), true);
+        assert.equal(isSortedWithinGroups([high, low, higher], 'salary_desc'), false);
+    });
+
+    it('checks each group on its own: a page that restarts at the divider is sorted, a broken group is not', () => {
+        const a = { ...mkJob({ id: 'a', posted_at: '2026-01-10T00:00:00Z' }), tier: 1 as const };
+        const b = { ...mkJob({ id: 'b', posted_at: '2026-01-04T00:00:00Z' }), tier: 1 as const };
+        const c = { ...mkJob({ id: 'c', posted_at: '2026-01-09T00:00:00Z' }), tier: 2 as const };
+        const d = { ...mkJob({ id: 'd', posted_at: '2026-01-02T00:00:00Z' }), tier: 2 as const };
+        assert.equal(isSortedWithinGroups([a, b, c, d], 'newest'), true);
+        assert.equal(isSortedWithinGroups([b, c, a, d], 'newest'), false, 'b then a are both above the divider, out of order');
+    });
+
+    it('an out-of-order pair is excused only when the engine scored a different typo count for them', () => {
+        const withTypo = (id: string, at: string, score: number) =>
+            ({ ...mkJob({ id, posted_at: at }), _rankingScoreDetails: { typo: { score } } }) as PublicJob;
+        const older = withTypo('a', '2026-01-01T00:00:00Z', 1);
+        assert.equal(isSortedWithinGroups([older, withTypo('b', '2026-01-09T00:00:00Z', 0.5)], 'newest'), true);
+        assert.equal(isSortedWithinGroups([older, withTypo('b', '2026-01-09T00:00:00Z', 1)], 'newest'), false);
     });
 
     it('an empty or single-hit page is trivially sorted', () => {
-        assert.equal(isPageSorted([], 'newest'), true);
-        assert.equal(isPageSorted([mkJob({ id: 'a' })], 'newest'), true);
+        assert.equal(isSortedWithinGroups([], 'newest'), true);
+        assert.equal(isSortedWithinGroups([mkJob({ id: 'a' })], 'newest'), true);
     });
 });
 
