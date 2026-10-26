@@ -11,6 +11,8 @@
  * (sessionStorage) and short-lived for the same reason as pending-actions.ts.
  */
 
+import { originField, type SavedSearchOrigin } from "@/lib/jobs/saved-searches";
+
 export const PENDING_SAVED_SEARCH_KEY = "velai.auth.pendingSavedSearch";
 
 /** A sign-in that takes longer than this is a different visit. */
@@ -25,6 +27,7 @@ export interface PendingSavedSearchStorage {
 export interface PendingSavedSearch {
     name: string;
     href: string;
+    origin?: SavedSearchOrigin;
 }
 
 export function stashPendingSavedSearch(
@@ -36,7 +39,7 @@ export function stashPendingSavedSearch(
     const href = entry.href.trim();
     if (!name || !href) return;
     try {
-        storage.setItem(PENDING_SAVED_SEARCH_KEY, JSON.stringify({ name, href, createdAt: now }));
+        storage.setItem(PENDING_SAVED_SEARCH_KEY, JSON.stringify({ name, href, createdAt: now, ...originField(entry.origin) }));
     } catch {
         // Best-effort: a full or blocked storage means the person saves it again after signing in.
     }
@@ -57,7 +60,7 @@ export function takePendingSavedSearch(storage: PendingSavedSearchStorage, now =
         const { name, href, createdAt } = parsed;
         if (typeof name !== "string" || typeof href !== "string" || typeof createdAt !== "number") return null;
         if (now - createdAt > PENDING_SAVED_SEARCH_MAX_AGE_MS || createdAt > now) return null;
-        return name.trim() && href.trim() ? { name: name.trim(), href: href.trim() } : null;
+        return name.trim() && href.trim() ? { name: name.trim(), href: href.trim(), ...originField(parsed.origin) } : null;
     } catch {
         return null;
     }
