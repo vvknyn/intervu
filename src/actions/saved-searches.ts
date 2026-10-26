@@ -1,7 +1,7 @@
 "use server";
 
 import { getServerUser } from "@/lib/auth/server-user";
-import { isSavedSearchHref, savedSearchId, mergedSavedSearchRow, type SavedSearch } from "@/lib/jobs/saved-searches";
+import { isSavedSearchHref, originField, savedSearchId, mergedSavedSearchRow, type SavedSearch } from "@/lib/jobs/saved-searches";
 import { docToSavedSearch, savedSearchesCollection } from "@/lib/jobs/saved-searches-store";
 
 export async function listSavedSearchesAction(): Promise<{ data?: SavedSearch[]; error?: string }> {
@@ -20,6 +20,7 @@ export async function listSavedSearchesAction(): Promise<{ data?: SavedSearch[];
 export async function saveSavedSearchAction(input: {
     name: string;
     href: string;
+    origin?: SavedSearch["origin"];
 }): Promise<{ data?: SavedSearch; error?: string }> {
     try {
         const user = await getServerUser();
@@ -46,8 +47,9 @@ export async function saveSavedSearchAction(input: {
         const now = new Date().toISOString();
         const createdAt = existing.exists ? (existing.data()?.createdAt ?? now) : now;
 
-        await ref.set({ name, params: href, createdAt });
-        return { data: { id, name, href, createdAt } };
+        const origin = originField(input.origin);
+        await ref.set({ name, params: href, createdAt, ...origin });
+        return { data: { id, name, href, createdAt, ...origin } };
     } catch (error) {
         console.error("Error saving search:", error);
         return { error: error instanceof Error ? error.message : "Failed to save search" };
@@ -100,7 +102,7 @@ export async function syncGuestSavedSearchesAction(
                     existing.exists ? existing.data()?.createdAt : undefined,
                 );
 
-                await ref.set({ name: row.name, params: row.href, createdAt: row.createdAt });
+                await ref.set({ name: row.name, params: row.href, createdAt: row.createdAt, ...originField(row.origin) });
                 return {};
             }),
         );

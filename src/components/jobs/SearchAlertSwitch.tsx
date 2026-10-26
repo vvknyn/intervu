@@ -8,8 +8,9 @@ import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { captureEvent } from "@/lib/analytics/events";
 import { noteSetupFacts } from "@/hooks/use-onboarding";
 import {
+    effectiveSavedSearchState,
     hrefFromJobsUrlState,
-    jobsUrlStateFromSavedHref,
+    savedSearchOrigin,
     suggestSavedSearchName,
     type SavedSearch,
 } from "@/lib/jobs/saved-searches";
@@ -17,9 +18,13 @@ import type { JobsUrlState } from "@/lib/jobs/url-state";
 import { cn } from "@/lib/utils";
 
 /** The saved search that IS this search, whichever href shape it was stored in. */
-export function savedSearchFor(saved: readonly SavedSearch[], urlState: JobsUrlState): SavedSearch | undefined {
+export function savedSearchFor(
+    saved: readonly SavedSearch[],
+    urlState: JobsUrlState,
+    resumeQuery: string | null,
+): SavedSearch | undefined {
     const href = hrefFromJobsUrlState(urlState);
-    return saved.find((s) => hrefFromJobsUrlState(jobsUrlStateFromSavedHref(s.href)) === href);
+    return saved.find((s) => hrefFromJobsUrlState(effectiveSavedSearchState(s, resumeQuery)) === href);
 }
 
 /**
@@ -39,6 +44,8 @@ export function SearchAlertSwitch({
     signedIn,
     saved,
     urlState,
+    resumeQuery,
+    derivedQuery,
     guestOn,
     guestRequested,
     onGuestChange,
@@ -49,6 +56,10 @@ export function SearchAlertSwitch({
     /** The account's saved searches (signed in). */
     saved: readonly SavedSearch[];
     urlState: JobsUrlState;
+    /** The query the current résumé's fit derives (null with no résumé): a résumé-origin saved search is matched on it. */
+    resumeQuery: string | null;
+    /** The fit-derived query this page's search carries (null while the search is the visitor's own): the origin a new alert records. */
+    derivedQuery: string | null;
     /** Signed out: the email form under the line is open. */
     guestOn: boolean;
     /** Signed out: this browser already asked for alerts on this search. */
@@ -62,7 +73,7 @@ export function SearchAlertSwitch({
     // The row this switch just saved, so turning it straight back off deletes
     // it before the refreshed list has arrived.
     const [justSaved, setJustSaved] = useState<SavedSearch | null>(null);
-    const match = signedIn ? (savedSearchFor(saved, urlState) ?? (justSaved ? savedSearchFor([justSaved], urlState) : undefined)) : undefined;
+    const match = signedIn ? (savedSearchFor(saved, urlState, resumeQuery) ?? (justSaved ? savedSearchFor([justSaved], urlState, resumeQuery) : undefined)) : undefined;
     // While a save or delete is in flight, and until the refreshed list agrees with it.
     const [pending, setPending] = useState<boolean | null>(null);
     const [busy, setBusy] = useState(false);
@@ -94,7 +105,7 @@ export function SearchAlertSwitch({
         setBusy(true);
         try {
             const res: { data?: SavedSearch; error?: string } = next
-                ? await settleAction(saveSavedSearchAction({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState) }))
+                ? await settleAction(saveSavedSearchAction({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState), origin: savedSearchOrigin(urlState, derivedQuery) }))
                 : match
                   ? await settleAction(deleteSavedSearchAction(match.id))
                   : {};
