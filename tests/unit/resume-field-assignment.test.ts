@@ -300,9 +300,9 @@ describe("résumé fields land in their own slot", () => {
 });
 
 describe("education lines", () => {
-    const cases: [string[], { degree: string; institution: string; year: string }[]][] = [
-        [["Universidad de Chile — Ingeniería Civil, B.Eng — Mar 2010 – Dec 2015"], [{ degree: "Ingeniería Civil, B.Eng", institution: "Universidad de Chile", year: "2015" }]],
-        [["M.A. Economics at Stanford University (2014)", "GPA: 3.9"], [{ degree: "M.A. Economics", institution: "Stanford University", year: "2014" }]],
+    const cases: [string[], { degree: string; institution: string; year: string; gpa?: string }[]][] = [
+        [["Universidad de Chile — Ingeniería Civil, B.Eng — Mar 2010 – Dec 2015"], [{ degree: "Ingeniería Civil, B.Eng", institution: "Universidad de Chile", year: "Dec 2015" }]],
+        [["M.A. Economics at Stanford University (2014)", "GPA: 3.9"], [{ degree: "M.A. Economics", institution: "Stanford University", year: "2014", gpa: "3.9" }]],
         [["Diploma in Nursing | Humber College", "PhD, Physics, Université de Montréal, 2021"], [
             { degree: "Diploma in Nursing", institution: "Humber College", year: "" },
             { degree: "PhD, Physics", institution: "Université de Montréal", year: "2021" },

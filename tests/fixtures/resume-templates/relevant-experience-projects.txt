@@ -1,0 +1,31 @@
+Sofia Lindqvist
+Machine Learning Engineer
+Stockholm, Sweden | sofia.lindqvist@example.com | github.com/sofialq
+
+ABOUT ME
+ML engineer who ships recommendation and search models to production and measures them honestly.
+
+RELEVANT EXPERIENCE
+Machine Learning Engineer at Nordvik Commerce (Aug 2020 - Present)
+• Trained the two-tower retrieval model that raised search conversion 6%.
+• Built the offline evaluation harness used for every ranking change.
+
+Data Scientist at Fjordline Travel (Feb 2018 - Jul 2020)
+• Modelled booking cancellations with gradient boosting.
+
+PROJECTS
+Open Recipe Search — a semantic search demo over 200k public recipes using sentence embeddings.
+Bike Share Forecaster — hourly demand forecasts for Stockholm stations with LightGBM.
+
+CERTIFICATIONS
+AWS Certified Machine Learning – Specialty (2022)
+TensorFlow Developer Certificate (2021)
+
+PUBLICATIONS
+Lindqvist, S. "Offline metrics that predict online wins." Nordic RecSys Workshop, 2022.
+
+EDUCATION
+MSc Machine Learning, KTH Royal Institute of Technology, 2018
+
+SKILLS
+Python, PyTorch, TensorFlow, LightGBM, SQL, Spark, Kubernetes, A/B Testing

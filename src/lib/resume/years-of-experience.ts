@@ -11,6 +11,7 @@
  */
 
 import type { ResumeExperience } from "@/types/resume";
+import { DATE_RANGE_RE, OPEN_END } from "./resume-dates";
 
 const MONTHS: Record<string, number> = {
     jan: 0, january: 0,
@@ -27,7 +28,7 @@ const MONTHS: Record<string, number> = {
     dec: 11, december: 11,
 };
 
-const PRESENT_RE = /^(present|current|now|ongoing|till date|to date)$/i;
+const PRESENT_RE = new RegExp(`^(?:${OPEN_END})$`, "i");
 
 const monthIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
 
@@ -57,7 +58,8 @@ function parseDateToken(token: string): Date | null {
         }
     }
 
-    const numeric = t.match(/^(\d{1,2})[\/\-](\d{4})$/);
+    // "05/2019", "05-2019", or a day first: "01.09.2015" (Europass).
+    const numeric = t.match(/^(?:\d{1,2}[./-])?(\d{1,2})[./-](\d{4})$/);
     if (numeric) {
         const month = Number(numeric[1]) - 1;
         if (month >= 0 && month <= 11) return new Date(Number(numeric[2]), month, 1);
@@ -69,7 +71,7 @@ function parseDateToken(token: string): Date | null {
     return null;
 }
 
-interface ParsedRange {
+export interface ParsedRange {
     start: Date;
     end: Date; // clamped to `now` when current/ongoing/unparseable/future
 }
@@ -78,11 +80,12 @@ interface ParsedRange {
  * Split a free-text `dates` field ("Feb 2020 - Present", "2019-2023", "Mar 2022")
  * into a start/end range resolved against `now`. Null if no usable start date.
  */
-function parseDateRange(dates: string, now: Date): ParsedRange | null {
+export function parseDateRange(dates: string, now: Date): ParsedRange | null {
     if (!dates || !dates.trim()) return null;
 
-    const parts = dates.split(/\s*(?:-|–|—|to)\s*/i).map(p => p.trim()).filter(Boolean);
-    if (parts.length === 0) return null;
+    // The range's own two ends, so "October" and "05-2019" are never split apart.
+    const range = dates.match(DATE_RANGE_RE);
+    const parts = range ? [range[1], range[2]] : [dates.trim()];
 
     const start = parseDateToken(parts[0]);
     if (!start) return null;
@@ -133,4 +136,37 @@ export function computeYearsOfExperience(experience: ResumeExperience[], now: Da
 
     const months = merged.reduce((sum, r) => sum + Math.max(0, fullMonthsBetween(r.start, r.end)), 0);
     return Math.floor(months / 12);
+}
+
+/** "with 9 years of experience", "1 year of experience", "8+ years of experience". */
+const STATED_YEARS_RE = /(\d+)\s*\+?\s+years?\s+of\s+experience/i;
+/** "8+ years" with no "of experience", the fallback when dates yield nothing. */
+const PLUS_YEARS_RE = /(\d+)\+\s*years/i;
+/** A month name or a numeric month ("05/2019"). "Present" is not a month. */
+const MONTH_IN_DATES_RE = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\d{1,2}[./-]\d{4}/i;
+
+/**
+ * Year-only ranges ("2015 – Present") have no month, so counting from January
+ * runs one or two years ahead of the "N years of experience" the résumé states.
+ * A career whose dates add up to under a year ("Jan–Aug" plus a summer term)
+ * floors to 0 against that same sentence. When the two are that close, the
+ * sentence wins. A month-precise history that disagrees by more than that
+ * keeps the dates.
+ */
+export function reconcileStatedYears(
+    experience: Array<{ dates?: string }>,
+    summary: string,
+    computed: number | null,
+): number {
+    const stated = summary.match(STATED_YEARS_RE);
+    const statedYears = stated ? Number(stated[1]) : null;
+    if (computed === null) {
+        const plus = summary.match(PLUS_YEARS_RE);
+        return statedYears ?? (plus ? Number(plus[1]) : 0);
+    }
+    if (statedYears === null) return computed;
+    const dated = experience.map((e) => e.dates?.trim() ?? "").filter(Boolean);
+    const yearOnly = dated.length > 0 && dated.every((d) => !MONTH_IN_DATES_RE.test(d));
+    if ((yearOnly || computed === 0) && computed >= statedYears - 1 && computed <= statedYears + 2) return statedYears;
+    return computed;
 }

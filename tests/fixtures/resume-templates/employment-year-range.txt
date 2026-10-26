@@ -1,0 +1,22 @@
+PRIYA NAIR
+Full Stack Developer
+Bengaluru, India | priya.nair@example.com | +91 98450 12345
+
+OBJECTIVE
+Full stack developer looking to build accessible web products for health and education.
+
+EMPLOYMENT
+Full Stack Developer — Lotus Health Tech, Bengaluru (2021-Present)
+* Built the patient booking flow in React and Node.js used by 200 clinics.
+* Added end-to-end tests with Playwright and cut release bugs by half.
+
+Software Engineer — Saffron Learning, Pune (2019-2021)
+* Developed REST APIs for the course catalogue in Django.
+
+EDUCATION
+B.Tech in Computer Science, Visvesvaraya Technological University, 2019
+
+TECHNICAL SKILLS
+Languages: JavaScript, TypeScript, Python
+Frameworks: React, Node.js, Django
+Tools: Docker, Git, Playwright, PostgreSQL

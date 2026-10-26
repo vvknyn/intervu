@@ -56,16 +56,26 @@ function printedLines(items: PdfTextItem[]): PrintedLine[] {
         if (inked.length > 0) {
             const bullet = BULLET_GLYPH_RE.test(inked[0].str.trim()) && inked.length > 1;
             const body = bullet ? inked.slice(1) : inked;
-            const joined = (from: PdfTextItem[]) => from.map((p) => p.str).join("").replace(/\s+/g, " ").trim();
+            const charWidth = body.reduce((w, p) => w + p.width, 0) / Math.max(1, body.reduce((n, p) => n + p.str.length, 0));
+            const wideGap = (before: PdfTextItem, after: PdfTextItem) =>
+                after.transform[4] - (before.transform[4] + before.width) > 4 * Math.max(charWidth, 1);
+            // A wide gap between two runs (a table cell, a right-aligned date) reads as the tab a paste of it holds.
+            const joined = (from: PdfTextItem[]) => {
+                let text = "";
+                let before: PdfTextItem | undefined;
+                for (const p of from) {
+                    if (!isBlank(p.str)) {
+                        if (before && wideGap(before, p)) text += "\t";
+                        before = p;
+                    }
+                    text += p.str;
+                }
+                return text.replace(/\s*\t\s*/g, "\t").replace(/[^\S\t]+/g, " ").trim();
+            };
             // A glyph drawn apart from its text still reads "• text".
             const text = bullet ? `${inked[0].str.trim()} ${joined(parts.slice(parts.indexOf(inked[0]) + 1))}` : joined(parts);
             const size = Math.max(...inked.map((p) => p.height));
-            const charWidth = body.reduce((w, p) => w + p.width, 0) / Math.max(1, body.reduce((n, p) => n + p.str.length, 0));
-            let tabular = false;
-            for (let i = 1; i < body.length; i++) {
-                const gap = body[i].transform[4] - (body[i - 1].transform[4] + body[i - 1].width);
-                if (gap > 4 * Math.max(charWidth, 1)) tabular = true;
-            }
+            const tabular = body.some((p, i) => i > 0 && wideGap(body[i - 1], p));
             lines.push({
                 text,
                 left: body[0].transform[4],

@@ -1,0 +1,20 @@
+Hannah Becker
+UX Designer
+Berlin, Germany | hannah.becker@example.com | +49 151 5550 1234
+
+■ ABOUT
+Product designer who turns research into clear flows for B2B software.
+
+01. WORK EXPERIENCE
+Senior UX Designer | Kranich Software GmbH | 2020 – Present
+– Redesigned the onboarding flow and lifted activation from 41% to 58%.
+– Ran 60 usability sessions a year with finance teams.
+
+UX Designer | Spreewald Digital | 2017 – 2020
+– Designed the self-service portal for a regional energy supplier.
+
+// EDUCATION
+BA Interaction Design, Berlin University of the Arts, 2017
+
+— TOOLS & SKILLS —
+Figma, User Research, Prototyping, Design Systems, Usability Testing, Information Architecture, Accessibility

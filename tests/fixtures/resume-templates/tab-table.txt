@@ -1,0 +1,21 @@
+Name:	Grace Mwangi
+Title:	Accountant
+Email:	grace.mwangi@example.com
+Phone:	+254 712 555 010
+Location:	Nairobi, Kenya
+
+EXPERIENCE
+Period	Role	Employer
+2020 – Present	Senior Accountant	Savanna Agro Exports Ltd
+2017 – 2020	Accountant	Kilima Microfinance Bank
+2015 – 2017	Accounts Assistant	Tana River Traders
+
+EDUCATION
+Year	Qualification	Institution
+2015	Bachelor of Commerce (Accounting)	University of Nairobi
+2011	Kenya Certificate of Secondary Education	Alliance High School
+
+SKILLS
+IFRS	QuickBooks	Sage
+Payroll	Tax Compliance	Budgeting
+Excel	Audit Preparation	Bank Reconciliation

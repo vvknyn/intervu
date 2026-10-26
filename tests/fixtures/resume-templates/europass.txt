@@ -1,0 +1,38 @@
+Europass Curriculum Vitae
+
+PERSONAL INFORMATION
+Lucía Fernández García
+Calle Ejemplo 12, 28001 Madrid (Spain)
++34 600 555 012
+lucia.fernandez@example.com
+
+WORK EXPERIENCE
+01/03/2019 – CURRENT
+Environmental Consultant
+Verde Ingeniería Ambiental S.L. – Madrid, Spain
+• Prepared environmental impact assessments for 25 solar and wind projects.
+• Ran soil and groundwater sampling campaigns.
+
+01/09/2016 – 28/02/2019
+Junior Environmental Technician
+EcoMediterránea Consultores – Valencia, Spain
+• Logged field data and drafted monitoring reports.
+
+EDUCATION AND TRAINING
+2014 – 2016
+Master's Degree in Environmental Engineering
+Universidad Politécnica de Madrid
+
+2010 – 2014
+Bachelor's Degree in Environmental Sciences
+Universidad de Valencia
+
+LANGUAGE SKILLS
+Mother tongue(s): Spanish
+Other language(s): English C1, French B2
+
+DIGITAL SKILLS
+ArcGIS | QGIS | AutoCAD | Microsoft Office | Python
+
+JOB-RELATED SKILLS
+Environmental Impact Assessment, Soil Sampling, Groundwater Monitoring, Permitting
