@@ -107,12 +107,12 @@ export function formatDeckShowingLine(listed: number): string | null {
 }
 
 /**
- * The list's one count line (`formatDeckShowingLine`), counting every role the list shows (`rolesInList`). A pack that
- * read roles and listed none says so rather than showing no count; one that read nothing has no line.
+ * The list's one count line (`formatDeckShowingLine`), counting every role the list shows (`rolesInList`), the ones ranked
+ * lower included. A pack that read roles and shows none says so rather than showing no count; one that read nothing has no line.
  */
 export function formatHubFitLine(summary: DeckLeftOutSummary | null | undefined): string | null {
     if (!summary) return null;
-    if (summary.listed > 0) return formatDeckShowingLine(rolesInList(summary));
+    if (rolesInList(summary) > 0) return formatDeckShowingLine(rolesInList(summary));
     return summary.considered > 0 ? "No role fits your résumé yet" : null;
 }
 
@@ -151,6 +151,12 @@ export const rolesInList = (summary: DeckLeftOutSummary): number => summary.list
 export function formatLeftOutCount(summary: DeckLeftOutSummary | null | undefined): string | null {
     const n = summary ? leftOutTotal(summary) : 0;
     return n > 0 ? `${n.toLocaleString()} left out` : null;
+}
+
+/** A plain search's roles past the person's level, left out of its list: the same "N left out" line and reason row as a ranked list's, with no action to bring them back. */
+export function levelLeftOut(n: number): { line: string; rows: DisclosureRow[] } | null {
+    if (!(n > 0)) return null;
+    return { line: `${n.toLocaleString()} left out`, rows: [{ key: "level", group: "left-out", count: n, reason: REASON_TEXT.level }] };
 }
 
 /** What the disclosure's action does: widen the list to include the roles, or open the tracker. */

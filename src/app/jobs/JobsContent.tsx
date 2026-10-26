@@ -117,10 +117,11 @@ import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm
 import { useVisit } from "@/hooks/use-visit";
 import { listNewSince } from "@/lib/jobs/list-new-since";
 import { EmployerMore, type EmployerMoreRole } from "@/components/jobs/for-you/EmployerMore";
+import { RankedListDisclosure } from "@/components/jobs/for-you/RankedListDisclosure";
 import { RecommendedListNotes } from "@/components/jobs/for-you/RecommendedListNotes";
 import { LanguagesControl, storedLanguages } from "@/components/jobs/LanguagesControl";
 import { useLanguageChoice } from "@/hooks/use-language-choice";
-import { formatHubFitLine, rankedLowerTotal, type DisclosureAction, type DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
+import { formatHubFitLine, levelLeftOut, rankedLowerTotal, type DisclosureAction, type DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
 import { rowReasonLine } from "@/lib/jobs/for-you/row-reason";
 import { JOBS_SESSION_FRAME_CLASS, JobsFitHoldShell, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
 import { ResumeRemove } from "@/components/jobs/ResumeInUse";
@@ -877,7 +878,7 @@ function EmptyResults({
                     onClick={onRevealGhosts}
                     className="mt-2 w-full text-center text-xs text-foreground underline underline-offset-2"
                 >
-                    {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
+                    {ghostRevealCount.toLocaleString()} roles left out as possibly stale — show them
                 </button>
             )}
             {/* A3 — same component, same `submitSearch` chokepoint, same
@@ -2577,6 +2578,8 @@ export function JobsContent({
     // fit-ranked list leaves them out in its pool and counts them, `deckLeftOut`'s "level"), and said below.
     const levelBounds = !fitActive && omitsPastSenior(signals?.seniority, false);
     const pastSeniorLeftOut = levelBounds ? (result?.hits ?? []).filter((job) => !withinSenior(job)).length : 0;
+    const levelOut = levelLeftOut(pastSeniorLeftOut);
+    const levelLeftOutEl = levelOut && <RankedListDisclosure line={levelOut.line} rows={levelOut.rows} onAction={() => undefined} />;
     const hits = useMemo(() => {
         const raw = levelBounds ? (result?.hits ?? []).filter(withinSenior) : (result?.hits ?? []);
         // `viewedIds` (the hook's own server+local merge) union'd with this
@@ -6037,8 +6040,8 @@ export function JobsContent({
                                         <>
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground">
-                                                <div className="flex flex-wrap items-center gap-2">
+                                            <div className="mb-3 flex items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground">
+                                                <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
                                                         className="font-semibold text-foreground tabular-nums"
@@ -6081,7 +6084,7 @@ export function JobsContent({
                                                     which would be absent in the one state where this
                                                     disclosure matters most (zero results). */}
                                                 {(companyDomain || resultLineActionEl) && (
-                                                    <div className="flex flex-wrap items-center gap-3">
+                                                    <div className="flex shrink-0 flex-wrap items-center gap-3">
                                                         {companyDomain && (
                                                             <span data-testid="company-scope-chip" className="flex items-center gap-2">
                                                                 <span className="whitespace-nowrap font-semibold text-foreground">
@@ -6113,11 +6116,7 @@ export function JobsContent({
                                             </div>
                                             {/* A résumé-ranked list says what it left out and why, in the words the
                                                 daily picks and the MCP tools use (left-out-copy.ts). */}
-                                            {pastSeniorLeftOut > 0 && (
-                                                <p className="mb-2 px-[var(--list-inset)] text-xs text-muted-foreground" data-testid="level-left-out">
-                                                    {pastSeniorLeftOut} {pastSeniorLeftOut === 1 ? "role" : "roles"} past Senior left out, as your Experience level in Settings asks.
-                                                </p>
-                                            )}
+                                            {levelLeftOutEl && <div className="mb-3 px-[var(--list-inset)]">{levelLeftOutEl}</div>}
                                             {recommendedReady && recommended && (
                                                 <RecommendedListNotes summary={recommended.summary} languages={languagesPanelEl} employers={recommended.slots.length} onInclude={includeFromList} />
                                             )}

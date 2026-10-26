@@ -40,9 +40,9 @@ function fixture(rows: Rows) {
     return { slots: collapseByEmployer([...ranked, ...lower], (j) => j), summary: withListRemovals(summary, {}) };
 }
 
-const rowClass = "mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground";
+const rowClass = "mb-3 flex items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground";
 const Alert = () => (
-    <span data-testid="mock-job-alert" className="flex items-center gap-2 text-foreground">
+    <span data-testid="mock-job-alert" className="flex shrink-0 items-center gap-2 text-foreground">
         Job alert <span aria-hidden className="inline-block h-5 w-9 rounded-pill bg-muted" />
     </span>
 );
@@ -55,7 +55,7 @@ export function OneCountMock() {
         <main className="mx-auto max-w-3xl space-y-10 py-8">
             <section data-testid="mock-ranked">
                 <div className={rowClass}>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <span data-testid="result-line" className="font-semibold text-foreground tabular-nums">
                             {formatHubFitLine(summary)}
                         </span>
@@ -66,7 +66,7 @@ export function OneCountMock() {
             </section>
             <section data-testid="mock-near">
                 <div className={rowClass}>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <span data-testid="result-line" className="font-semibold text-foreground tabular-nums">
                             {formatHubFitLine(near.summary)}
                         </span>
@@ -77,7 +77,7 @@ export function OneCountMock() {
             </section>
             <section data-testid="mock-fresh">
                 <div className={rowClass}>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <span data-testid="result-line" className="font-semibold text-foreground tabular-nums">
                             712 roles from the last 90 days · updated 3h ago
                         </span>

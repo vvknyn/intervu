@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { deckListFor, withListRemovals, type DeckLeftOutSummary } from "../../src/lib/jobs/for-you/band-order";
 import { collapseByEmployer, slotOpenings } from "../../src/lib/jobs/for-you/employer-slot";
-import { deckListKind, formatHubFitLine, formatLeftOutCount, listNoticeLine, rankedLowerTotal, rolesInList } from "../../src/lib/jobs/for-you/left-out-copy";
+import { deckListKind, formatHubFitLine, formatLeftOutCount, levelLeftOut, listNoticeLine, rankedLowerTotal, rolesInList } from "../../src/lib/jobs/for-you/left-out-copy";
 import type { MatchScore } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -107,4 +107,28 @@ describe("the count line claims nothing about the ranked-lower tail; the kind's 
         });
     }
     it("a list of roles that fit has no kind notice", () => assert.equal(listNoticeLine("fit"), null));
+});
+
+describe("a list that leads with nothing still counts the roles it shows", () => {
+    it("every role ranks lower (all abroad): the count is the roles below the divider, not 'No role fits'", () => {
+        const { slots, summary } = build(rows([["acme", 3, abroad], ["beta", 2, abroad]]));
+        assert.equal(summary.listed, 0);
+        assert.equal(rolesInList(summary), 5);
+        assert.equal(rolesInList(summary), reachable(slots));
+        assert.equal(formatHubFitLine(summary), "5 roles · ranked by fit");
+    });
+    it("a list that read roles and shows none says so; one that read nothing has no line", () => {
+        assert.equal(formatHubFitLine({ considered: 4, listed: 0, byReason: { closed: 4 } }), "No role fits your résumé yet");
+        assert.equal(formatHubFitLine({ considered: 0, listed: 0, byReason: {} }), null);
+    });
+});
+
+describe("a plain search's roles past the person's level read as the same 'N left out'", () => {
+    it("counts them in one line with a reason row, and says nothing when none were cut", () => {
+        const out = levelLeftOut(7)!;
+        assert.equal(out.line, "7 left out");
+        assert.deepEqual(out.rows.map((r) => [r.count, r.reason, r.action]), [[7, "above your level", undefined]]);
+        assert.equal(levelLeftOut(1)!.line, "1 left out");
+        assert.equal(levelLeftOut(0), null);
+    });
 });
