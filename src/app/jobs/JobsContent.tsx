@@ -117,11 +117,11 @@ import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm
 import { useVisit } from "@/hooks/use-visit";
 import { listNewSince } from "@/lib/jobs/list-new-since";
 import { EmployerMore, type EmployerMoreRole } from "@/components/jobs/for-you/EmployerMore";
-import { RANKED_LOWER_ANCHOR } from "@/components/jobs/for-you/RankedListDisclosure";
+import { RankedListDisclosure } from "@/components/jobs/for-you/RankedListDisclosure";
 import { RecommendedListNotes } from "@/components/jobs/for-you/RecommendedListNotes";
 import { LanguagesControl, storedLanguages } from "@/components/jobs/LanguagesControl";
 import { useLanguageChoice } from "@/hooks/use-language-choice";
-import { formatHubFitLine, rankedLowerTotal, type DisclosureAction, type DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
+import { formatHubFitLine, levelLeftOut, rankedLowerTotal, type DisclosureAction, type DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
 import { rowReasonLine } from "@/lib/jobs/for-you/row-reason";
 import { JOBS_SESSION_FRAME_CLASS, JobsFitHoldShell, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
 import { ResumeRemove } from "@/components/jobs/ResumeInUse";
@@ -883,7 +883,7 @@ function EmptyResults({
                     onClick={onRevealGhosts}
                     className="mt-2 w-full text-center text-xs text-foreground underline underline-offset-2"
                 >
-                    {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
+                    {ghostRevealCount.toLocaleString()} roles left out as possibly stale — show them
                 </button>
             )}
             {/* A3 — same component, same `submitSearch` chokepoint, same
@@ -2574,6 +2574,8 @@ export function JobsContent({
     // fit-ranked list leaves them out in its pool and counts them, `deckLeftOut`'s "level"), and said below.
     const levelBounds = !fitActive && omitsPastSenior(signals?.seniority, false);
     const pastSeniorLeftOut = levelBounds ? (result?.hits ?? []).filter((job) => !withinSenior(job)).length : 0;
+    const levelOut = levelLeftOut(pastSeniorLeftOut);
+    const levelLeftOutEl = levelOut && <RankedListDisclosure line={levelOut.line} rows={levelOut.rows} onAction={() => undefined} />;
     const hits = useMemo(() => {
         const raw = levelBounds ? (result?.hits ?? []).filter(withinSenior) : (result?.hits ?? []);
         // `viewedIds` (the hook's own server+local merge) union'd with this
@@ -2729,8 +2731,8 @@ export function JobsContent({
         const held = [...inOrder(ranked), ...inOrder(lower)];
         const slots = collapseByEmployer(held, (c) => c.primary);
         const tailLeadId = slots.find((slot) => lowerIds.has(slot.lead.primary.id))?.lead.primary.id ?? null;
-        return { slots, roles: held.length, tailLeadId, summary: withListRemovals(summary, read, result?.total) };
-    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, result?.total, includeAbroad, includeOlder]);
+        return { slots, roles: held.length, tailLeadId, summary: withListRemovals(summary, read) };
+    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, includeAbroad, includeOlder]);
     const rankedClusters = useMemo(() => (recommended ? recommended.slots.map((slot) => slot.lead) : clusters), [recommended, clusters]);
     // The other roles of each employer's slot, by the role that leads it, with the fit label each has elsewhere.
     const employerMoreByLead = useMemo(() => {
@@ -2759,7 +2761,7 @@ export function JobsContent({
     // made from has landed: a search in flight still shows the previous rows, and their count would be another list's.
     const recommendedReady = recommended != null && !loading && resultSearchKey === searchKey;
     // Nothing is said twice: a list with no role to count has its headline in the empty state below.
-    const recommendedLine = recommendedReady && recommended.slots.length > 0 ? formatHubFitLine(recommended.summary, recommended.slots.length) : null;
+    const recommendedLine = recommendedReady && recommended.slots.length > 0 ? formatHubFitLine(recommended.summary) : null;
     const language = useLanguageChoice(uid);
     // Only once the saved preferences have been read: before that the résumé's language stands in, and a save from it replaces the stored one.
     const readLanguages = prefsRead.status === "ready" ? (signals?.languages?.value ?? null) : null;
@@ -5763,7 +5765,6 @@ export function JobsContent({
                                     whole board above it would be another list's number. */}
                                 {resumeBandEl}
                                 {promoBand === "extension" && <ExtensionTile className="mb-3" />}
-                                {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
                                 {/* Asks someone signed in for an address we can reach. */}
                                 {emailNudgeOpen && accountEmailState && accountEmailState !== "reachable" && (
                                     <AccountEmailPrompt
@@ -5993,7 +5994,7 @@ export function JobsContent({
                                         <>
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
-                                            <div data-testid="results-bar" className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-[var(--list-inset)] text-sm text-muted-foreground">
+                                            <div data-testid="results-bar" className="mb-3 flex items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground">
                                                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
@@ -6001,6 +6002,7 @@ export function JobsContent({
                                                     >
                                                         {resultCountLine}
                                                     </span>
+                                                    {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
                                                     {listNew && (
                                                         <span className="flex items-center gap-2">
                                                             <span aria-hidden>·</span>
@@ -6024,47 +6026,44 @@ export function JobsContent({
                                                         </span>
                                                     )}
                                                 </div>
-                                                {sortEl}
+                                                {/* Sort, the employer scope and the Job alert stay on this
+                                                    row (the alert must not drop onto its own line at phone
+                                                    width). The scope arrives from a link, not from anything
+                                                    typed, so with no token the count would sit far below
+                                                    the corpus with nothing saying why. */}
+                                                <div className="flex shrink-0 flex-wrap items-center gap-3 empty:hidden">
+                                                    {sortEl}
+                                                    {companyDomain && (
+                                                        <span data-testid="company-scope-chip" className="flex items-center gap-2">
+                                                            <span className="whitespace-nowrap font-semibold text-foreground">
+                                                                employer
+                                                            </span>
+                                                            <span className="text-foreground">{companyDomain}</span>
+                                                            <button
+                                                                type="button"
+                                                                data-testid="company-scope-clear"
+                                                                aria-label={`Show roles from all employers, not just ${companyDomain}`}
+                                                                onClick={clearCompanyScope}
+                                                                className="text-muted-foreground transition-colors hover:text-foreground"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </span>
+                                                    )}
+                                                    {resultLineActionEl}
+                                                </div>
                                             </div>
                                             {resumeReadStripEl}
-                                            {/* What you can do with this search, quietly: the alerts
-                                                switch, the résumé ranking entry, the saved searches
-                                                and the employer scope. The scope arrives from a link
-                                                (`/co/[slug]`'s CTA), not from anything the searcher
-                                                typed, so with no token they'd see a count far below the
-                                                corpus with nothing saying why, and no way back out.
-                                                Labelled with the domain, the scope the search actually
-                                                applies — absent from the hits in the one state where
-                                                this disclosure matters most (zero results). */}
+                                            {/* Saved searches and résumé ranking sit under the count.
+                                                The list is their only home here; the above-panel row
+                                                covers every other settled panel. */}
                                             <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-3 px-[var(--list-inset)] text-sm text-muted-foreground empty:hidden">
-                                                {resultLineActionEl}
                                                 {rankByFitEl}
                                                 {savedSearchControl}
-                                                {companyDomain && (
-                                                    <span data-testid="company-scope-chip" className="flex items-center gap-2">
-                                                        <span className="whitespace-nowrap font-semibold text-foreground">
-                                                            employer
-                                                        </span>
-                                                        <span className="text-foreground">{companyDomain}</span>
-                                                        <button
-                                                            type="button"
-                                                            data-testid="company-scope-clear"
-                                                            aria-label={`Show roles from all employers, not just ${companyDomain}`}
-                                                            onClick={clearCompanyScope}
-                                                            className="text-muted-foreground transition-colors hover:text-foreground"
-                                                        >
-                                                            ✕
-                                                        </button>
-                                                    </span>
-                                                )}
                                             </div>
                                             {/* A résumé-ranked list says what it left out and why, in the words the
                                                 daily picks and the MCP tools use (left-out-copy.ts). */}
-                                            {pastSeniorLeftOut > 0 && (
-                                                <p className="mb-2 px-[var(--list-inset)] text-xs text-muted-foreground" data-testid="level-left-out">
-                                                    {pastSeniorLeftOut} {pastSeniorLeftOut === 1 ? "role" : "roles"} past Senior left out, as your Experience level in Settings asks.
-                                                </p>
-                                            )}
+                                            {levelLeftOutEl && <div className="mb-3 px-[var(--list-inset)]">{levelLeftOutEl}</div>}
                                             {recommendedReady && recommended && (
                                                 <RecommendedListNotes summary={recommended.summary} languages={languagesPanelEl} employers={recommended.slots.length} onInclude={includeFromList} />
                                             )}
@@ -6190,7 +6189,6 @@ export function JobsContent({
                                                 rows.unshift(
                                                     <p
                                                         key="ranked-lower"
-                                                        id={RANKED_LOWER_ANCHOR}
                                                         data-testid="ranked-lower-divider"
                                                         className="mt-2 px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
                                                     >

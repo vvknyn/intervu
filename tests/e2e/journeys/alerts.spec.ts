@@ -36,10 +36,13 @@ test("a returning visitor who searches sees how many roles are new since their l
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   const line = page.getByTestId("board-visit-banner");
   await expect(line).toBeVisible({ timeout: 30_000 });
-  await expect(line).toContainText(/[\d,]+\+? new roles? on Velai since your last visit/);
+  await expect(line).toContainText(/[\d,]+\+? new since your last visit/);
   // It used to be a corner toast that dismissed itself after 6 seconds.
   await page.waitForTimeout(7_000);
   await expect(line).toBeVisible();
+  // One count line: the visit fact is a suffix of the results line, not a second line above it.
+  await expect(page.getByTestId("result-line")).toBeVisible();
+  expect(await line.evaluate((el) => el.parentElement === document.querySelector('[data-testid="result-line"]')?.parentElement)).toBe(true);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

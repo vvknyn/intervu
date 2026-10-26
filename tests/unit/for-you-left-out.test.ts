@@ -134,9 +134,7 @@ describe('when nothing fits, the closest roles stand in (never an empty list whi
     });
 
     it('says plainly that none fit and these are the closest', () => {
-        assert.equal(formatDeckShowingLine(2, 'near'), '2 closest roles · each a weaker fit');
-        assert.equal(formatDeckShowingLine(1, 'near'), '1 closest role · each a weaker fit');
-        assert.equal(formatDeckShowingLine(0, 'near'), null);
+        assert.equal(formatDeckShowingLine(0), null);
         assert.match(NEAR_MISS_NOTICE, /None of the roles we found fit your résumé well yet/);
     });
 });
@@ -175,10 +173,10 @@ describe('real scores: the rule on the TAM résumé', () => {
 
 describe('listNoticeLine: one quiet line, never a paragraph', () => {
     const resume = { label: 'Résumé', href: '/resume' };
-    it('says only what the header lacks, with the résumé as the action when detail would help', () => {
-        assert.deepEqual(listNoticeLine('near'), { text: 'Add detail to your résumé for closer matches', action: resume });
-        assert.deepEqual(listNoticeLine('older'), { text: 'Some may already be filled · each card shows its age' });
-        assert.deepEqual(listNoticeLine('older-near'), { text: 'Some may already be filled · add detail to your résumé for closer matches', action: resume });
+    it('carries the kind-specific facts, about the roles at the top only, with the résumé as the action when detail would help', () => {
+        assert.deepEqual(listNoticeLine('near'), { text: 'None fit your résumé well yet: the roles at the top are the closest, each a weaker fit · add detail to your résumé for closer matches', action: resume });
+        assert.deepEqual(listNoticeLine('older'), { text: 'The roles at the top that fit were all posted over 30 days ago · some may already be filled, each card shows its age' });
+        assert.deepEqual(listNoticeLine('older-near'), { text: 'Nothing posted in the last 30 days is close: the roles at the top are the closest, each a weaker fit and posted longer ago · some may already be filled · add detail to your résumé for closer matches', action: resume });
     });
     it('has no line for a list of roles that fit', () => {
         assert.equal(listNoticeLine('fit'), null);
@@ -190,7 +188,7 @@ describe('deckListKind: a list that read roles and listed none is the degenerate
     const zero = { considered: 25, listed: 0, byReason: {}, rankedLower: { stretch: 25 } };
     it('gets the near notice with the résumé action', () => {
         assert.equal(deckListKind(zero), 'near');
-        assert.deepEqual(listNoticeLine(deckListKind(zero)), { text: 'Add detail to your résumé for closer matches', action: resume });
+        assert.deepEqual(listNoticeLine(deckListKind(zero))?.action, resume);
     });
     it('gets the older-near notice when the roles are older', () => {
         assert.equal(deckListKind({ ...zero, older: true }), 'older-near');

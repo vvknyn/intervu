@@ -38,18 +38,15 @@ function readVisitOnce(): Promise<VisitRead> {
 }
 
 /**
- * "New roles since your last visit" — one quiet line at the top of the list
- * panel, self-contained about its own fetch (same posture as
- * `FollowAlertsBell`). It used to be a corner toast that dismissed itself
- * after six seconds, so the one reason to come back was gone before most
- * people read it; now it stays for the whole visit. Its "Email me new roles"
- * link is gone (2026-10-10): the results line's "Job alert" switch
- * just below it is the one alerts control.
+ * "565 new since your last visit": the quiet suffix of the results line, beside its count ("712 roles from the last 90
+ * days · updated 3h ago · 565 new since your last visit"), so the list head states one count. It used to be a line of
+ * its own above the results line, which gave the list two counts stacked. Its "Email me new roles" link is gone
+ * (2026-10-10): the results line's "Job alert" switch is the one alerts control.
  *
  * Honesty gate lives in `resolveVisitBannerState`: a visitor with no PRIOR
  * stored board cursor never sees a "since your last visit" claim, however
  * large the count. The count is corpus-wide (the board scope takes no
- * filters), so the copy says "on Velai" rather than implying the rows below.
+ * filters), so it is a suffix that does not read as a count of the rows below.
  */
 export function BoardVisitBanner({
     resultCount,
@@ -83,20 +80,21 @@ export function BoardVisitBanner({
 
     if (state !== "shown" || !visitBannerFitsResults(resultCount)) return null;
 
+    return <VisitSince count={count} />;
+}
+
+/** The suffix itself: a separator dot, then "565 new since your last visit". */
+export function VisitSince({ count }: { count: CorpusCount }) {
+    // Phone width has no room beside the count: the suffix goes rather than wrap under it (a lone dot at line end).
     return (
-        <div
-            data-testid="board-visit-banner"
-            className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-4 pb-2 text-sm text-muted-foreground"
-        >
-            <p role="status" className="inline-flex items-baseline gap-2">
-                <span className="size-2 shrink-0 self-center rounded-pill bg-brand" aria-hidden />
-                <span>
-                    <span data-testid="board-visit-count" className="font-semibold text-foreground tabular-nums">
-                        {formatCorpusCount(count)}
-                    </span>{" "}
-                    new role{count.value === 1 ? "" : "s"} on Velai since your last visit
-                </span>
-            </p>
-        </div>
+        <span className="hidden items-center gap-2 sm:flex">
+            <span aria-hidden>·</span>
+            <span data-testid="board-visit-banner" role="status">
+                <span data-testid="board-visit-count" className="tabular-nums">
+                    {formatCorpusCount(count)}
+                </span>{" "}
+                new since your last visit
+            </span>
+        </span>
     );
 }
