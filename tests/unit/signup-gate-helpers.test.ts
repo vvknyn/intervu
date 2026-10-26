@@ -5,7 +5,7 @@ import { resolveHiddenCount, type CorpusCount } from "../../src/lib/jobs/corpus-
 import { signupGateCopy } from "../../src/lib/auth/auth-gate-copy";
 import { signupGateHrefs } from "../../src/lib/auth/post-auth-destination";
 import { decideSaveAttempt } from "../../src/lib/auth/guest-save-gate";
-import { SIGNUP_GATE_ID_BY_REASON, gateAttemptEventFields } from "../../src/lib/auth/gate-attempt";
+import { SIGNUP_GATE_ID_BY_REASON, beginGateAttempt, beginHeaderGateAttempt, gateAttemptEventFields } from "../../src/lib/auth/gate-attempt";
 import { FIT_GUEST_PREVIEW_ROWS, splitFitGate } from "../../src/lib/jobs/fit-gate";
 import { resolveReporterKey } from "../../src/lib/jobs/reporter-key";
 import {
@@ -143,4 +143,14 @@ test("visitBannerFitsResults: thin and empty result sets never carry the banner"
     assert.equal(visitBannerFitsResults(VISIT_BANNER_MIN_RESULTS - 1), false);
     assert.equal(visitBannerFitsResults(VISIT_BANNER_MIN_RESULTS), true);
     assert.equal(visitBannerFitsResults(90), true);
+});
+
+test("the header's Sign in records a topbar attempt, so a signup finished in its popover reports gate header", () => {
+    const mem = new Map<string, string>();
+    const storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
+    assert.equal(gateAttemptEventFields(beginHeaderGateAttempt(storage, "/jobs")).gate, "header");
+    // An attempt already open keeps its door: the header never rewrites it.
+    mem.clear();
+    beginGateAttempt(storage, { reason: "save", originSurface: "job_detail" });
+    assert.equal(gateAttemptEventFields(beginHeaderGateAttempt(storage, "/jobs")).gate, "save");
 });

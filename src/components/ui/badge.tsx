@@ -65,12 +65,12 @@ function Badge({
  * above is for words; this is for a count or a one-word flag that has to stand
  * out on a control: the bell, a tab, a corner "New").
  *
- * 16px high, square (rulebook radius 0), 12/600 text. Pin it to a corner with
+ * 16px high (`size="sm"`: a 14px box with the same 12px text, for a badge on a 20px icon), square (rulebook radius 0), 12/600 text. Pin it to a corner with
  * `className` (e.g. `absolute right-0 top-1`) — never restyle its shape, and
  * never hand-roll a rounded count pill (tests/unit/tab-primitive-gate.test.ts).
  */
 const solidBadgeVariants = cva(
-  "inline-flex h-4 min-w-4 shrink-0 items-center justify-center whitespace-nowrap rounded-none px-1 text-xs font-semibold leading-none tabular-nums",
+  "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-none font-semibold leading-none tabular-nums",
   {
     variants: {
       tone: {
@@ -78,8 +78,13 @@ const solidBadgeVariants = cva(
         warn: "bg-warn text-brand-foreground",
         muted: "bg-muted text-foreground",
       },
+      // "sm" rides on a 20px icon (the bell): a 14px box, the text stays 12px.
+      size: {
+        default: "h-4 min-w-4 px-1 text-xs", // control-scale-allow: a count chip, not a control; its height is the chip's
+        sm: "h-3.5 min-w-3.5 px-0.5 text-xs", // control-scale-allow: same chip, 14px box
+      },
     },
-    defaultVariants: { tone: "brand" },
+    defaultVariants: { tone: "brand", size: "default" },
   }
 )
 
@@ -90,13 +95,14 @@ function formatBadgeCount(count: number): string {
 
 function SolidBadge({
   tone,
+  size,
   className,
   ...props
 }: React.ComponentProps<"span"> & VariantProps<typeof solidBadgeVariants>) {
   return (
     <span
       data-slot="solid-badge"
-      className={cn(solidBadgeVariants({ tone }), className)}
+      className={cn(solidBadgeVariants({ tone, size }), className)}
       {...props}
     />
   )
