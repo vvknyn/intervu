@@ -69,7 +69,7 @@ describe("row text is never a one-line ellipsis", () => {
         assert.ok(tag("row-fit-reason"), "row-fit-reason element not found");
         assert.doesNotMatch(tag("row-fit-reason"), /line-clamp/);
     });
-    it("meta line carries the full string in title", () => assert.match(card.slice(card.indexOf('data-testid="job-row-meta"') - 20, card.indexOf('data-testid="job-row-meta"') + 300), /title=/));
+    it("meta line carries no title: it is block-level, so a tooltip there fires over empty space and repeats visible text", () => assert.doesNotMatch(card.slice(card.indexOf('data-testid="job-row-meta"') - 20, card.indexOf('data-testid="job-row-meta"') + 300), /title=/));
 });
 
 describe("toolbar below @2xl is one scrolling row", () => {
