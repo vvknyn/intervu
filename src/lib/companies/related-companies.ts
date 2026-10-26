@@ -36,6 +36,19 @@ export function relatedFacet(facts: CompanyFacts): { key: FacetKey; value: strin
   return country ? { key: "location_country", value: country.value } : null;
 }
 
+export type RelatedFacet = NonNullable<ReturnType<typeof relatedFacet>>;
+
+/** The heading states the fact the list is built on, never a relationship the data does not establish. */
+export function relatedHeading(facet: RelatedFacet): string {
+  return facet.key === "must_have_skills" ? `Also hiring for ${facet.value}` : `Also hiring in ${facet.value}`;
+}
+
+/** The related companies with the facet they share. */
+export interface RelatedCompanies {
+  facet: RelatedFacet;
+  companies: RelatedCompany[];
+}
+
 /** A related company with its fresh open-roles count, or none when the count could not be read. */
 export interface RelatedCompany {
   domain: string;
@@ -53,24 +66,25 @@ export function withFreshCounts(selected: readonly DirectoryCompany[], counts: R
     .sort((a, b) => (b.openCount?.value ?? -1) - (a.openCount?.value ?? -1));
 }
 
-/** Thin I/O: one facet search, tallied by company, intersected with the indexable set, then the fresh counts. Fails soft to []. */
+/** Thin I/O: one facet search, tallied by company, intersected with the indexable set, then the fresh counts. Null (section omitted) when there is no facet, the read fails, or nothing matches. */
 export async function fetchRelatedCompanies(
   facts: CompanyFacts,
   search: (p: JobSearchParams) => Promise<JobSearchResult> = searchJobs,
   indexable: () => Promise<DirectoryCompany[]> = resolveIndexableCompanies,
   readCounts: typeof resolveOpenCounts = resolveOpenCounts,
-): Promise<RelatedCompany[]> {
+): Promise<RelatedCompanies | null> {
   const facet = relatedFacet(facts);
-  if (!facet) return [];
+  if (!facet) return null;
   try {
     const [result, set] = await Promise.all([
       search({ facets: { [facet.key]: [facet.value] }, limit: 200, hideGhosts: false }),
       indexable(),
     ]);
     const selected = buildRelatedCompanies(result.hits.map((j) => j.company_domain ?? ""), set, facts.identity.domain);
-    return withFreshCounts(selected, await readCounts(selected.map((c) => c.domain)));
+    const companies = withFreshCounts(selected, await readCounts(selected.map((c) => c.domain)));
+    return companies.length ? { facet, companies } : null;
   } catch (error) {
     console.error(`related companies: read failed, section omitted: ${error instanceof Error ? error.message : String(error)}`);
-    return [];
+    return null;
   }
 }

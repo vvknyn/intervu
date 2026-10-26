@@ -29,7 +29,7 @@ const hiringNow = (exhaust: CompanyExhaust | null) =>
   renderToStaticMarkup(
     React.createElement(CompanySections, {
       ids: ["hiringNow"],
-      ctx: { facts: facts(), exhaust, nowMs: NOW, roles: null, related: [], faq: [], staleShare: null },
+      ctx: { facts: facts(), exhaust, nowMs: NOW, roles: null, related: null, faq: [], staleShare: null },
     }),
   );
 

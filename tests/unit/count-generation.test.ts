@@ -27,7 +27,7 @@ describe("one count generation", () => {
     const facts = { identity: { domain: "self.com" }, mix: { skills: { buckets: [{ value: "Go" }] } } } as unknown as CompanyFacts;
     const listed = [{ domain: DOMAIN, openRoleCount: 1, computedAt: null, name: "Zenbotix", letter: "Z" }];
     const related = await fetchRelatedCompanies(facts, async () => ({ hits: [{ company_domain: DOMAIN }] }) as never, async () => listed, (d) => g.resolve(d, fresh7));
-    assert.equal(related[0]?.openCount?.value, 41);
+    assert.equal(related?.companies[0]?.openCount?.value, 41);
   });
 
   it("reads an unlisted domain fresh, beside a listed one served from the generation", async () => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { fetchOpenCounts } from "@/lib/companies/listed-names";
-import { fetchRelatedCompanies, withFreshCounts } from "@/lib/companies/related-companies";
+import { fetchRelatedCompanies, relatedHeading, withFreshCounts } from "@/lib/companies/related-companies";
 import { openCountLabel } from "@/lib/companies/presentation";
 import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/company-roles-query";
 import type { DirectoryCompany } from "@/lib/companies/directory-model";
@@ -58,11 +58,32 @@ describe("fetchRelatedCompanies", () => {
   const search = async () => ({ hits: [{ company_domain: "zenbotix.com" }, { company_domain: "quillarc.io" }] }) as never;
   const set = async () => [co("zenbotix.com", 152), co("quillarc.io", 40)];
   it("shows the fresh count and orders by it, though the memo ranks the other way", async () => {
-    const rows = await fetchRelatedCompanies(facts, search, set, (d) => fetchOpenCounts(d, exact({ "zenbotix.com": 126, "quillarc.io": 200 })));
+    const rows = (await fetchRelatedCompanies(facts, search, set, (d) => fetchOpenCounts(d, exact({ "zenbotix.com": 126, "quillarc.io": 200 }))))!.companies;
     assert.deepEqual(rows.map((r) => [r.domain, r.openCount?.value]), [["quillarc.io", 200], ["zenbotix.com", 126]]);
   });
   it("keeps the companies but drops every number when the count read fails", async () => {
-    const rows = await fetchRelatedCompanies(facts, search, set, async () => new Map());
+    const rows = (await fetchRelatedCompanies(facts, search, set, async () => new Map()))!.companies;
     assert.deepEqual(rows.map((r) => [r.domain, r.openCount]), [["zenbotix.com", null], ["quillarc.io", null]]);
+  });
+  it("names the shared skill, whatever it is", async () => {
+    const r = await fetchRelatedCompanies(facts, search, set, async () => new Map());
+    assert.equal(relatedHeading(r!.facet), "Also hiring for Go");
+  });
+  it("names the shared country when there is no skill", async () => {
+    const uk = { identity: { domain: "self.com" }, mix: { countries: { buckets: [{ value: "United Kingdom" }] } } } as unknown as CompanyFacts;
+    const r = await fetchRelatedCompanies(uk, search, set, async () => new Map());
+    assert.equal(relatedHeading(r!.facet), "Also hiring in United Kingdom");
+  });
+  it("is null with no facet, a thrown search, or no match", async () => {
+    const none = { identity: { domain: "self.com" }, mix: {} } as unknown as CompanyFacts;
+    assert.equal(await fetchRelatedCompanies(none, search, set), null);
+    const err = console.error;
+    console.error = () => {};
+    try {
+      assert.equal(await fetchRelatedCompanies(facts, async () => { throw new Error("down"); }, set), null);
+    } finally {
+      console.error = err;
+    }
+    assert.equal(await fetchRelatedCompanies(facts, async () => ({ hits: [] }) as never, set), null);
   });
 });

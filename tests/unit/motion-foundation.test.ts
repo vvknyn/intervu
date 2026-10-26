@@ -88,14 +88,10 @@ describe("motion foundation wiring", () => {
     assert.match(TOAST, /safe-area-inset-bottom/);
   });
 
-  it("SearchAutocomplete exposes combobox wiring and stable option ids", () => {
-    assert.match(SEARCH, /role="combobox"/);
-    assert.match(SEARCH, /aria-haspopup="listbox"/);
-    assert.match(SEARCH, /aria-expanded=\{dropdownOpen\}/);
-    assert.match(SEARCH, /aria-controls=\{dropdownOpen \? listboxId : undefined\}/);
-    assert.match(SEARCH, /aria-activedescendant=/);
-    assert.match(SEARCH, /id=\{listboxId\}/);
-    assert.match(SEARCH, /id=\{optionId\(index\)\}/);
+  it("SearchAutocomplete is the shared combobox: library wiring, stable option ids, house focus", () => {
+    assert.match(SEARCH, /from "@\/components\/ui\/combobox"/);
+    assert.doesNotMatch(SEARCH, /role="combobox"|aria-activedescendant=/, "the library owns the ARIA wiring, nothing hand-rolled beside it");
+    assert.match(SEARCH, /<ComboboxItem id=\{row\.id\}/);
     assert.match(SEARCH, /CONTROL_FOCUS_VISIBLE/);
   });
 
