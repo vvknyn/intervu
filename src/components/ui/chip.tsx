@@ -37,6 +37,17 @@ export const chipVariants = cva(
 )
 
 /**
+ * The one row every applied-chip row uses: one line at every width, scrolling
+ * sideways with an edge fade (chips never wrap, stack or truncate). The vertical
+ * padding and equal negative margin give the coarse-pointer ::before hit areas
+ * (44px on 32px controls, 6px each side) room inside the scroller's clip box
+ * without making the row taller; any ::before expander inside an
+ * overflow-x:auto element is clipped otherwise.
+ */
+export const CHIP_SCROLL_ROW =
+  "no-scrollbar flex min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto py-1.5 -my-1.5 pr-8 [&>*]:shrink-0 [mask-image:linear-gradient(to_right,white_calc(100%-2rem),transparent)]"
+
+/**
  * A chip that is a boolean toggle (on/off, no value in its label). Selected is
  * never colour alone (WCAG 1.4.1): the state is announced (`aria-pressed`, or
  * `aria-checked` when the chip is a `role="radio"`) and a leading check

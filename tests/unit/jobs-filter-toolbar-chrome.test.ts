@@ -96,10 +96,8 @@ describe("jobs filter toolbar chrome", () => {
             src.indexOf('data-testid="active-filter-row"'),
             src.indexOf('data-testid="active-filter-row"') + 700,
         );
-        assert.match(activeRow, /flex-wrap/);
-        assert.match(activeRow, /overflow-x-clip/);
-        assert.doesNotMatch(activeRow, /flex-nowrap/);
-        assert.doesNotMatch(activeRow, /overflow-x-auto/);
+        // Scrolling and nowrap live on the shared CHIP_SCROLL_ROW wrapper, never on this inner group.
+        assert.doesNotMatch(activeRow, /flex-wrap|overflow-x-/);
 
         const activeChip = src.slice(
             src.indexOf('data-testid="active-filter-chip"'),
@@ -112,11 +110,9 @@ describe("jobs filter toolbar chrome", () => {
             src.indexOf('data-testid="jobs-toolbar-scroller"'),
             src.indexOf('data-testid="jobs-toolbar-scroller"') + 300,
         );
-        assert.match(toolbarScroller, /flex-wrap/);
-        assert.match(toolbarScroller, /overflow-x-clip/);
-        // narrow column: one scrollable row, shared with the active chips (the wrapper scrolls)
-        assert.match(src.slice(src.indexOf('data-testid="jobs-toolbar-rows"'), src.indexOf('data-testid="jobs-toolbar-rows"') + 300), /\boverflow-x-auto/);
-        assert.doesNotMatch(toolbarScroller, /flex-nowrap/);
+        assert.doesNotMatch(toolbarScroller, /flex-wrap|overflow-x-/);
+        // one scrollable row at every width, shared with the active chips (the wrapper scrolls)
+        assert.match(src.slice(src.indexOf('data-testid="jobs-toolbar-rows"'), src.indexOf('data-testid="jobs-toolbar-rows"') + 300), /CHIP_SCROLL_ROW/);
     });
 
     it("Clear sits at the trailing end of the filter/chip cluster, not between chips and Save", () => {
@@ -172,7 +168,7 @@ describe("jobs filter toolbar chrome", () => {
         );
     });
 
-    it("TopBar docked band wraps active chips", () => {
+    it("TopBar docked band keeps active chips on one scrolling line", () => {
         const src = readFileSync(TOPBAR, "utf8");
         assert.match(src, /data-testid="topbar-docked-active-filters"/);
         assert.ok(
@@ -186,9 +182,8 @@ describe("jobs filter toolbar chrome", () => {
             src.indexOf('data-region="band"'),
             src.indexOf('data-testid="topbar-docked-filters-toggle"') + 80,
         );
-        assert.match(bandRow, /flex-wrap/);
-        assert.match(bandRow, /overflow-x-clip/);
-        assert.doesNotMatch(bandRow, /overflow-x-auto/);
+        assert.match(bandRow, /CHIP_SCROLL_ROW/, "the docked row is the shared one-line scrolling chip row");
+        assert.doesNotMatch(bandRow, /flex-wrap/);
 
         const dockedChip = src.slice(
             src.indexOf('data-testid="topbar-docked-chip"'),

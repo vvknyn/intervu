@@ -129,7 +129,7 @@ import { countResults, formatPlaceList, isThinResults, locationDropped, namedPla
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { PUSHED_IN_APP, previousEntryIsOurs, urlWithoutJob } from "@/lib/jobs/detail-close";
-import { chipVariants, ChipDismiss, filterCountBadgeClass, ToggleChip } from "@/components/ui/chip";
+import { chipVariants, ChipDismiss, CHIP_SCROLL_ROW, filterCountBadgeClass, ToggleChip } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { SearchAlertSwitch } from "@/components/jobs/SearchAlertSwitch";
 import { SignupGate } from "@/components/auth/SignupGate";
@@ -5469,13 +5469,13 @@ export function JobsContent({
                         with the chip row under it. */}
                     <div
                         data-testid="jobs-toolbar-rows"
-                        className="no-scrollbar flex w-full min-w-0 items-center gap-2 overflow-x-auto pr-8 [mask-image:linear-gradient(to_right,white_calc(100%-2rem),transparent)] @2xl:block @2xl:overflow-x-clip @2xl:pr-0 @2xl:[mask-image:none]"
+                        className={cn("w-full", CHIP_SCROLL_ROW)}
                     >
                     {showJobsToolbarRow && (
                     <div
                         data-testid="jobs-toolbar-scroller"
                         className={cn(
-                            "flex shrink-0 items-center gap-2 [&>*]:shrink-0 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:gap-3 @2xl:overflow-x-clip",
+                            "flex shrink-0 items-center gap-2 [&>*]:shrink-0",
                             atRest ? "px-0" : "px-[var(--list-inset)]",
                         )}
                     >
@@ -5529,10 +5529,7 @@ export function JobsContent({
                     {!headerDockActive && activeEntries.length > 0 && (
                         <div
                             data-testid="active-filter-row"
-                            className={cn(
-                                "flex shrink-0 items-center gap-2 pr-[var(--list-inset)] [&>*]:shrink-0",
-                                "@2xl:mt-2 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:overflow-x-clip @2xl:pr-0 @2xl:pt-2",
-                            )}
+                            className="flex shrink-0 items-center gap-2 pr-[var(--list-inset)] [&>*]:shrink-0"
                         >
                             {activeEntries.map((entry) => {
                                 const label = chipLabelForEntry(entry);
@@ -5966,7 +5963,7 @@ export function JobsContent({
                                         <>
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
-                                            <div data-testid="results-bar" className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-[var(--list-inset)] text-sm text-muted-foreground">
+                                            <div data-testid="results-bar" className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-[var(--list-inset)] text-sm text-muted-foreground">
                                                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
@@ -6009,7 +6006,7 @@ export function JobsContent({
                                                 Labelled with the domain, the scope the search actually
                                                 applies — absent from the hits in the one state where
                                                 this disclosure matters most (zero results). */}
-                                            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 px-[var(--list-inset)] text-sm text-muted-foreground empty:hidden">
+                                            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-3 px-[var(--list-inset)] text-sm text-muted-foreground empty:hidden">
                                                 {resultLineActionEl}
                                                 {rankByFitEl}
                                                 {savedSearchControl}

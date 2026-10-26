@@ -317,7 +317,7 @@ export function SavedSearchesPanel({
                                 type="button"
                                 data-testid="saved-search-remove"
                                 onClick={() => void removeSaved(s)}
-                                className="text-muted-foreground hover:text-foreground ml-0.5"
+                                className="ml-1.5 inline-flex size-8 items-center justify-center text-muted-foreground hover:text-foreground"
                                 aria-label={`Remove saved search ${s.name}`}
                             >
                                 <X />

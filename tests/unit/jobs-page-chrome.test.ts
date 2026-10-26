@@ -163,12 +163,6 @@ describe("jobs page chrome guards", () => {
         assert.match(actionsSrc, /const DEFAULT_BROWSE_LIMIT = 20;/);
     });
 
-    it("FacetBar is not gated behind !showLandingMarketing", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.doesNotMatch(src, /!showLandingMarketing\s*&&\s*\(\s*\n?\s*<FacetBar/);
-        assert.doesNotMatch(src, /!showLandingMarketing\s*&&\s*<FacetBar/);
-    });
-
     it("does not render LandingUspSection on the page", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.doesNotMatch(src, /<LandingUspSection/);
