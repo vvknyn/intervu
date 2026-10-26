@@ -42,7 +42,8 @@ export interface EventPayloads {
     filter_count: number;
   };
   result_clicked: {
-    position: number;
+    /** Absent on a résumé-shaped list (its order would show how the résumé fits). */
+    position?: number;
     job_id: string;
     source: EventSource;
     /** The rendered result set this click came from — same uuid stamped on
@@ -146,13 +147,14 @@ export interface EventPayloads {
     depth: number;
   };
   results_impressed: {
-    job_ids: string[];
+    /** `job_ids` and `positions` are absent on a résumé-shaped list: which rows it held, in what order, shows how the résumé fits. */
+    job_ids?: string[];
     /** 1-based rendered position for each entry in `job_ids`, same order —
      *  parallel arrays rather than `{job_id, position}[]` so this doesn't
      *  fork the existing `job_ids`/`count` dashboard shape (SPEC §5's
      *  position-fix requirement, applied without renaming the wire
      *  contract). */
-    positions: number[];
+    positions?: number[];
     count: number;
     source: EventSource;
     /** The uuid identifying this rendered result set — same value carried
