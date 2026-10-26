@@ -479,6 +479,11 @@ function looksLikeHeaderText(line: string): boolean {
     return counted.length > 0 && counted.filter((w) => /^[\p{Lu}\d]/u.test(w)).length * 2 >= counted.length;
 }
 
+/** "Ten years running hotel kitchens.": a sentence, which names no role or employer ("Acme Inc."). */
+function isSentence(line: string): boolean {
+    return /[.!?]$/.test(line.trim()) && !looksLikeHeaderText(line.trim().replace(/[.!?]+$/, ""));
+}
+
 /** "Beta Systems" / "Software Engineer": two short lines naming a role and its employer, in either order. */
 function isEntryHeaderPair(a: string, b: string): boolean {
     if (!looksLikeHeaderText(a) || !looksLikeHeaderText(b)) return false;
@@ -699,7 +704,8 @@ function parseExperienceBlock(lines: string[], anyName = false): { entries: Omit
             }
         }
 
-        const datedBelow = !BULLET_RE.test(lineAt(lines, i + 1)) && ENTRY_DATES_RE.test(lineAt(lines, i + 2));
+        const datedBelow = !BULLET_RE.test(lineAt(lines, i + 1)) && ENTRY_DATES_RE.test(lineAt(lines, i + 2)) &&
+            ![lines[i], lines[i + 1]].some(isSentence);
         if (datedBelow || isHeaderBlockOverBullets(lines, i)) {
             const [first, second] = [lines[i], lines[i + 1]];
             // Where the lines don't say ("Diet Technician" / "Bridgetown Senior Living"), the entry
@@ -742,22 +748,18 @@ function isListLine(line: string): boolean {
         !HAS_DATE_RE.test(line) && !/[.!?]$/.test(line) && !isContactOrPlaceLine(line);
 }
 
-/**
- * A header line that is the candidate's, not a job's: how to reach them, a
- * skills list, or their name or headline unless it heads the dated entry
- * under it ("Chef de Partie, The Harbour Hotel, Cork" over "May 2021 – Present").
- */
-function isIdentityLine(lines: string[], n: number): boolean {
-    const line = lines[n];
-    if (EMAIL_RE.test(line) || PHONE_RE.test(line) || LINKEDIN_RE.test(line) || isListLine(line)) return true;
-    if (ENTRY_DATES_RE.test(line) || ENTRY_DATES_RE.test(lineAt(lines, n + 1))) return false;
-    return looksLikeName(line) || looksLikeTitle(line);
+/** A header line that is the candidate's wherever it sits, never a job's: how to reach them, or a skills list. */
+function isContactOrListLine(line: string): boolean {
+    return EMAIL_RE.test(line) || PHONE_RE.test(line) || LINKEDIN_RE.test(line) || isListLine(line);
 }
 
-/** The lines a role can sit on: under no heading, or under the work heading. Never another section's ("PROJECTS"). */
+/**
+ * The lines a role can sit on: under no heading, or under the work heading. Never another section's ("PROJECTS").
+ * The name, headline or summary over the first role is left to the entry reader, which keeps it as the block's intro.
+ */
 function collectExperienceFallbackLines(sections: Record<string, string[]>): string[] {
     return (["header", "experience"] as const).flatMap((key) =>
-        (sections[key] ?? []).filter((line, n, all) => !isLikelyEducationLine(line) && !(key === "header" && isIdentityLine(all, n))));
+        (sections[key] ?? []).filter((line) => !isLikelyEducationLine(line) && !(key === "header" && isContactOrListLine(line))));
 }
 
 function extractContact(lines: string[]): Partial<ResumeProfile> {
@@ -1246,6 +1248,15 @@ function isTableHeaderRow(lines: string[], i: number): boolean {
     return cells >= 3 && !/\d/.test(lines[i]) && /\d/.test(next) && next.split(" | ").length >= cells - 1;
 }
 
+/**
+ * An entry naming a degree ("BSN", "Master of Architecture") at a school ("Nursing College"): a school, read without its
+ * heading. A titled role at a school ("Associate Professor") is a job, and so is a degree word at a workplace ("Doctor", "City Hospital").
+ */
+function readsAsSchool({ role, company }: Omit<ResumeExperience, "id">): boolean {
+    const [degree, school] = DEGREE_LIKE_RE.exec(role)?.index === 0 ? [role, company] : [company, role];
+    return DEGREE_LIKE_RE.exec(degree)?.index === 0 && !looksLikeTitle(degree) && INSTITUTION_RE.test(school);
+}
+
 /** Dated entries, each a role: work history under a heading that names no section ("INTERNSHIPS"). */
 function readsAsWorkHistory(lines: string[]): boolean {
     const { entries } = parseExperienceBlock(lines);
@@ -1410,9 +1421,10 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         if (kept.length > 0) additionalSections.push({ heading: sectionHeadings[key] ?? "", after: sectionOrder[sectionOrder.indexOf(key) - 1] ?? null, lines: kept });
         return entries;
     };
-    // A work history naming no role is read with the rest of the résumé's lines.
+    // A work history naming no role is read with the rest of the résumé's lines, where a degree at a school is a school.
     const work = parseExperienceBlock(sections.experience ?? []);
-    const experience = work.entries.length > 0 ? keepIntro("experience", work) : parseExperienceBlock(collectExperienceFallbackLines(sections)).entries;
+    const unheaded = work.entries.length > 0 ? [] : parseExperienceBlock(collectExperienceFallbackLines(sections)).entries;
+    const experience = work.entries.length > 0 ? keepIntro("experience", work) : unheaded.filter((e) => !readsAsSchool(e));
 
     const projects = keepIntro("projects", parseExperienceBlock(sections.projects ?? [], true));
 
@@ -1435,8 +1447,9 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         if (generatedSummary.length > 500) generatedSummary = generatedSummary.slice(0, 500);
     }
 
-    // Without a heading, schools are read by their shape.
-    const schools = parseEducationBlock(sections.education ?? (sections.header ?? []).filter(isLikelyEducationLine));
+    // Without a heading, schools are read by their shape: a dated line naming one, or an entry naming a degree at one, as its one line.
+    const unheadedSchools = unheaded.filter(readsAsSchool).flatMap((e) => [[e.role, e.company, e.dates].join(" | "), ...e.description.split("\n")]);
+    const schools = parseEducationBlock([...(sections.education ?? (sections.header ?? []).filter(isLikelyEducationLine)), ...unheadedSchools]);
     for (const { label, value } of schools.details) additionalSections.push({ heading: label, after: "education", lines: [value] });
 
     // "LANGUAGE SKILLS", "DIGITAL SKILLS": skills split under several headings are lists named by them.

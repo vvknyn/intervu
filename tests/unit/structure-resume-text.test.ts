@@ -428,6 +428,51 @@ describe("every entry lands in the section whose heading it sits under", () => {
         }
     }
 
+    // With no heading over them, the same entries read the same way: a role by the reader the work heading uses, a school by its shape.
+    // Before 2026-10-26 a title on its own line was dropped as the person's headline, and a school was read as a job.
+    // A project has no shape of its own to read without its heading.
+    for (const [layoutName, layout] of Object.entries(layouts)) {
+        for (const order of [["experience"], ...orders.filter((o) => !o.includes("projects"))]) for (const gap of [[], [""]]) {
+            it(`no headings: ${order.join(", ")}, each entry ${layoutName}${gap.length ? ", a blank line between them" : ""}`, () => {
+                const body = order.flatMap((key) => [...sections[key](layout).slice(1), ...gap]);
+                const out = structureResumeText(["Casey Morgan", "casey.morgan@example.com", ...body].join("\n"));
+                assert.deepEqual(
+                    { experience: out.experience.map((e) => [e.role, e.company]), education: out.education.map((e) => [e.degree, e.institution]) },
+                    { experience: [["Nurse", "City Hospital"]], education: order.includes("education") ? [["BSN", "Nursing College"]] : [] },
+                );
+            });
+        }
+    }
+
+    it("no headings: reads every role's title, whatever is printed over the first one", () => {
+        const roles = ["Data Analyst", "Globex Corp", "Mar 2020 – Jun 2023", "• Built dashboards", "Analyst Intern", "Initech", "Jan 2019 – Dec 2019"];
+        const read = (over: string[]) => structureResumeText([...over, ...roles].join("\n")).experience.map((e) => [e.role, e.company, e.dates]);
+        const expected = [["Data Analyst", "Globex Corp", "Mar 2020 – Jun 2023"], ["Analyst Intern", "Initech", "Jan 2019 – Dec 2019"]];
+        assert.deepEqual(read(["Jane Doe"]), expected, "a name");
+        assert.deepEqual(read(["Jane Doe", "jane.doe@example.com | +1 416 555 0134"]), expected, "a name and how to reach her");
+        assert.deepEqual(read(["Jane Doe", "Analyst with four years of reporting for retail teams."]), expected, "a name and a summary sentence");
+    });
+
+    it("a sentence over a role printed on one line is the block's own text, under the work heading or none", () => {
+        for (const heading of [["EXPERIENCE"], []]) {
+            const out = structureResumeText(["Jane Doe", ...heading, "Analyst with four years of reporting for retail teams.",
+                "Data Analyst, Globex Corp, Toronto", "Mar 2020 – Jun 2023", "• Built dashboards"].join("\n"));
+            assert.deepEqual(out.experience.map((e) => [e.role, e.company, e.dates]), [["Data Analyst", "Globex Corp", "Mar 2020 – Jun 2023"]], heading.join() || "no heading");
+        }
+    });
+
+    it("no headings: a degree at a school is a school; a titled role at one, or a degree word at a job, is a job", () => {
+        const out = structureResumeText(["Casey Morgan", "Associate Professor", "Example State University", "2019 - Present",
+            "Doctor", "City Hospital", "2016 - 2019", "Master of Architecture", "Example State University", "2012 - 2014"].join("\n"));
+        assert.deepEqual(
+            { experience: out.experience.map((e) => [e.role, e.company]), education: out.education.map((e) => [e.degree, e.institution]) },
+            {
+                experience: [["Associate Professor", "Example State University"], ["Doctor", "City Hospital"]],
+                education: [["Master of Architecture", "Example State University"]],
+            },
+        );
+    });
+
     it("reads a heading by the word it ends on: appointments are jobs, qualifications are schools", () => {
         const read = (lines: string[]) => {
             const out = structureResumeText(["Casey Morgan", ...lines].join("\n"));
