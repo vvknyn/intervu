@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { deckListFor, withListRemovals, type DeckLeftOutSummary } from "../../src/lib/jobs/for-you/band-order";
 import { collapseByEmployer, slotOpenings } from "../../src/lib/jobs/for-you/employer-slot";
-import { deckListKind, formatHubFitLine, formatLeftOutCount, rolesInList } from "../../src/lib/jobs/for-you/left-out-copy";
+import { deckListKind, formatHubFitLine, formatLeftOutCount, listNoticeLine, rankedLowerTotal, rolesInList } from "../../src/lib/jobs/for-you/left-out-copy";
 import type { MatchScore } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -45,7 +45,7 @@ describe("the headline number is the roles the list can show", () => {
         assert.equal(rolesInList(summary), reachable(slots));
         assert.equal(rolesInList(summary), slots.reduce((n, s) => n + slotOpenings(s), 0));
         assert.ok(slots.some((s) => s.hidden > 0), "an employer past the slot cap is in the fixture");
-        assert.equal(formatHubFitLine(summary, slots.length), "14 roles · ranked by fit");
+        assert.equal(formatHubFitLine(summary), "14 roles · ranked by fit");
         assert.equal(formatLeftOutCount(summary), "4 left out");
     });
 
@@ -57,7 +57,7 @@ describe("the headline number is the roles the list can show", () => {
         assert.equal(rolesInList(summary), 11, "every scored role the list read, not only the closest");
         assert.equal(rolesInList(summary), reachable(slots));
         assert.deepEqual(summary.byReason, { closed: 2, tracked: 1 });
-        assert.equal(formatHubFitLine(summary, slots.length), `11 closest roles at ${slots.length} employers · each a weaker fit`);
+        assert.equal(formatHubFitLine(summary), "11 roles · ranked by fit");
         assert.equal(formatLeftOutCount(summary), "3 left out");
     });
 
@@ -67,7 +67,7 @@ describe("the headline number is the roles the list can show", () => {
         assert.equal(deckListKind(summary), "older");
         assert.equal(rolesInList(summary), 5);
         assert.equal(rolesInList(summary), reachable(slots));
-        assert.equal(formatHubFitLine(summary, slots.length), `5 roles fit your résumé at ${slots.length} employers · all posted over 30 days ago`);
+        assert.equal(formatHubFitLine(summary), "5 roles · ranked by fit");
     });
 
     it("nothing ranks lower: the number is the cards and what rides behind them", () => {
@@ -76,7 +76,7 @@ describe("the headline number is the roles the list can show", () => {
         assert.equal(summary.rankedLower, undefined);
         assert.equal(rolesInList(summary), 5);
         assert.equal(rolesInList(summary), reachable(slots));
-        assert.equal(formatHubFitLine(summary, slots.length), "5 roles · ranked by fit");
+        assert.equal(formatHubFitLine(summary), "5 roles · ranked by fit");
     });
 
     it("nothing left out: no count line, however many roles rank lower", () => {
@@ -84,4 +84,27 @@ describe("the headline number is the roles the list can show", () => {
         assert.equal(rolesInList(summary), 5);
         assert.equal(formatLeftOutCount(summary), null);
     });
+});
+
+describe("the count line claims nothing about the ranked-lower tail; the kind's fact is the lead group's own notice", () => {
+    const CLAIMS_OF_THE_LEAD = /closest|weaker|posted over|fit your résumé|\bfits\b/;
+    const NEWER = (e: string, i: number): Row => ({ job: mk(`${e}-new-${i}`, e, 5), score: score(50, ABROAD) });
+    const cases: [kind: string, set: Row[], tailHolds: string][] = [
+        ["near", rows([["acme", 2, weak], ["beta", 2, abroad]]), "an abroad role"],
+        ["older-near", rows([["acme", 2, (e, i) => ({ job: mk(`${e}-oldweak-${i}`, e, 60), score: score(50) })], ["beta", 2, NEWER]]), "a 5-day-old role"],
+        ["older", rows([["acme", 2, old], ["beta", 2, lowerLevel]]), "a weaker-fit role"],
+    ];
+    for (const [kind, set, tailHolds] of cases) {
+        it(`${kind}: the tail holds ${tailHolds} and the count line says only "N roles · ranked by fit"`, () => {
+            const { summary } = build(set);
+            assert.equal(deckListKind(summary), kind);
+            assert.ok(rankedLowerTotal(summary) > 0, "the tail is not empty");
+            const line = formatHubFitLine(summary)!;
+            assert.equal(line, `${rolesInList(summary)} roles · ranked by fit`);
+            assert.doesNotMatch(line, CLAIMS_OF_THE_LEAD);
+            const notice = listNoticeLine(kind as ReturnType<typeof deckListKind>)!;
+            assert.match(notice.text, /at the top/, "worded to name the lead group only");
+        });
+    }
+    it("a list of roles that fit has no kind notice", () => assert.equal(listNoticeLine("fit"), null));
 });

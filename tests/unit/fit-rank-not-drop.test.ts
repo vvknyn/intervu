@@ -142,15 +142,12 @@ describe("the one disclosure line", () => {
         assert.equal(formatLeftOutCount({ considered: 20, listed: 20, byReason: {} }), null);
         assert.equal(formatLeftOutCount(null), null);
     });
-    it("the headline counts the roles it leads with and the ones ranked lower, in each kind's words", () => {
+    it("the headline counts the roles it leads with and the ones ranked lower, and says the same for every kind", () => {
         assert.equal(rolesInList(SUMMARY), 236);
-        assert.equal(formatHubFitLine(SUMMARY, 94), "236 roles · ranked by fit");
-        assert.equal(formatHubFitLine({ ...SUMMARY, near: true }, 94), "236 closest roles at 94 employers · each a weaker fit");
-        assert.equal(formatHubFitLine({ ...SUMMARY, older: true }, 94), "236 roles fit your résumé at 94 employers · all posted over 30 days ago");
-        assert.equal(formatHubFitLine({ ...SUMMARY, near: true, older: true }, 94), "236 closest roles at 94 employers · each a weaker fit, all posted over 30 days ago");
-        assert.equal(formatDeckShowingLine(114, "fit", 94), "114 roles · ranked by fit");
-        assert.equal(formatDeckShowingLine(1, "fit"), "1 role · ranked by fit");
-        assert.equal(formatDeckShowingLine(5, "near", 2), "5 closest roles at 2 employers · each a weaker fit");
+        assert.equal(formatHubFitLine(SUMMARY), "236 roles · ranked by fit");
+        for (const kind of [{ near: true }, { older: true }, { near: true, older: true }] as const) assert.equal(formatHubFitLine({ ...SUMMARY, ...kind }), "236 roles · ranked by fit");
+        assert.equal(formatDeckShowingLine(114), "114 roles · ranked by fit");
+        assert.equal(formatDeckShowingLine(1), "1 role · ranked by fit");
     });
 });
 

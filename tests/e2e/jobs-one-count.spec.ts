@@ -28,3 +28,10 @@ test("freshest head: the visit fact is a suffix on the one count line, with the 
     expect(Math.abs(a!.y - b!.y)).toBeLessThan(a!.height);
     expect(Math.abs(a!.y - c!.y)).toBeLessThan(a!.height * 2);
 });
+
+test("nothing-fits head: the count line claims only 'ranked by fit'; the closest-roles fact is the notice about the roles at the top", async ({ page }) => {
+    await page.goto("/mock/one-count");
+    const near = page.getByTestId("mock-near");
+    await expect(near.getByTestId("result-line")).toHaveText("12 roles · ranked by fit");
+    await expect(near.getByTestId("list-notice")).toContainText("the roles at the top are the closest");
+});

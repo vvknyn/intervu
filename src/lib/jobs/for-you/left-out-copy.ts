@@ -96,28 +96,23 @@ export function formatRolesAtEmployers(roles: number, employers?: number): strin
 }
 
 /**
- * The list's own count, at the foot of the deck. The deck gives each employer one card (`collapseByEmployer`), so with
- * `employers` fewer than the roles the count says both: "12 closest roles at 7 employers · each a weaker fit". A list of roles that
- * fit says only "12 roles · ranked by fit": its employers are the first row of the disclosure (`disclosureRows`).
+ * The list's own count: "12 roles · ranked by fit", for every kind of list. It counts the roles the list leads with and the ones it ranks lower
+ * (`rolesInList`), so it claims only what is true of all of them; what is true of the lead group alone ("the closest", "posted over 30 days ago") is
+ * `listNoticeLine`'s, above that group. Its employers are the first row of the disclosure (`disclosureRows`).
  */
-export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit", employers?: number): string | null {
+export function formatDeckShowingLine(listed: number): string | null {
     const n = Math.floor(listed);
     if (!Number.isFinite(n) || n <= 0) return null;
-    const at = atEmployers(n, employers);
-    if (kind === "near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit`;
-    if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
-    if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · all posted over ${PACK_MAX_AGE_DAYS} days ago`;
     return `${n.toLocaleString()} ${n === 1 ? "role" : "roles"} · ranked by fit`;
 }
 
 /**
- * The list's one count line, in the deck's own words (`formatDeckShowingLine`), counting every role the list shows: the
- * ones it leads with and the ones it ranks lower (`rolesInList`). A pack that
+ * The list's one count line (`formatDeckShowingLine`), counting every role the list shows (`rolesInList`). A pack that
  * read roles and listed none says so rather than showing no count; one that read nothing has no line.
  */
-export function formatHubFitLine(summary: DeckLeftOutSummary | null | undefined, employers?: number): string | null {
+export function formatHubFitLine(summary: DeckLeftOutSummary | null | undefined): string | null {
     if (!summary) return null;
-    if (summary.listed > 0) return formatDeckShowingLine(rolesInList(summary), deckListKind(summary), employers);
+    if (summary.listed > 0) return formatDeckShowingLine(rolesInList(summary));
     return summary.considered > 0 ? "No role fits your résumé yet" : null;
 }
 
@@ -134,13 +129,14 @@ export const OLDER_NEAR_MISS_NOTICE = `None of the roles we found fit your résu
 const RESUME_ACTION = { label: "Résumé", href: "/resume" };
 
 /**
- * The one quiet line the résumé-ranked list shows under its header, which already carries the count and "each a weaker fit" /
- * "posted over 30 days ago": it adds only what the header lacks. The paragraph notices above are for agent prose.
+ * The one quiet line the résumé-ranked list shows under its count, about the group it LEADS with only (the roles ranked lower
+ * after it are not the closest, and not all old): the count above claims nothing the tail contradicts. The paragraph notices
+ * above are for agent prose.
  */
 export function listNoticeLine(kind: DeckListKind): { text: string; action?: { label: string; href: string } } | null {
-    if (kind === "near") return { text: "Add detail to your résumé for closer matches", action: RESUME_ACTION };
-    if (kind === "older") return { text: "Some may already be filled · each card shows its age" };
-    if (kind === "older-near") return { text: "Some may already be filled · add detail to your résumé for closer matches", action: RESUME_ACTION };
+    if (kind === "near") return { text: "None fit your résumé well yet: the roles at the top are the closest, each a weaker fit · add detail to your résumé for closer matches", action: RESUME_ACTION };
+    if (kind === "older") return { text: `The roles at the top that fit were all posted over ${PACK_MAX_AGE_DAYS} days ago · some may already be filled, each card shows its age` };
+    if (kind === "older-near") return { text: `Nothing posted in the last ${PACK_MAX_AGE_DAYS} days is close: the roles at the top are the closest, each a weaker fit and posted longer ago · some may already be filled · add detail to your résumé for closer matches`, action: RESUME_ACTION };
     return null;
 }
 

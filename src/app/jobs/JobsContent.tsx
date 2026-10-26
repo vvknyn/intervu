@@ -2762,7 +2762,7 @@ export function JobsContent({
     // made from has landed: a search in flight still shows the previous rows, and their count would be another list's.
     const recommendedReady = recommended != null && !loading && resultSearchKey === searchKey;
     // Nothing is said twice: a list with no role to count has its headline in the empty state below.
-    const recommendedLine = recommendedReady && recommended.slots.length > 0 ? formatHubFitLine(recommended.summary, recommended.slots.length) : null;
+    const recommendedLine = recommendedReady && recommended.slots.length > 0 ? formatHubFitLine(recommended.summary) : null;
     const language = useLanguageChoice(uid);
     // Only once the saved preferences have been read: before that the résumé's language stands in, and a save from it replaces the stored one.
     const readLanguages = prefsRead.status === "ready" ? (signals?.languages?.value ?? null) : null;
