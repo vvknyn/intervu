@@ -380,3 +380,67 @@ Salesforce`;
         assert.ok(score.overall >= LOCAL_PARSE_COMPLETE_MIN, `expected ≥ ${LOCAL_PARSE_COMPLETE_MIN}, got ${score.overall}`);
     });
 });
+
+describe("every entry lands in the section whose heading it sits under", () => {
+    // Before 2026-10-26 a one-line school under EDUCATION was read as a job, and a project with no
+    // work history beside it was read again as a job.
+    type Layout = (first: string, second: string, dates: string) => string[];
+    const layouts: Record<string, Layout> = {
+        "on three lines": (first, second, dates) => [first, second, dates],
+        "on one line split by |": (first, second, dates) => [`${first} | ${second} | ${dates}`],
+        "on one line split by tabs": (first, second, dates) => [`${first}\t${second}\t${dates}`],
+        "on one line split by commas": (first, second, dates) => [`${first}, ${second}, ${dates}`],
+    };
+    const sections: Record<string, (layout: Layout) => string[]> = {
+        experience: (layout) => ["PROFESSIONAL EXPERIENCE", ...layout("Nurse", "City Hospital", "2018 - 2022"), "- Cared for twelve patients a shift"],
+        education: (layout) => ["EDUCATION", ...layout("BSN", "Nursing College", "2014 - 2018")],
+        projects: () => ["PROJECTS", "Ledger", "3 months"],
+    };
+    const orders = [
+        ["experience", "education"],
+        ["education", "experience"],
+        ["experience", "projects", "education"],
+        ["education", "projects", "experience"],
+        ["projects", "education"],
+        ["education", "projects"],
+        ["projects"],
+    ];
+    for (const [layoutName, layout] of Object.entries(layouts)) {
+        for (const order of orders) for (const gap of [[], [""]]) {
+            it(`${order.join(", ")}, each entry ${layoutName}${gap.length ? ", a blank line between sections" : ""}`, () => {
+                const body = order.flatMap((key) => [...sections[key](layout), ...gap]);
+                const text = ["Casey Morgan", "casey.morgan@example.com", ...body, "SKILLS", "Excel, SQL"].join("\n");
+                const out = structureResumeText(text);
+                const has = (key: string) => order.includes(key);
+                assert.deepEqual(
+                    {
+                        experience: out.experience.map((e) => [e.role, e.company]),
+                        education: out.education.map((e) => [e.degree, e.institution]),
+                        projects: out.projects.map((p) => p.role || p.company),
+                    },
+                    {
+                        experience: has("experience") ? [["Nurse", "City Hospital"]] : [],
+                        education: has("education") ? [["BSN", "Nursing College"]] : [],
+                        projects: has("projects") ? ["Ledger"] : [],
+                    },
+                );
+            });
+        }
+    }
+
+    it("reads a heading by the word it ends on: appointments are jobs, qualifications are schools", () => {
+        const read = (lines: string[]) => {
+            const out = structureResumeText(["Casey Morgan", ...lines].join("\n"));
+            return { experience: out.experience.map((e) => [e.role, e.company, e.description]), education: out.education.map((e) => [e.degree, e.institution]) };
+        };
+        assert.deepEqual(read(["Academic Appointments", "Assistant Professor | Example State University | 2019 - Present"]), {
+            experience: [["Assistant Professor", "Example State University", ""]], education: [],
+        });
+        assert.deepEqual(read(["Academic Qualifications", "PhD Chemistry | University of Lagos | 2015"]), {
+            experience: [], education: [["PhD Chemistry", "University of Lagos"]],
+        });
+        assert.deepEqual(read(["Experience", "Recruiter | Example Staffing | 2019 - 2022", "Filled twelve open positions"]), {
+            experience: [["Recruiter", "Example Staffing", "• Filled twelve open positions"]], education: [],
+        });
+    });
+});

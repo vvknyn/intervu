@@ -117,6 +117,10 @@ const EDUCATION_HEADING_RE = /^(?:(?:formal|further|higher|continuing)\s+)?(?:ed
 
 const PROJECTS_HEADERS = new Set(["independent projects", "projects", "selected projects"]);
 
+/** A heading ends on what it lists: "Academic Appointments" and "Teaching Positions" list jobs, whatever
+ *  word leads them ("Academic Qualifications" lists schools). Not a sentence that ends on one ("Filled twelve open positions"). */
+const JOBS_HEADING_RE = /^(?:[\p{L}&'-]+\s+){0,2}(?:appointments|positions|roles)$/u;
+
 const ALL_SECTION_HEADERS = new Set([
     ...EXPERIENCE_HEADERS,
     ...SUMMARY_HEADERS,
@@ -167,7 +171,6 @@ function isExperienceHeader(key: string): boolean {
     // "Employment", "Employment History" — but not the skill "Employee Relations".
     if (/^employment\b/.test(key)) return true;
     if (/^(?:professional\s+)?career\b/.test(key) && !/\b(?:objective|profile|summary|goals?)\b/.test(key)) return true;
-    if (key === "positions" || key === "roles") return true;
     if (key.includes("work") && (key.includes("history") || key.includes("experience") || key === "work")) {
         return true;
     }
@@ -190,6 +193,7 @@ function isExperienceHeader(key: string): boolean {
 function sectionOfKey(key: string): ResumeSection | null {
     if (isSkillsHeadingKey(key)) return "skills";
     if (PROJECTS_HEADERS.has(key)) return "projects";
+    if (JOBS_HEADING_RE.test(key)) return "experience";
     if (EDUCATION_HEADERS.has(key) || EDUCATION_HEADING_RE.test(key)) return "education";
     if (SUMMARY_HEADERS.has(key) || key.includes("summary") || key === "about") return "summary";
     if (isExperienceHeader(key)) return "experience";
@@ -750,17 +754,10 @@ function isIdentityLine(lines: string[], n: number): boolean {
     return looksLikeName(line) || looksLikeTitle(line);
 }
 
+/** The lines a role can sit on: under no heading, or under the work heading. Never another section's ("PROJECTS"). */
 function collectExperienceFallbackLines(sections: Record<string, string[]>): string[] {
-    const excluded = new Set(["skills", "education", "summary"]);
-    const result: string[] = [];
-    for (const [key, sectionLines] of Object.entries(sections)) {
-        if (excluded.has(key)) continue;
-        sectionLines.forEach((line, n) => {
-            if (isLikelyEducationLine(line) || (key === "header" && isIdentityLine(sectionLines, n))) return;
-            result.push(line);
-        });
-    }
-    return result;
+    return (["header", "experience"] as const).flatMap((key) =>
+        (sections[key] ?? []).filter((line, n, all) => !isLikelyEducationLine(line) && !(key === "header" && isIdentityLine(all, n))));
 }
 
 function extractContact(lines: string[]): Partial<ResumeProfile> {
@@ -1249,7 +1246,7 @@ function isTableHeaderRow(lines: string[], i: number): boolean {
     return cells >= 3 && !/\d/.test(lines[i]) && /\d/.test(next) && next.split(" | ").length >= cells - 1;
 }
 
-/** Dated entries, each a role: work history, whatever the heading over it says ("ACADEMIC APPOINTMENTS", "INTERNSHIPS"). */
+/** Dated entries, each a role: work history under a heading that names no section ("INTERNSHIPS"). */
 function readsAsWorkHistory(lines: string[]): boolean {
     const { entries } = parseExperienceBlock(lines);
     return entries.length > 0 && entries.every((e) => ENTRY_DATES_RE.test(e.dates) && looksLikeTitle(e.role) && !DEGREE_LIKE_RE.test(e.role));
@@ -1303,7 +1300,8 @@ function resumeBlocks(lines: string[]): ResumeBlock[] {
         current.lines.push(line);
     }
     for (const block of blocks) {
-        if ((block.key === "education" || block.key === "other") && readsAsWorkHistory(block.lines)) block.key = "experience";
+        // A heading naming a section keeps its lines whatever their shape: "BSN | Nursing College | 2014 - 2018" under EDUCATION is a school.
+        if (block.key === "other" && readsAsWorkHistory(block.lines)) block.key = "experience";
     }
     // "Research Internship Experience" over "Organisation: …" lines, after a work history that names
     // its roles: a section of its own, kept under its heading, not more lines of the last job.
