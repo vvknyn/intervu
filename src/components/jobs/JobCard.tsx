@@ -150,6 +150,9 @@ export function JobCard({
     const hires = hiresNoteOf(matchScore);
     // A plain "Remote" reads "Remote (Canada)" when its posting limits it to a place its fields leave out (remote-scope.ts).
     const scope = remoteScope(job);
+    const shownPlace = withRemoteScope(place, scope);
+    // A tooltip may only add what the row does not show: the posting's own words for a scope, or a raw location that reads differently from the formatted place.
+    const placeTitle = scope ? `The posting says: “${scope.quote}”` : job.location && job.location !== shownPlace ? job.location : undefined;
     // A4 (soft-surfaces): the row's only "active" signal is the ABSENCE of
     // an exceptionMark — "review"/"ghost"/"relisted" verdicts surface via
     // `exceptionMark` above (rowExceptionMark, the single chokepoint for
@@ -273,7 +276,6 @@ export function JobCard({
                     floating beside it (2026-10-02). */}
                 <div
                     data-testid="job-row-meta"
-                    title={[presented.company.name, locationKnown && withRemoteScope(place, scope)].filter(Boolean).join(" · ")}
                     className="mt-1 line-clamp-2 text-left text-sm text-muted-foreground"
                 >
                     <DotSeparated
@@ -302,8 +304,8 @@ export function JobCard({
                                 <span>{presented.company.name}</span>
                             ),
                             locationKnown && (
-                                <span data-testid="job-location" title={scope ? `The posting says: “${scope.quote}”` : job.location ?? undefined}>
-                                    {withRemoteScope(place, scope)}
+                                <span data-testid="job-location" title={placeTitle}>
+                                    {shownPlace}
                                 </span>
                             ),
                         ]}
