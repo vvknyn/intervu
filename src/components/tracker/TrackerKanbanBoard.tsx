@@ -44,18 +44,22 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
                     </Link>
                 </p>
             ) : null}
-            <TabNav
-                aria-label="Tracker stages"
-                data-testid="tracker-stage-rail"
-                className={cn("mb-2 overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:hidden", stage && "hidden")}
-            >
-                {TRACKER_BOARD_COLUMNS.map(({ column, label }) => (
-                    <TabItem key={column} current={activeTab === column} onClick={() => setActiveTab(column)}>
-                        {label}
-                        <span className="tabular-nums opacity-60">{groups[column].length}</span>
-                    </TabItem>
-                ))}
-            </TabNav>
+            {/* The rule sits on this wrapper, not on the scroller: a border on a clipping
+                scroller cuts its tap band to the row. */}
+            <div className={cn("mb-2 border-b border-border md:hidden", stage && "hidden")}>
+                <TabNav
+                    aria-label="Tracker stages"
+                    data-testid="tracker-stage-rail"
+                    className="scroll-hit overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                    {TRACKER_BOARD_COLUMNS.map(({ column, label }) => (
+                        <TabItem key={column} current={activeTab === column} onClick={() => setActiveTab(column)}>
+                            {label}
+                            <span className="tabular-nums opacity-60">{groups[column].length}</span>
+                        </TabItem>
+                    ))}
+                </TabNav>
+            </div>
             <div
                 className={cn(
                     "flex gap-3 overflow-x-auto scroll-pl-0 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
