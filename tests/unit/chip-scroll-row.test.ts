@@ -37,8 +37,7 @@ describe("CHIP_SCROLL_ROW", () => {
             ["flex-nowrap", /(^|\s)flex-nowrap(\s|$)/],
             ["overflow-x-auto", /(^|\s)overflow-x-auto(\s|$)/],
             ["the edge-fade mask", /\[mask-image:linear-gradient\(/],
-            ["py-1.5", /(^|\s)py-1\.5(\s|$)/],
-            ["-my-1.5 (the pair that keeps the row 32px tall)", /(^|\s)-my-1\.5(\s|$)/],
+            ["scroll-hit (the coarse-pointer tap band, padding and equal negative margin so the row keeps its height)", /(^|\s)scroll-hit(\s|$)/],
         ] as const) assert.match(CHIP_SCROLL_ROW, re, `CHIP_SCROLL_ROW lost ${what}`);
         assert.doesNotMatch(CHIP_SCROLL_ROW, /(^|\s)flex-wrap(\s|$)/);
     });

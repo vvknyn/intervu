@@ -5469,7 +5469,7 @@ export function JobsContent({
                         with the chip row under it. */}
                     <div
                         data-testid="jobs-toolbar-rows"
-                        className="no-scrollbar scroll-hit flex w-full min-w-0 items-center gap-2 overflow-x-auto @2xl:block @2xl:overflow-x-clip"
+                        className={cn("w-full", CHIP_SCROLL_ROW)}
                     >
                     {showJobsToolbarRow && (
                     <div
