@@ -17,6 +17,7 @@ const full = (): CompanyFacts =>
     facetDistribution: { location_country: { "United States": 900, Canada: 100 }, work_type: { remote: 300, onsite: 940 }, visa_sponsorship: { true: 20, false: 80 }, tech_stack: { React: 312 } },
   });
 const empty = (): CompanyFacts => buildCompanyFacts({ name: "Zed", domain: "zed.com", jobs: [], openCount: { value: 0, isLowerBound: false }, postingTotal: 0 });
+const NOW = Date.parse("2026-10-26T00:00:00Z");
 const extras = { roleCount: 1, relatedCount: 2, faqCount: 3 };
 
 describe("SECTION_ORDER", () => {
@@ -50,14 +51,14 @@ describe("companySections", () => {
 
 describe("buildCompanyFaq", () => {
   it("turns the numbers into sentences", () => {
-    const faq = buildCompanyFaq(full());
+    const faq = buildCompanyFaq(full(), NOW);
     assert.equal(faq.length, 5);
     assert.match(faq[0].answer, /1,240 open roles/);
     assert.match(faq.find((q) => /remote/.test(q.question))!.answer, /300 of 1,240 listings that state a work mode/);
     assert.match(faq.find((q) => /visas/.test(q.question))!.answer, /20 of 100/);
   });
   it("omits questions without data", () => {
-    const faq = buildCompanyFaq(empty());
+    const faq = buildCompanyFaq(empty(), NOW);
     assert.deepEqual(faq.map((q) => q.question), ["Is Zed hiring?"]);
   });
 });
