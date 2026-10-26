@@ -203,7 +203,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-FILT-02 | Posted date defaults to Last 90 days with no `posted` param: the Posted chip reads "Past 3 months" and the URL carries no `posted` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | covered | search-window.spec.ts |
 | J-FILT-03 | Pick "Past 24h" and see `posted=1d` in the URL | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-04 | Pick "Any date" and see `posted=any` (not omitted) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
-| J-FILT-05 | Pick Remote under All filters › Work mode (or the location box's Remote suggestion) and see `work=`; the Work mode facet chip shows only once a work mode is set | anon | SEED-A + `/jobs?q=software+engineer`, open All filters | signed-out | no | uncovered | — (legacy: jobs-location-work-mode.spec.ts (see note)) |
+| J-FILT-05 | Pick Remote under All filters › Work mode (or the location box's Remote suggestion) and see `work=`; the applied Remote chip shows only once a work mode is set | anon | SEED-A + `/jobs?q=software+engineer`, open All filters | signed-out | no | uncovered | — (legacy: jobs-location-work-mode.spec.ts (see note)) |
 | J-FILT-06 | Select two Experience values and see them comma-joined | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-07 | Pick a $100k+ salary tier and see `salary=100k` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-08 | Pick "$75k+" salary and see `salary=75k`; a reload keeps it (every preset and custom floor used to fall off unless it was 50k/100k/150k/200k) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | covered | filters.spec.ts |
@@ -223,7 +223,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-FILT-22 | Company-scope chip appears for `?company=` and clears | anon | SEED-A + `/jobs?company=harrods.com` | signed-out | no | uncovered | — |
 | J-FILT-23 | Unknown filter values in the URL are ignored, not crashed | anon | SEED-A + `/jobs?posted=bogus&sort=wat&years=99&salary=1m&view=x` | signed-out | no | uncovered | — |
 | J-FILT-24 | Filters toggle reports its open state to assistive tech (`aria-expanded`) | anon | SEED-A + `/jobs?q=nurse` at 1440x900, click `topbar-docked-filters-toggle` (`filters-toggle` below lg or with no query) | signed-out | no | uncovered | — |
-| J-FILT-25 | A typed search reaches a role posted 31-90 days ago with no `posted` param, and picking Past month in the Posted chip hides it | anon | `/jobs?q=data+analyst&sort=salary` (then product manager, manager), click `facet-chip-posted` › Past month | signed-out | no | covered | search-window.spec.ts |
+| J-FILT-25 | A typed search reaches a role posted 31-90 days ago with no `posted` param, and picking Past month in the Filters panel hides it | anon | `/jobs?q=data+analyst&sort=salary` (then product manager, manager), open Filters › Posted › Past month | signed-out | no | covered | search-window.spec.ts |
 | J-FILT-26 | A `?posted=30d` link (the old default) still narrows to 30 days, says so, and keeps `posted=30d` in the URL | anon | `/jobs?q=data+analyst&posted=30d` | signed-out | no | covered | search-window.spec.ts |
 
 ## MOB
@@ -933,7 +933,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-MODAL-04 | Open "Track a role" on /yours as a guest; the Status picker opens above the sheet (an option is the topmost element), picking one sets it, Close dismisses without saving | anon | /yours?view=new | signed-out | no | covered | modal.spec.ts |
 | J-MODAL-05 | Open Feedback from the account menu; the menu closes, the Type picker opens above the dialog and picking an option sets it, Cancel closes without sending (dev-server only: signed-in mock) | signed-in | any page, `topbar-avatar` then Feedback | signed-in | no | covered | modal.spec.ts |
 | J-MODAL-06 | Customize a role twice with a guest résumé (on-device mode on); each draft starts from the guest's own résumé (every "Was:" line is the guest's own summary or line), offers only Close, Copy and Download PDF, and the résumé stored in the browser is unchanged | anon with a guest résumé | /jobs?q=engineer, open a role, `local-customize-open` | signed-out | no | covered | modal.spec.ts |
-| J-MODAL-07 | On /jobs, tap the Posted chip at 390 wide: a full-width bottom sheet with 44px rows opens and Escape closes it; picking a row applies it, closes the sheet and returns focus to the chip; at 1440 the same chip opens the 224px popover with the same pick behaviour | anon | /jobs, `facet-chip-posted` | signed-out | no | covered | mobile-overlays.spec.ts |
+| J-MODAL-07 | RETIRED: the Posted facet chip (the only choice popover on /jobs) is gone; Posted lives in the Filters sheet | — | — | — | — | retired | — |
 | J-MODAL-08 | Open Feedback at 390x470 (keyboard-height viewport): the Dialog is full width, anchored to the bottom edge and never starts above y=0 (dev-server only: signed-in mock) | signed-in | /resume, `topbar-avatar` then Feedback | signed-in | no | covered | mobile-overlays.spec.ts |
 
 ## SPEED

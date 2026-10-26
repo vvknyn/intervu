@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
     activeFilterEntries,
     chipLabelForEntry,
-    entriesNeedingOwnChip,
     toggleFacetValue,
     PRISTINE_FILTER_STATE,
     STATIC_FACET_LADDERS,
@@ -183,15 +182,10 @@ test("board is an active entry, labelled from BOARD_META, and its clear drops it
 
 test("board's chip renders standalone — its key carries no facet prefix", () => {
     const entry = activeFilterEntries({ ...base, board: "elite" })[0];
-    // Colon-free key: `entriesNeedingOwnChip` splits on ":" to recover a facet
-    // key, so a colon here would make the chip row look for a FacetBar control
-    // named "board" and silently swallow the chip when one existed.
+    // Colon-free key: `chipLabelForEntry` splits on ":" to recover a facet
+    // key, so a colon here would prefix the label with a facet name.
     assert.equal(entry.key.includes(":"), false);
     assert.equal(chipLabelForEntry(entry), BOARD_META.elite.label);
-    assert.deepEqual(
-        entriesNeedingOwnChip([entry], new Set(["location_country"])).map((e) => e.key),
-        ["board"],
-    );
 });
 
 // The OTHER case of the same class (generic-fix rule): `companyDomain` never

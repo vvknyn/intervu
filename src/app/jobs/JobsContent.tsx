@@ -147,7 +147,6 @@ import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
     appliedPostedBucket,
-    entriesNeedingOwnChip,
     chipLabelForEntry,
     toggleFacetValue,
     changedFilterFacets,
@@ -159,7 +158,6 @@ import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { isKnownDeadApplyUrl, probeApplyUrl } from "@/lib/jobs/apply-url-health";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
-import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
 import { JobsListSplash, JobsListSkeletonRows } from "@/components/jobs/JobsListSplash";
 import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
@@ -1896,15 +1894,6 @@ export function JobsContent({
     // React #185 loop `filterState` caused (see that effect's own comment).
     const activeChipsKey = activeEntries.map((e) => `${e.key}=${chipLabelForEntry(e)}`).join("|");
 
-    // The active filters the FacetBar has no control for — see
-    // `FACET_BAR_FACETS`. The toolbar names these itself, because for them
-    // the 2026-08-15 "duplicate information" removal had nothing to be a
-    // duplicate OF: `location_country` is set from the location box and
-    // appears on no chip, so "Clear filters (1)" was the only trace that a
-    // search had been narrowed at all.
-    const unnamedEntries = entriesNeedingOwnChip(activeEntries, facetBarRepresents(postedDateSupported));
-    const dockChipsKey = unnamedEntries.map((e) => `${e.key}=${chipLabelForEntry(e)}`).join("|");
-
     // Same disclosure gate `DefaultLocationChip`/the zero-result entry use
     // (`shouldShowLocationDefaultChip`), collapsed to the ISO2 or `null` so
     // the dock effect below can take it as ONE primitive dependency instead
@@ -2078,12 +2067,9 @@ export function JobsContent({
 
     const { isActive: tourActive } = useTour();
     // One hook per docked slot, gated by `headerDockActive`.
-    const dockedFacetsMount = useDockedSlotMount(headerDockActive, "topbar-docked-facets");
     const dockedFieldDirectoryMount = useDockedSlotMount(headerDockActive, "topbar-docked-field-directory");
     const dockedQueryMount = useDockedSlotMount(headerDockActive, "topbar-docked-query");
-    const dockedSortMount = useDockedSlotMount(headerDockActive, "topbar-docked-sort");
     const dockedClearFiltersMount = useDockedSlotMount(headerDockActive, "topbar-docked-clear-filters");
-    const dockedSaveSearchMount = useDockedSlotMount(headerDockActive, "topbar-docked-save-search");
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -3543,23 +3529,22 @@ export function JobsContent({
                 submitSearchRef.current(v);
             },
             placeholder: searchBox.placeholder,
-            // FacetBar-owned filters (salary, posted, work mode, experience)
-            // render as dropdown chips — only the leftovers become dismiss chips.
-            // The applied-location-default chip is PREPENDED by the same
+            // Every applied filter is a dismiss chip; Filters is the one place
+            // to change them. The applied-location-default chip is PREPENDED by the same
             // `buildDockedChips` helper the mobile row's disclosure logic
             // shares, so this row never silently narrows results without a
             // visible, clearable chip the way the pre-dock-refactor bug did.
             chips: buildDockedChips(
                 dockedDefaultLocationIso2,
                 dockedDefaultRemoteAnywhere,
-                unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
+                activeEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
             ),
             onClearChip: (key) => {
                 if (key === DEFAULT_LOCATION_CHIP_KEY) {
                     suppressLocationDefault();
                     return;
                 }
-                const entry = unnamedEntries.find((e) => e.key === key);
+                const entry = activeEntries.find((e) => e.key === key);
                 if (entry) applyFilterStateRef.current(entry.clear(filterStateRef.current));
             },
             filterCount: activeCount,
@@ -3576,7 +3561,7 @@ export function JobsContent({
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [showSearchHome, headerDockActive, searchBox.value, searchBox.placeholder, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
+    }, [showSearchHome, headerDockActive, searchBox.value, searchBox.placeholder, activeChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -4868,20 +4853,16 @@ export function JobsContent({
     // Band ghost word — the résumé entry point that replaces the deleted
     // foot-of-list invite. Same look as `SavedSearchesPanel`'s own compact
     // trigger (SavedSearchesPanel.tsx's `save-search-trigger`): a ghost
-    // word, no icon, brand text. `handleRankByFit` already falls through to
+    // word, no icon, muted text. `handleRankByFit` already falls through to
     // the uploader when no résumé resolves, so this is the one call every
     // other résumé entry point on this page also uses.
     //
-    // Composed at the two `savedSearchControl` mount sites below rather
-    // than folded into that variable itself: `savedSearchControl` is `null`
-    // whenever `canSaveSearch` is false (the pristine landing, no query/
-    // filters/sort yet) — exactly the moment a résumé-less visitor most
-    // needs this entry — and a THIRD mount site (the "active-category-
-    // indicator" row above) has its own outer render gate keyed to the
-    // documented `savedSearchControl ⟺ canSaveSearch` equivalence; folding
-    // this in there would either hide the word on that first landing or
-    // silently invalidate that gate. `savedSearchMountEl` carries both
-    // without touching either.
+    // Composed here rather than folded into `savedSearchControl` itself:
+    // that is `null` whenever `canSaveSearch` is false (the pristine
+    // landing, no query/filters/sort yet) — exactly the moment a résumé-less
+    // visitor most needs this entry — so folding this in would hide the word
+    // on that first landing. It is its own element beside `savedSearchControl`
+    // so the `savedSearchControl ⟺ canSaveSearch` equivalence is untouched.
     //
     // Over a server-rendered first list, the word holds its place unseen
     // until sign-in state resolves (that list is only sent to signed-out
@@ -4896,7 +4877,7 @@ export function JobsContent({
             data-testid="jobs-rank-by-fit"
             title={RANK_SECONDARY_COPY}
             onClick={() => void handleRankByFit()}
-            className="shrink-0 whitespace-nowrap"
+            className="shrink-0 whitespace-nowrap text-muted-foreground hover:bg-muted hover:text-foreground"
         >
             Rank with my résumé
         </Button>
@@ -4913,21 +4894,6 @@ export function JobsContent({
             Rank with my résumé
         </Button>
     ) : null;
-
-    const savedSearchMountEl =
-        rankByFitEl || savedSearchControl ? (
-            <>
-                {rankByFitEl}
-                {savedSearchControl}
-            </>
-        ) : null;
-
-    // The landing shows it from lg up by CSS rather than `isLgUp`: a front
-    // door rendered on the server reads as a phone until it hydrates, and the
-    // button would pop in on a desktop afterwards.
-    const savedSearchMountElInToolbar = showLandingMarketing
-        ? savedSearchMountEl && <span className="hidden lg:contents">{savedSearchMountEl}</span>
-        : savedSearchMountEl;
 
     // The results line's one alerts control: a "Job alert" switch. Signed in it
     // saves or deletes this search (saved searches feed the weekly digest);
@@ -4962,20 +4928,9 @@ export function JobsContent({
                 "ctl-button inline-flex shrink-0 items-center whitespace-nowrap px-2 text-verdict-risk transition-colors hover:opacity-80",
             )}
         >
-            Clear ({activeCount})
+            Clear all
         </button>
     ) : null;
-
-    const facetBarEl = (
-        <FacetBar
-            distribution={result?.facetDistribution}
-            state={filterState}
-            postedDateSupported={postedDateSupported}
-            onToggleFacet={panelToggleFacet}
-            onSalaryMin={panelSalaryMin}
-            onPostedBucket={panelPostedBucket}
-        />
-    );
 
     const tourReplayEl = <JobsTourReplayButton />;
 
@@ -5103,6 +5058,43 @@ export function JobsContent({
 
     const resumeReadText = hasUsableResume && resume ? resumeReadLine(resume) : null;
     const resumeReadDetailText = hasUsableResume && resume ? resumeReadDetail(resume) : null;
+
+    // Sort's caption: one muted line right under the results line, only while
+    // fit ranking is on. No box; the detail truncates, "Edit" never does.
+    const resumeReadStripEl =
+        fitActive && resumeReadText ? (
+            <div
+                data-testid="resume-read-strip"
+                title={displayResumeLabel(resumeSourceLabel, resume)}
+                className="mb-2 flex items-baseline gap-x-2 px-[var(--list-inset)] text-sm text-muted-foreground"
+            >
+                <span className="shrink-0">{RESUME_READ_LABEL}</span>
+                {resumeReadDetailText && (
+                    <>
+                        <StripDot />
+                        <span data-testid="resume-read-detail" title={resumeReadDetailText} className="min-w-0 truncate">{resumeReadDetailText}</span>
+                    </>
+                )}
+                <StripDot />
+                <Link
+                    href="/resume"
+                    className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                >
+                    Edit
+                    <LinkPending />
+                </Link>
+                {!signedIn && guestResumeInBrowser && (
+                    <>
+                        <StripDot />
+                        <ResumeRemove
+                            onRemove={removeGuestResume}
+                            testIdPrefix="jobs"
+                            className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                        />
+                    </>
+                )}
+            </div>
+        ) : null;
 
     const showJobsToolbarRow = !headerDockActive;
     const showJobsToolbarSection =
@@ -5405,17 +5397,7 @@ export function JobsContent({
                         the filter toggles to its right which AND onto existing results.
                         `handleClearSearch` is the same path the "✕ clear search" toolbar
                         button uses — reused, not a third clear path. */}
-                    {/* Outer gate mirrors the OR of what the two children below
-                        actually render (`activeCategory`, and
-                        `!showJobsToolbarRow && savedSearchControl` — the latter
-                        is exactly `!showJobsToolbarRow && canSaveSearch` since
-                        `savedSearchControl` is `canSaveSearch ? ... : null`).
-                        A looser `canSaveSearch` alone let this div render with
-                        forced `min-h-[2.75rem]` and zero visible children
-                        whenever the toolbar row below (which shows its own
-                        `savedSearchControl`) was already the one rendering it —
-                        the mobile SERP's blank ~44px band under the search bar. */}
-                    {!showLandingMarketing && (activeCategory || (!showJobsToolbarRow && canSaveSearch)) && (
+                    {!showLandingMarketing && activeCategory && (
                         /* Chip rows separate by `gap` on purpose — a glyph
                            separator as its own flex item lands at the start
                            of a wrapped line; `DotSeparated` is for inline
@@ -5424,22 +5406,17 @@ export function JobsContent({
                             data-testid="active-category-indicator"
                             className="mt-1 flex min-h-[2.75rem] flex-wrap items-center gap-1.5 px-0.5 text-xs text-muted-foreground sm:min-h-0"
                         >
-                            {activeCategory && (
-                                <>
-                                    <span className="font-semibold text-foreground">
-                                        Searching:
-                                    </span>
-                                    <span>{activeCategory.title}</span>
-                                    <button
-                                        type="button"
-                                        onClick={handleClearSearch}
-                                        className="ctl-md ctl-button -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
-                                    >
-                                        clear ✕
-                                    </button>
-                                </>
-                            )}
-                            {!showJobsToolbarRow && savedSearchControl}
+                            <span className="font-semibold text-foreground">
+                                Searching:
+                            </span>
+                            <span>{activeCategory.title}</span>
+                            <button
+                                type="button"
+                                onClick={handleClearSearch}
+                                className="ctl-md ctl-button -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
+                            >
+                                clear ✕
+                            </button>
                         </div>
                     )}
                 </section>
@@ -5493,7 +5470,7 @@ export function JobsContent({
                         with the chip row under it. */}
                     <div
                         data-testid="jobs-toolbar-rows"
-                        className="no-scrollbar flex w-full min-w-0 items-center gap-2 overflow-x-auto @2xl:block @2xl:overflow-x-clip"
+                        className="no-scrollbar flex w-full min-w-0 items-center gap-2 overflow-x-auto pr-8 [mask-image:linear-gradient(to_right,white_calc(100%-2rem),transparent)] @2xl:block @2xl:overflow-x-clip @2xl:pr-0 @2xl:[mask-image:none]"
                     >
                     {showJobsToolbarRow && (
                     <div
@@ -5517,8 +5494,7 @@ export function JobsContent({
                                 "ctl-button box-border shrink-0 px-3.5 inline-flex items-center justify-center gap-2 whitespace-nowrap leading-none transition-colors @2xl:px-3",
                             )}
                         >
-                            <span className="@2xl:hidden">Filters</span>
-                            <span className="hidden @2xl:inline">All filters</span>
+                            Filters
                             {activeCount > 0 && (
                                 <span className={cn("ml-0.5", filterCountBadgeClass)}>
                                     {activeCount}
@@ -5528,7 +5504,6 @@ export function JobsContent({
                         </button>
                         )}
                         {!showLandingMarketing && !atRest && !headerDockActive && fieldDirectoryMenu}
-                        {!headerDockActive && facetBarEl}
                         {showToolbarFilters && (
                         <>
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
@@ -5548,21 +5523,11 @@ export function JobsContent({
                                 <ChipDismiss label="Stop filtering to remote only" onClick={dismissRemotePref} />
                             </span>
                         )}
-                        {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
-                        )}
-                        {/* ml-auto, not an empty flex-1 spacer: the spacer took a
-                            gap of its own, and that 8px pushed the "?" onto a
-                            line by itself on a 390px phone (J-NAV-35). */}
-                        {!headerDockActive && (
-                            <div data-testid="jobs-toolbar-actions" className="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
-                                {savedSearchMountElInToolbar}
-                                {sortEl}
-                            </div>
                         )}
                     </div>
                     )}
-                    {!headerDockActive && unnamedEntries.length > 0 && (
+                    {!headerDockActive && activeEntries.length > 0 && (
                         <div
                             data-testid="active-filter-row"
                             className={cn(
@@ -5570,7 +5535,7 @@ export function JobsContent({
                                 "@2xl:mt-2 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:overflow-x-clip @2xl:pr-0 @2xl:pt-2",
                             )}
                         >
-                            {!headerDockActive && unnamedEntries.map((entry) => {
+                            {activeEntries.map((entry) => {
                                 const label = chipLabelForEntry(entry);
                                 return (
                                 <span
@@ -5685,12 +5650,8 @@ export function JobsContent({
                 {headerDockActive && showLandingMarketing && dockedFieldDirectoryMount &&
                     createPortal(fieldDirectorySuggestionChips, dockedFieldDirectoryMount)}
                 {headerDockActive && dockedQueryMount && createPortal(dockedQueryEl, dockedQueryMount)}
-                {headerDockActive && dockedFacetsMount && createPortal(facetBarEl, dockedFacetsMount)}
                 {headerDockActive && showToolbarFilters && dockedClearFiltersMount && clearFiltersEl &&
                     createPortal(clearFiltersEl, dockedClearFiltersMount)}
-                {headerDockActive && dockedSaveSearchMount && savedSearchMountEl &&
-                    createPortal(savedSearchMountEl, dockedSaveSearchMount)}
-                {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
 
                 {showJobsHomePending ? (
                     <div className={cn("mt-4", cappedContentClass)}>
@@ -5795,40 +5756,6 @@ export function JobsContent({
                                 {resumeBandEl}
                                 {promoBand === "extension" && <ExtensionTile className="mb-3" />}
                                 {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
-                                {fitActive && resumeReadText && (
-                                    <div
-                                        data-testid="resume-read-strip"
-                                        title={displayResumeLabel(resumeSourceLabel, resume)}
-                                        className="mb-3 flex items-baseline gap-x-2 text-sm text-muted-foreground"
-                                    >
-                                        <span className="shrink-0">{RESUME_READ_LABEL}</span>
-                                        {resumeReadDetailText && (
-                                            <>
-                                                <StripDot />
-                                                <span data-testid="resume-read-detail" title={resumeReadDetailText} className="min-w-0 truncate">{resumeReadDetailText}</span>
-                                            </>
-                                        )}
-                                        <StripDot />
-                                        <Link
-                                            href="/resume"
-                                            className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                        >
-                                            Edit
-                                            <LinkPending />
-                                        </Link>
-                                        {!signedIn && guestResumeInBrowser && (
-                                            <>
-                                                <StripDot />
-                                                <ResumeRemove
-                                                    onRemove={removeGuestResume}
-                                                    testIdPrefix="jobs"
-                                                    className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                                />
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-
                                 {/* Asks someone signed in for an address we can reach. */}
                                 {emailNudgeOpen && accountEmailState && accountEmailState !== "reachable" && (
                                     <AccountEmailPrompt
@@ -6040,8 +5967,8 @@ export function JobsContent({
                                         <>
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground">
-                                                <div className="flex flex-wrap items-center gap-2">
+                                            <div data-testid="results-bar" className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-[var(--list-inset)] text-sm text-muted-foreground">
+                                                <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
                                                         className="font-semibold text-foreground tabular-nums"
@@ -6050,7 +5977,7 @@ export function JobsContent({
                                                     </span>
                                                     {listNew && (
                                                         <span className="flex items-center gap-2">
-                                                            <span className="size-2 shrink-0 rounded-pill bg-brand" aria-hidden />
+                                                            <span aria-hidden>·</span>
                                                             <span data-testid="list-new-since" className="text-foreground">
                                                                 {listNew.text}
                                                             </span>
@@ -6071,47 +5998,39 @@ export function JobsContent({
                                                         </span>
                                                     )}
                                                 </div>
-                                                {/* Employer-scope disclosure — the standard removable
-                                                    filter-token pattern. Mounted OUTSIDE the
-                                                    query/filter row below because the scope arrives from
-                                                    a link (`/co/[slug]`'s CTA), not from anything the
-                                                    searcher typed or toggled: with no token they'd see a
-                                                    count far below the corpus with nothing on screen
-                                                    saying why, and no way back out. Labelled with the
-                                                    domain, which is the scope the search actually
-                                                    applies — not a display name derived from the hits,
-                                                    which would be absent in the one state where this
-                                                    disclosure matters most (zero results). */}
-                                                {(companyDomain || resultLineActionEl) && (
-                                                    <div className="flex flex-wrap items-center gap-3">
-                                                        {companyDomain && (
-                                                            <span data-testid="company-scope-chip" className="flex items-center gap-2">
-                                                                <span className="whitespace-nowrap font-semibold text-foreground">
-                                                                    employer
-                                                                </span>
-                                                                <span className="text-foreground">{companyDomain}</span>
-                                                                <button
-                                                                    type="button"
-                                                                    data-testid="company-scope-clear"
-                                                                    aria-label={`Show roles from all employers, not just ${companyDomain}`}
-                                                                    onClick={clearCompanyScope}
-                                                                    className="text-muted-foreground transition-colors hover:text-foreground"
-                                                                >
-                                                                    ✕
-                                                                </button>
-                                                            </span>
-                                                        )}
-                                                        {resultLineActionEl}
-                                                    </div>
+                                                {sortEl}
+                                            </div>
+                                            {resumeReadStripEl}
+                                            {/* What you can do with this search, quietly: the alerts
+                                                switch, the résumé ranking entry, the saved searches
+                                                and the employer scope. The scope arrives from a link
+                                                (`/co/[slug]`'s CTA), not from anything the searcher
+                                                typed, so with no token they'd see a count far below the
+                                                corpus with nothing saying why, and no way back out.
+                                                Labelled with the domain, the scope the search actually
+                                                applies — absent from the hits in the one state where
+                                                this disclosure matters most (zero results). */}
+                                            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 px-[var(--list-inset)] text-sm text-muted-foreground empty:hidden">
+                                                {resultLineActionEl}
+                                                {rankByFitEl}
+                                                {savedSearchControl}
+                                                {companyDomain && (
+                                                    <span data-testid="company-scope-chip" className="flex items-center gap-2">
+                                                        <span className="whitespace-nowrap font-semibold text-foreground">
+                                                            employer
+                                                        </span>
+                                                        <span className="text-foreground">{companyDomain}</span>
+                                                        <button
+                                                            type="button"
+                                                            data-testid="company-scope-clear"
+                                                            aria-label={`Show roles from all employers, not just ${companyDomain}`}
+                                                            onClick={clearCompanyScope}
+                                                            className="text-muted-foreground transition-colors hover:text-foreground"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </span>
                                                 )}
-                                                {/* 2026-08-17, Vivek: "too much happening in that small
-                                                    box". Both clear controls moved up to the toolbar,
-                                                    beside "All filters" — they undo what that row sets,
-                                                    so that is where they belong (same reasoning as ITEM I
-                                                    above). "Clear filters" was additionally a straight
-                                                    DUPLICATE of the toolbar's own, down to a second copy
-                                                    of `data-testid="results-clear-filters"`. What is left
-                                                    here only reports: the count, the window, the scope. */}
                                             </div>
                                             {/* A résumé-ranked list says what it left out and why, in the words the
                                                 daily picks and the MCP tools use (left-out-copy.ts). */}
