@@ -39,13 +39,11 @@ const row = (id: string, title: string, source: string, posted: number, firstSee
     first_seen_at: daysAgo(firstSeen),
 });
 
-/** Design fixture for the /jobs row's source facts: one row per case, no data fetch. */
+/** Design fixture for the /jobs row's "New" mark: one row per case, no data fetch. */
 const ROWS = [
-    row("new-employer", "Employer site, new", "greenhouse_direct", 6, 1),
-    row("new-board", "Job board, new", "onlinejobs", 6, 1),
-    row("old-employer", "Employer site, old", "workday_direct", 40, 39),
-    row("old-board", "Job board, old", "onlinejobs", 40, 39),
-    row("new-unknown-source", "Unknown source, new", "", 6, 1),
+    row("new", "Newly listed", "onlinejobs", 6, 1),
+    row("old", "Listed long ago", "onlinejobs", 40, 39),
+    row("relisted", "Relisted", "onlinejobs", 0, 20),
 ];
 
 export default function JobRowSourceMock() {

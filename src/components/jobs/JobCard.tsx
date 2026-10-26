@@ -35,7 +35,7 @@ import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
-import { rowSourceFacts } from "@/lib/jobs/row-source-facts";
+import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { Badge } from "@/components/ui/badge";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
@@ -146,7 +146,7 @@ export function JobCard({
     // `locationWithMode` fold-in) — showing "Hybrid" in both the location
     // text AND its own chip would say the same fact twice.
     const factChips = buildFactChips(job, null, null).filter((c) => c.kind === "work_type" || c.kind === "salary");
-    const sourceFacts = rowSourceFacts(job, now);
+    const freshness = classifyPostingFreshness(job, now);
     // "Hires in Canada" for a remote role whose posting says so in words its place fields lack (HiresIn.tsx).
     const hires = hiresNoteOf(matchScore);
     // A plain "Remote" reads "Remote (Canada)" when its posting limits it to a place its fields leave out (remote-scope.ts).
@@ -318,7 +318,7 @@ export function JobCard({
                     the detail pane's verdict word — sharing this line with
                     the facts (instead of a second row) is what keeps the
                     comfortable row inside the rulebook's 96-112px band. */}
-                {(factChips.length > 0 || sourceFacts.isNew || variantCount > 0 || hires || sourceFacts.fromEmployerSite) && (
+                {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0 || hires) && (
                     <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         <span>
                         <MetaLine
@@ -349,9 +349,8 @@ export function JobCard({
                             ]}
                         />
                         </span>
-                        {/* "New" (the row's one 7-day freshness rule) and the source fact, as quiet squared hairline chips (SourceFact). */}
-                        {sourceFacts.isNew && <SourceFact testId="freshness-badge" label="New" />}
-                        {sourceFacts.fromEmployerSite && <SourceFact testId="employer-site-pill" label="From the company's site" />}
+                        {/* "New" (the row's one 7-day freshness rule) as a quiet squared hairline chip. */}
+                        {freshness.kind === "fresh" && <NewMark />}
                     </div>
                 )}
                 {reasonLine && (
@@ -401,11 +400,11 @@ export function JobCard({
     );
 }
 
-/** A row mark as a squared hairline chip: `Badge` (the word primitive) boxed. */
-function SourceFact({ testId, label }: { testId: string; label: string }) {
+/** The row's "New" mark as a squared hairline chip: `Badge` (the word primitive) boxed. */
+function NewMark() {
     return (
-        <Badge data-testid={testId} className="mono-data rounded-none border border-border-subtle px-1.5 py-0.5 font-normal leading-none text-muted-foreground">
-            {label}
+        <Badge data-testid="freshness-badge" className="mono-data rounded-none border border-border-subtle px-1.5 py-0.5 font-normal leading-none text-muted-foreground">
+            New
         </Badge>
     );
 }
