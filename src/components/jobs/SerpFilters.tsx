@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { FacetDistribution, FacetKey, PanelFacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
@@ -67,7 +68,7 @@ export function Affordance({
             <label
                 data-testid={testId}
                 className={cn(
-                    "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-ctl border px-2.5 py-1 text-xs leading-tight whitespace-nowrap transition-colors",
+                    "inline-flex min-h-8 cursor-pointer select-none items-center gap-1.5 rounded-ctl border px-3 py-1 text-xs leading-tight whitespace-nowrap transition-colors",
                     active
                         ? "border-brand bg-live-tint-bg font-semibold text-brand"
                         : "border-border bg-background text-foreground hover:bg-muted",
@@ -78,12 +79,16 @@ export function Affordance({
                     checked={active}
                     readOnly
                     onClick={onClick}
-                    // control-scale-allow: checkbox/radio glyph (dynamic `type`), not a scale control
-                    className="h-3.5 w-3.5 shrink-0 accent-brand"
+                    className="sr-only"
                 />
                 <span>{children}</span>
                 {typeof count === "number" && (
-                    <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                    <span
+                        className={cn(
+                            "text-xs font-normal tabular-nums",
+                            active ? "text-brand" : "text-muted-foreground",
+                        )}
+                    >
                         {count.toLocaleString()}
                     </span>
                 )}
@@ -245,6 +250,166 @@ function Group({
     );
 }
 
+const SEARCH_PILLS_PLACEHOLDER: Partial<Record<PanelFacetKey, string>> = {
+    location_country: "Search countries to add…",
+    tech_stack: "Search skills or tools to add…",
+    must_have_skills: "Search must-have skills to add…",
+};
+
+function SearchPillsFacetGroup({
+    label,
+    facetKey,
+    distribution,
+    resultTotal,
+    state,
+    onToggleFacet,
+    cap = TOP_N,
+    caption,
+}: {
+    label: string;
+    facetKey: PanelFacetKey;
+    distribution: FacetDistribution | undefined;
+    resultTotal: number;
+    state: FilterState;
+    onToggleFacet: (key: FacetKey, value: string) => void;
+    cap?: number;
+    caption?: string;
+}) {
+    const selected = state.facets[facetKey] ?? [];
+    const [searchQuery, setSearchQuery] = useState("");
+    const [expanded, setExpanded] = useState(false);
+
+    const allOptions = useMemo(
+        () => facetOptions(distribution, selected, facetKey, undefined, STATIC_FACET_LADDERS[facetKey]),
+        [distribution, selected, facetKey],
+    );
+
+    if (!facetGroupVisible(distribution?.[facetKey], resultTotal, allOptions)) return null;
+
+    const countMap = new Map(allOptions);
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+
+    const unselectedOptions = allOptions.filter(([value]) => !selected.includes(value));
+    const matchingUnselected = trimmedQuery
+        ? unselectedOptions.filter(([value]) => {
+              const display = facetValueLabel(facetKey, value).toLowerCase();
+              return display.includes(trimmedQuery) || value.toLowerCase().includes(trimmedQuery);
+          })
+        : unselectedOptions;
+
+    const visibleLimit = trimmedQuery ? 24 : expanded ? 24 : cap;
+    const visibleSuggestions = matchingUnselected.slice(0, visibleLimit);
+    const hiddenCount = Math.max(0, matchingUnselected.length - visibleSuggestions.length);
+
+    return (
+        <Group label={label} count={selected.length} caption={caption}>
+            <div className="flex flex-col gap-2.5">
+                {/* Search input to find and add pills */}
+                <div className="flex min-h-8 items-center gap-2 rounded-ctl border border-border bg-background px-2.5 py-1 focus-within:border-foreground">
+                    <MagnifyingGlass size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && trimmedQuery && visibleSuggestions.length > 0) {
+                                e.preventDefault();
+                                const [firstVal] = visibleSuggestions[0]!;
+                                onToggleFacet(facetKey, firstVal);
+                                setSearchQuery("");
+                            }
+                        }}
+                        placeholder={SEARCH_PILLS_PLACEHOLDER[facetKey] ?? `Search ${label.toLowerCase()}…`}
+                        aria-label={`Search ${label}`}
+                        className="min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
+                    />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            aria-label={`Clear ${label} search`}
+                            onClick={() => setSearchQuery("")}
+                            className="flex items-center justify-center text-muted-foreground hover:text-foreground"
+                        >
+                            <X size={16} aria-hidden />
+                        </button>
+                    )}
+                </div>
+
+                {/* Active selected pills */}
+                {selected.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                        {selected.map((value) => {
+                            const n = countMap.get(value) ?? 0;
+                            return (
+                                <label
+                                    key={value}
+                                    className="inline-flex min-h-8 cursor-pointer select-none items-center gap-1.5 rounded-ctl border border-brand bg-live-tint-bg px-2.5 py-1 text-xs font-semibold leading-tight text-brand transition-colors"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={true}
+                                        readOnly
+                                        onClick={() => onToggleFacet(facetKey, value)}
+                                        className="sr-only"
+                                    />
+                                    <span>{facetValueLabel(facetKey, value)}</span>
+                                    {n > 0 && (
+                                        <span className="text-xs font-normal text-brand tabular-nums">
+                                            {n.toLocaleString()}
+                                        </span>
+                                    )}
+                                    <X size={16} className="shrink-0 text-brand" aria-hidden />
+                                </label>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Suggestion / matching pills to add */}
+                {visibleSuggestions.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {visibleSuggestions.map(([value, n]) => (
+                            <label
+                                key={value}
+                                className="inline-flex min-h-8 cursor-pointer select-none items-center gap-1.5 rounded-ctl border border-border bg-background px-2.5 py-1 text-xs leading-tight text-foreground transition-colors hover:bg-muted"
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={false}
+                                    readOnly
+                                    onClick={() => {
+                                        onToggleFacet(facetKey, value);
+                                        if (trimmedQuery) setSearchQuery("");
+                                    }}
+                                    className="sr-only"
+                                />
+                                <Plus size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+                                <span>{facetValueLabel(facetKey, value)}</span>
+                                {n > 0 && (
+                                    <span className="text-xs text-muted-foreground tabular-nums">
+                                        {n.toLocaleString()}
+                                    </span>
+                                )}
+                            </label>
+                        ))}
+                        {!trimmedQuery && (hiddenCount > 0 || expanded) && (
+                            <button
+                                type="button"
+                                onClick={() => setExpanded((prev) => !prev)}
+                                className="px-1.5 text-xs font-semibold text-brand hover:underline"
+                            >
+                                {expanded ? "Show less" : `+${hiddenCount} more`}
+                            </button>
+                        )}
+                    </div>
+                ) : trimmedQuery ? (
+                    <p className="text-xs text-muted-foreground">No matching options in current results.</p>
+                ) : null}
+            </div>
+        </Group>
+    );
+}
+
 function FacetGroup({
     label,
     facetKey,
@@ -267,8 +432,22 @@ function FacetGroup({
     onToggleFacet: (key: FacetKey, value: string) => void;
     cap?: number;
     caption?: string;
-    variant?: "stack" | "chips";
+    variant?: "stack" | "chips" | "search-pills";
 }) {
+    if (variant === "search-pills") {
+        return (
+            <SearchPillsFacetGroup
+                label={label}
+                facetKey={facetKey}
+                distribution={distribution}
+                resultTotal={resultTotal}
+                state={state}
+                onToggleFacet={onToggleFacet}
+                cap={cap}
+                caption={caption}
+            />
+        );
+    }
     const selected = state.facets[facetKey] ?? [];
     const options = facetOptions(distribution, selected, facetKey, cap, STATIC_FACET_LADDERS[facetKey]);
     if (!facetGroupVisible(distribution?.[facetKey], resultTotal, options)) return null;
@@ -505,8 +684,8 @@ export function SerpFilters({
                 />
             </div>
 
-            {/* Tier 3: High-cardinality corpus facets with aligned tabular counts */}
-            <div className="grid grid-cols-1 gap-x-6 gap-y-4 py-4 sm:grid-cols-3">
+            {/* Tier 3: Searchable tag-pill pickers for high-cardinality facets (Country, Skills & tools, Must-have skills) */}
+            <div className="flex flex-col gap-5 py-4">
                 <FacetGroup
                     label="Country"
                     facetKey="location_country"
@@ -515,27 +694,32 @@ export function SerpFilters({
                     state={state}
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
+                    variant="search-pills"
                 />
 
-                <FacetGroup
-                    label={facetKeyLabel("tech_stack")}
-                    facetKey="tech_stack"
-                    distribution={distribution}
-                    resultTotal={resultTotal ?? 0}
-                    state={state}
-                    onToggleFacet={onToggleFacet}
-                    cap={TOP_N}
-                />
+                <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+                    <FacetGroup
+                        label={facetKeyLabel("tech_stack")}
+                        facetKey="tech_stack"
+                        distribution={distribution}
+                        resultTotal={resultTotal ?? 0}
+                        state={state}
+                        onToggleFacet={onToggleFacet}
+                        cap={TOP_N}
+                        variant="search-pills"
+                    />
 
-                <FacetGroup
-                    label="Must-have skills"
-                    facetKey="must_have_skills"
-                    distribution={distribution}
-                    resultTotal={resultTotal ?? 0}
-                    state={state}
-                    onToggleFacet={onToggleFacet}
-                    cap={TOP_N}
-                />
+                    <FacetGroup
+                        label="Must-have skills"
+                        facetKey="must_have_skills"
+                        distribution={distribution}
+                        resultTotal={resultTotal ?? 0}
+                        state={state}
+                        onToggleFacet={onToggleFacet}
+                        cap={TOP_N}
+                        variant="search-pills"
+                    />
+                </div>
             </div>
 
             {/* Tier 4: Listing quality, visa, viewed & company board preferences */}

@@ -38,7 +38,7 @@ import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import { titlePastSenior, withinSenior } from "./role-level";
 import { payPlace } from "./pay-place";
 import { jobCountries, titlePlace } from "./resume-location";
-import { facetFilterClause, salaryMinClause } from "./unknown-inclusive-facets";
+import { facetFilterClause, hasUnknownRequestedFacet, salaryMinClause } from "./unknown-inclusive-facets";
 import { expandTitleQuery } from "./title-aliases";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
@@ -1417,7 +1417,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     if (shouldRunCompanyScopedLanes(companyScoped || isCompoundEmployerSearch, searchParams)) {
       const { lanes, facetDistribution } = await fetchCompanyScopedLanes(h, searchParams, companyScoped);
       const pool = assembleCompanyLanePool(lanes, (hits) =>
-        isRelevance ? applyRelevanceQualityReranking(hits, effectiveQ) : hits,
+        isRelevance ? applyRelevanceQualityReranking(hits, effectiveQ, Date.now(), searchParams) : hits,
       );
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
@@ -1478,17 +1478,22 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       // Relevance: the content lanes' roles lead the first page; every title lane then gets a share of what is
       // left (`interleaveFitPhraseLanes`), each ranked against its own phrase, and, when a deck asked for them
       // (`unplacedRemote`), the roles that name no country take a few places at its end (`composeContentFirstPool`).
-      const ranked = isRelevance
-        ? composeContentFirstPool({
-            content: content ? keepWithinSenior(content.placed.strong) : [],
-            weak: content ? keepWithinSenior(content.placed.weak) : [],
-            titleLanes: lanes.map((lane, i) => applyRelevanceQualityReranking(lane, fitPhrases[i] ?? effectiveQ)),
-            unplaced: searchParams.unplacedRemote && content ? keepWithinSenior(content.unplaced) : [],
-            // The pool is composed for its first `FOR_YOU_POOL_WINDOW` rows (a smaller first page, the same shares);
-            // a deeper first page (`FOR_YOU_READ_DEPTH`) or a later page reads on into the same composed list.
-            window: offset === 0 ? Math.min(limit, FOR_YOU_POOL_WINDOW) : FOR_YOU_POOL_WINDOW,
-          })
-        : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
+      const ranked = partitionKnownRequestedFacetsFirst(
+        isRelevance
+          ? composeContentFirstPool({
+              content: content ? keepWithinSenior(content.placed.strong) : [],
+              weak: content ? keepWithinSenior(content.placed.weak) : [],
+              titleLanes: lanes.map((lane, i) =>
+                applyRelevanceQualityReranking(lane, fitPhrases[i] ?? effectiveQ, Date.now(), searchParams),
+              ),
+              unplaced: searchParams.unplacedRemote && content ? keepWithinSenior(content.unplaced) : [],
+              // The pool is composed for its first `FOR_YOU_POOL_WINDOW` rows (a smaller first page, the same shares);
+              // a deeper first page (`FOR_YOU_READ_DEPTH`) or a later page reads on into the same composed list.
+              window: offset === 0 ? Math.min(limit, FOR_YOU_POOL_WINDOW) : FOR_YOU_POOL_WINDOW,
+            })
+          : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p))),
+        searchParams,
+      );
       return {
         hits: pageRoleTitleHits(ranked, offset, limit),
         total: ranked.length,
@@ -1508,8 +1513,11 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         unique.push(hit);
       }
       const ranked = isRelevance
-        ? applyRelevanceQualityReranking(unique, effectiveQ)
-        : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
+        ? applyRelevanceQualityReranking(unique, effectiveQ, Date.now(), searchParams)
+        : partitionKnownRequestedFacetsFirst(
+            [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p))),
+            searchParams,
+          );
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
       // `ranked` is already in final order (relevance rerank, or compareJobsBySort
@@ -1533,7 +1541,13 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       // the rerank's relevance tiers hold; it also strips the ranking-score
       // details. Relevance only — the sort-integrity guard below returns
       // early for relevance, so it can never flag (or re-sort) this page.
-      result.hits = preferNewerAmongCloseMatches(applyRelevanceQualityReranking(result.hits, effectiveQ), effectiveQ);
+      result.hits = partitionKnownRequestedFacetsFirst(
+        preferNewerAmongCloseMatches(
+          applyRelevanceQualityReranking(result.hits, effectiveQ, Date.now(), searchParams),
+          effectiveQ,
+        ),
+        searchParams,
+      );
     }
 
     return applySortIntegrityGuard(result, searchParams, () => runSearch());
@@ -2097,16 +2111,43 @@ export function freshnessBucket(job: PublicJob, nowMs: number = Date.now()): num
  * days old and put a 2-day-old Intact posting at #38 — past the 60 rows a
  * pack loads, for most of the pool (measured live, review 2026-10-13).
  */
-export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string, nowMs: number = Date.now()): PublicJob[] {
+function partitionKnownRequestedFacetsFirst(
+  hits: readonly PublicJob[],
+  params?: Pick<JobSearchParams, "facets" | "salaryMin"> | null,
+): PublicJob[] {
+  if (!params || hits.length <= 1) return [...hits];
+  const known: PublicJob[] = [];
+  const unknown: PublicJob[] = [];
+  for (const hit of hits) {
+    if (hasUnknownRequestedFacet(hit, params)) unknown.push(hit);
+    else known.push(hit);
+  }
+  return unknown.length === 0 || known.length === 0 ? [...hits] : [...known, ...unknown];
+}
+
+export function applyRelevanceQualityReranking(
+  hits: PublicJob[],
+  q?: string,
+  nowMs: number = Date.now(),
+  params?: Pick<JobSearchParams, "facets" | "salaryMin"> | null,
+): PublicJob[] {
   if (!hits || hits.length <= 1) return hits;
   const ctx = relevanceRerankContext(q);
   const ghostScore = (g: string) => (g === "likely_ghost" ? 0 : g === "caution" ? 1 : 2);
   const hasSalary = (j: PublicJob) => ((j.salary_min != null && j.salary_min > 0) || (j.salary_max != null && j.salary_max > 0) ? 1 : 0);
-  const keyed = hits.map((hit) => ({ hit, tier: relevanceTierKey(hit, ctx), fresh: freshnessBucket(hit, nowMs) }));
+  const keyed = hits.map((hit) => ({
+    hit,
+    unknownFacet: hasUnknownRequestedFacet(hit, params) ? 1 : 0,
+    tier: relevanceTierKey(hit, ctx),
+    fresh: freshnessBucket(hit, nowMs),
+  }));
 
   keyed.sort((x, y) => {
     const a = x.hit;
     const b = y.hit;
+    // 0a. Confirmed requested facets (e.g. work_type = remote) always precede unknown fallback rows.
+    if (x.unknownFacet !== y.unknownFacet) return x.unknownFacet - y.unknownFacet;
+
     // 0, 0b, 1. Relevance tier (non-tech demotion, role-title shape, title coverage).
     const tier = compareTierKeys(x.tier, y.tier);
     if (tier !== 0) return tier;

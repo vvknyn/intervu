@@ -11,7 +11,7 @@
  * (snapshot-preview.ts, test stub) — both read `UNKNOWN_INCLUSIVE_FACETS`.
  * Pure, no I/O.
  */
-import type { FacetKey } from "./types";
+import type { FacetKey, JobSearchParams, PublicJob } from "./types";
 
 /**
  * Ruling 2026-10-22, "return all search results ranked by relevance and fit":
@@ -50,4 +50,40 @@ export function salaryMinClause(min: number, knownOnly = false): string {
 /** In-memory twin of `facetFilterClause` for a non-empty `vals`; `value` is the row's value for `key`, null when absent. */
 export function facetValueMatches(key: FacetKey, value: string | null, vals: readonly string[]): boolean {
   return (value != null && vals.includes(value)) || isUnknownFacetValue(key, value);
+}
+
+/**
+ * True when the search requested a work_type, experience_level, or salary_min filter
+ * and `job` only matched via the unknown-inclusive fallback (its value for that filter
+ * was never derived or is "unknown" / null). Confirmed matches must always rank ahead
+ * of unknown-inclusive fallback rows across all search lanes and rerankers.
+ */
+export function hasUnknownRequestedFacet(
+  job: Pick<PublicJob, "work_type" | "experience_level" | "salary_min" | "salary_max">,
+  params?: Pick<JobSearchParams, "facets" | "salaryMin"> | null,
+): boolean {
+  if (!params) return false;
+  const workVals = params.facets?.work_type;
+  if (workVals && workVals.length > 0) {
+    const hasExplicitUnknown = workVals.some((v) => v.toLowerCase() === "unknown");
+    if (!hasExplicitUnknown && isUnknownFacetValue("work_type", job.work_type)) {
+      return true;
+    }
+  }
+  const expVals = params.facets?.experience_level;
+  if (expVals && expVals.length > 0) {
+    const hasExplicitUnknown = expVals.some((v) => v.toLowerCase() === "unknown");
+    if (!hasExplicitUnknown && isUnknownFacetValue("experience_level", job.experience_level)) {
+      return true;
+    }
+  }
+  if (typeof params.salaryMin === "number" && params.salaryMin > 0) {
+    const hasKnownSalary =
+      (typeof job.salary_min === "number" && job.salary_min > 0) ||
+      (typeof job.salary_max === "number" && job.salary_max > 0);
+    if (!hasKnownSalary) {
+      return true;
+    }
+  }
+  return false;
 }

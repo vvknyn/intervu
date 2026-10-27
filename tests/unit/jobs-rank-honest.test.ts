@@ -39,10 +39,16 @@ describe('rank by fit keeps what the visitor typed (I3)', () => {
 });
 
 import { FIT_SEARCH_PLACEHOLDER, SEARCH_PLACEHOLDER, searchBoxFor } from '../../src/lib/jobs/search-copy';
+import { hasUnknownRequestedFacet } from '../../src/lib/jobs/unknown-inclusive-facets';
+import { applyRelevanceQualityReranking } from '../../src/lib/jobs/meilisearch';
 
 describe('the search box hides the résumé-derived query (I4)', () => {
     it('fit list on the pack query: empty box, "within your matches"', () => {
         assert.deepEqual(searchBoxFor('product manager', 'product manager', true, 'product manager'), { value: '', placeholder: FIT_SEARCH_PLACEHOLDER });
+    });
+    it('multi-phrase boolean OR pack query stays hidden even when sort is switched away from fit', () => {
+        const packOr = '"Senior Product Manager" OR "Product Manager" OR "Technical Product Manager"';
+        assert.deepEqual(searchBoxFor(packOr, packOr, false, packOr), { value: '', placeholder: FIT_SEARCH_PLACEHOLDER });
     });
     for (const [name, args] of [
         ['typed query in fit mode', ['nurse', 'nurse', true, 'product manager']],
@@ -54,6 +60,41 @@ describe('the search box hides the résumé-derived query (I4)', () => {
             assert.deepEqual(searchBoxFor(args[0], args[1], args[2], args[3]), { value: args[0], placeholder: SEARCH_PLACEHOLDER });
         });
     }
+});
+
+describe('confirmed facet matches rank ahead of unknown-inclusive fallback rows', () => {
+    it('ranks confirmed remote postings ahead of unknown work_type postings when work_type=remote is requested', () => {
+        const now = Date.now();
+        const unknownWorkModeHit = {
+            id: 'unknown-1',
+            title: 'Senior Product Manager',
+            company: 'Acme Corp',
+            work_type: 'unknown',
+            posted_ts: now - 3600_000,
+            salary_min: 180000,
+            salary_max: 220000,
+            ghost_badge: 'clear',
+        } as never;
+        const confirmedRemoteHit = {
+            id: 'remote-1',
+            title: 'Product Manager',
+            company: 'Beta Inc',
+            work_type: 'remote',
+            posted_ts: now - 86400_000 * 5,
+            salary_min: null,
+            salary_max: null,
+            ghost_badge: 'unchecked',
+        } as never;
+        assert.equal(hasUnknownRequestedFacet(unknownWorkModeHit, { facets: { work_type: ['remote'] } }), true);
+        assert.equal(hasUnknownRequestedFacet(confirmedRemoteHit, { facets: { work_type: ['remote'] } }), false);
+        const reranked = applyRelevanceQualityReranking(
+            [unknownWorkModeHit, confirmedRemoteHit],
+            'Product Manager',
+            now,
+            { facets: { work_type: ['remote'] } },
+        );
+        assert.deepEqual(reranked.map((h) => h.id), ['remote-1', 'unknown-1']);
+    });
 });
 
 import { resolveJobsEntry } from '../../src/lib/jobs/server-entry';

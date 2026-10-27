@@ -30,7 +30,7 @@ import { formatDescription } from "@/lib/jobs/format-description";
 import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { ghostMetaFor, displayCompany, displayCompanyBrand, locationText, placeWithWorkMode, clampLocationSegments, shortDate, salaryText, postedAgeShort, visibleTags } from "@/lib/jobs/presentation";
+import { ghostMetaFor, displayCompany, displayCompanyBrand, isCompanyDomain, locationText, placeWithWorkMode, clampLocationSegments, shortDate, salaryText, postedAgeShort, visibleTags } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { presentJob } from "@/lib/presentation";
 import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
@@ -1234,39 +1234,39 @@ export function JobDetail({
                                     {aboutLine && (
                                         <p className="mt-2 max-w-[640px] text-sm leading-snug text-foreground">&ldquo;{aboutLine}&rdquo;</p>
                                     )}
-                                    {cleanedCompany && (
-                                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
-                                            <Link
-                                                href={
-                                                    job.company_domain?.trim()
-                                                        ? buildCompanyJobsUrl({ domain: job.company_domain.trim() })
-                                                        : jobCompanyHref(cleanedCompany, job.company_domain)
-                                                }
-                                                onClick={() => {
-                                                    if (onClose) onClose();
-                                                }}
-                                                className="text-sm text-brand hover:underline"
-                                            >
-                                                All jobs at {companyBrand || cleanedCompany}
-                                            </Link>
-                                            {/* The company page (/co/[slug]) — only with a
-                                                domain: without one, "All jobs at" above
-                                                already points at this same URL. Named for
-                                                where it goes; a bare company name beside
-                                                "All jobs at {brand}" read as a duplicate. */}
-                                            {job.company_domain?.trim() && (
+                                    {cleanedCompany && (() => {
+                                        const validCompanyDomain =
+                                            job.company_domain?.trim() && isCompanyDomain(job.company_domain.trim())
+                                                ? job.company_domain.trim()
+                                                : null;
+                                        return (
+                                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
                                                 <Link
-                                                    href={jobCompanyHref(cleanedCompany, job.company_domain)}
-                                                    onClick={() => {
-                                                        if (onClose) onClose();
-                                                    }}
+                                                    href={
+                                                        validCompanyDomain
+                                                            ? buildCompanyJobsUrl({ domain: validCompanyDomain })
+                                                            : jobCompanyHref(cleanedCompany, job.company_domain)
+                                                    }
                                                     className="text-sm text-brand hover:underline"
                                                 >
-                                                    {companyBrand || cleanedCompany} company page
+                                                    All jobs at {companyBrand || cleanedCompany}
                                                 </Link>
-                                            )}
-                                        </div>
-                                    )}
+                                                {/* The company page (/co/[slug]) — only with a
+                                                    real company domain: without one, "All jobs at" above
+                                                    already points at this same URL. Named for
+                                                    where it goes; a bare company name beside
+                                                    "All jobs at {brand}" read as a duplicate. */}
+                                                {validCompanyDomain && (
+                                                    <Link
+                                                        href={jobCompanyHref(cleanedCompany, validCompanyDomain)}
+                                                        className="text-sm text-brand hover:underline"
+                                                    >
+                                                        {companyBrand || cleanedCompany} company page
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <div className={cn(visibleTags(job.tags, 16).length > 0 && "mt-3")}>
                                     <div className="flex flex-wrap gap-4 sm:gap-6">

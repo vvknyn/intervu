@@ -170,6 +170,7 @@ import {
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { LG_UP_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
+import { hasUnknownRequestedFacet } from "@/lib/jobs/unknown-inclusive-facets";
 import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, showResultsLabel, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { searchBoxFor } from "@/lib/jobs/search-copy";
@@ -2724,7 +2725,14 @@ export function JobsContent({
             read.candidates,
             (job) => matchScores.get(job.id) ?? null,
             nowMs,
-            { abroad: includeAbroad || result?.inPlace !== undefined || (facets.location_country?.length ?? 0) > 0, older: includeOlder },
+            {
+                abroad:
+                    includeAbroad ||
+                    Boolean(companyDomain) ||
+                    result?.inPlace !== undefined ||
+                    (facets.location_country ?? []).some((v) => /^(any|all)$/i.test(v.trim())),
+                older: includeOlder || Boolean(companyDomain),
+            },
         );
         // The roles that fit lead, in the one order; the ones that only rank lower follow in the same order.
         const inOrder = (jobs: typeof ranked) => {
@@ -2746,25 +2754,45 @@ export function JobsContent({
     }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, result?.total, result?.inPlace, companyDomain, facets.location_country, includeAbroad, includeOlder]);
     const rankedClusters = useMemo(() => {
         if (recommended) return recommended.slots.map((slot) => slot.lead);
-        if (!matchScores || effectiveSort !== "relevance") return clusters;
+        const hasRequestedFacetGuard =
+            (facets.work_type?.length ?? 0) > 0 ||
+            (facets.experience_level?.length ?? 0) > 0 ||
+            salaryMin > 0;
+        if ((!matchScores || effectiveSort !== "relevance") && !hasRequestedFacetGuard) return clusters;
         // When a résumé is loaded during a standard relevance search, preserve
-        // the strict vs mention seam (`seamIndex`) and use résumé fit band
-        // (`strong` > `good`) as a tie-breaker within each relevance partition.
+        // the strict vs mention seam (`seamIndex`), keep confirmed facet matches
+        // ahead of unknown-inclusive fallbacks, demote outside-country / foreign-language /
+        // off-family postings, and use résumé fit score as a tie-breaker within each partition.
         const rankClusterTier = (slice: typeof clusters) =>
             [...slice].sort((a, b) => {
                 const tierA = a.primary.tier ?? 1;
                 const tierB = b.primary.tier ?? 1;
                 if (tierA !== tierB) return tierA - tierB;
-                const scoreA = matchScores.get(a.primary.id)?.total ?? 0;
-                const scoreB = matchScores.get(b.primary.id)?.total ?? 0;
-                return scoreB - scoreA;
+                if (hasRequestedFacetGuard) {
+                    const unkA = hasUnknownRequestedFacet(a.primary, { facets, salaryMin }) ? 1 : 0;
+                    const unkB = hasUnknownRequestedFacet(b.primary, { facets, salaryMin }) ? 1 : 0;
+                    if (unkA !== unkB) return unkA - unkB;
+                }
+                if (matchScores && effectiveSort === "relevance") {
+                    const sA = matchScores.get(a.primary.id);
+                    const sB = matchScores.get(b.primary.id);
+                    const demoteA =
+                        sA?.outside || sA?.language || sA?.unproven || sA?.contentFamily ? 1 : 0;
+                    const demoteB =
+                        sB?.outside || sB?.language || sB?.unproven || sB?.contentFamily ? 1 : 0;
+                    if (demoteA !== demoteB) return demoteA - demoteB;
+                    const scoreA = sA?.total ?? 0;
+                    const scoreB = sB?.total ?? 0;
+                    return scoreB - scoreA;
+                }
+                return 0;
             });
         const splitAt = seamIndex > 0 ? clusters.findIndex((c) => c.primaryIndex >= seamIndex) : -1;
         if (splitAt > 0) {
             return [...rankClusterTier(clusters.slice(0, splitAt)), ...rankClusterTier(clusters.slice(splitAt))];
         }
         return rankClusterTier(clusters);
-    }, [recommended, clusters, matchScores, effectiveSort, seamIndex]);
+    }, [recommended, clusters, matchScores, effectiveSort, seamIndex, facets, salaryMin]);
     // The other roles of each employer's slot, by the role that leads it, with the fit label each has elsewhere.
     const employerMoreByLead = useMemo(() => {
         const byLead = new Map<string, { roles: EmployerMoreRole[]; hidden: number }>();
@@ -4763,45 +4791,36 @@ export function JobsContent({
             </div>
         ) : null;
 
-    const tourReplayEl = <JobsTourReplayButton />;
-
     // G5b (Grok UX wave): the filters panel's own content, shared verbatim
-    // between the desktop inline expand and the mobile Sheet below — one
+    // between the desktop modal dialog and the mobile Sheet below — one
     // SerpFilters render, not two copies that could drift on props.
     /**
-     * The filter controls, written once for all three mount sites (expand,
+     * The filter controls, written once for all three mount sites (dialog,
      * bottom sheet, dense rail). Only `layout` differs — see SerpFilters's own
      * prop doc for why the rail cannot just be a narrower panel.
      */
     const renderFiltersPanel = (layout: "panel" | "sheet" | "rail" = "panel") => (
-        <>
-            <SerpFilters
-                distribution={result?.facetDistribution}
-                resultTotal={result?.total}
-                postedDateSupported={postedDateSupported}
-                state={filterState}
-                activeCount={activeCount}
-                onToggleFacet={panelToggleFacet}
-                onSalaryMin={panelSalaryMin}
-                onVisaOnly={panelVisaOnly}
-                onPostedBucket={panelPostedBucket}
-                onYearsExperience={panelYearsExperience}
-                onClearAll={panelClearAll}
-                hideGhosts={hideGhosts}
-                onHideGhosts={onHideGhosts}
-                ghostHiddenCount={ghostHiddenCount}
-                hideViewed={hideViewed}
-                onHideViewed={onHideViewed}
-                board={board === "elite" ? "elite" : "all"}
-                onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
-                layout={layout}
-            />
-            {/* The page tour's replay lives with the filters, not in the toolbar. */}
-            <div className="mt-3 flex items-center gap-2 pt-3 text-xs text-muted-foreground">
-                {tourReplayEl}
-                How these listings work
-            </div>
-        </>
+        <SerpFilters
+            distribution={result?.facetDistribution}
+            resultTotal={result?.total}
+            postedDateSupported={postedDateSupported}
+            state={filterState}
+            activeCount={activeCount}
+            onToggleFacet={panelToggleFacet}
+            onSalaryMin={panelSalaryMin}
+            onVisaOnly={panelVisaOnly}
+            onPostedBucket={panelPostedBucket}
+            onYearsExperience={panelYearsExperience}
+            onClearAll={panelClearAll}
+            hideGhosts={hideGhosts}
+            onHideGhosts={onHideGhosts}
+            ghostHiddenCount={ghostHiddenCount}
+            hideViewed={hideViewed}
+            onHideViewed={onHideViewed}
+            board={board === "elite" ? "elite" : "all"}
+            onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
+            layout={layout}
+        />
     );
 
     const renderFiltersDialog = () => (
@@ -4825,9 +4844,6 @@ export function JobsContent({
                     className="px-6 py-4 text-foreground custom-scrollbar"
                 >
                     {renderFiltersPanel("sheet")}
-                    <div className="mt-3 pt-3">
-                        <FooterLinks />
-                    </div>
                 </DialogBody>
                 <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-6 py-3.5">
                     <Button
