@@ -33,6 +33,7 @@ import {
 import type { SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetBar, SheetBody, SheetContent, SheetFooter, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
@@ -4773,6 +4774,51 @@ export function JobsContent({
         </>
     );
 
+    const filtersDialogEl = (
+        <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <DialogContent className="gap-0 rounded-panel p-0 sm:max-w-3xl">
+                <div className="shrink-0 border-b border-border px-6 py-4 pr-12">
+                    <DialogHeader className="text-left">
+                        <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+                            Filters
+                            {activeCount > 0 && (
+                                <span className="font-normal text-xs text-muted-foreground tabular-nums">
+                                    ({activeCount} active)
+                                </span>
+                            )}
+                        </DialogTitle>
+                    </DialogHeader>
+                </div>
+                <DialogBody
+                    id="filters-panel"
+                    data-testid="filters-panel"
+                    className="px-6 py-4 text-foreground custom-scrollbar"
+                >
+                    {renderFiltersPanel("sheet")}
+                    <div className="mt-3 pt-3">
+                        <FooterLinks />
+                    </div>
+                </DialogBody>
+                <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-6 py-3.5">
+                    <Button
+                        variant="outline"
+                        size="touch"
+                        disabled={activeCount === 0}
+                        onClick={panelClearAll}
+                    >
+                        Clear all
+                    </Button>
+                    <Button
+                        size="touch"
+                        onClick={() => setFiltersOpen(false)}
+                    >
+                        {showResultsLabel(result?.configured && !result.unavailable && !loading ? totalCount : null)}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+
     /**
      * The "Browse by field" replace-query shortcut, defined once because it
      * has two mount sites and only ever one at a time: inside the hero well
@@ -5440,22 +5486,7 @@ export function JobsContent({
                 </section>
                 )}
 
-                {headerDockActive && showSearchHome && facetsMountSite === "inline" && (
-                    <div
-                        id="filters-panel"
-                        data-testid="filters-panel"
-                        className="panel-enter flex max-h-[min(62dvh,520px)] flex-col rounded-panel bg-surface p-2.5 text-foreground"
-                    >
-                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">{renderFiltersPanel()}</div>
-                        {/* The global `Footer` is mounted below this infinite feed and
-                            never scrolls into view here — this is the only reachable
-                            desktop filter surface on /jobs, so the footer links live
-                            at its end too, outside the scroll area so no row is cut. */}
-                        <div className="mt-3 shrink-0 pt-3">
-                            <FooterLinks />
-                        </div>
-                    </div>
-                )}
+                {headerDockActive && showSearchHome && facetsMountSite === "inline" && filtersDialogEl}
                 {showJobsToolbarSection && showSearchHome && (
                 <section
                     data-testid="jobs-toolbar"
@@ -5587,13 +5618,7 @@ export function JobsContent({
                     </div>
 
                     {facetsMountSite === "inline" && !headerDockActive ? (
-                        <div
-                            id="filters-panel"
-                            data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel bg-surface p-2.5 text-foreground custom-scrollbar"
-                        >
-                            {renderFiltersPanel()}
-                        </div>
+                        filtersDialogEl
                     ) : facetsMountSite === "sheet" ? (
                         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
                             <SheetContent

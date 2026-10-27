@@ -1,14 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyCompanyDomainPin,
   COMPANY_INTENT_MAX_TITLE_ECHO,
   COMPANY_INTENT_MIN_EXACT,
   COMPANY_INTENT_MIN_RATIO,
   companyNameStem,
   dominantCompanyDomains,
+  extractCompoundRoleCompanyCandidates,
   isCompanyNameQuery,
   normalizeCompanyName,
 } from "../../src/lib/jobs/company-intent";
+import { applyRelevanceQualityReranking } from "../../src/lib/jobs/meilisearch";
+import type { PublicJob } from "../../src/lib/jobs/types";
 import { COMPANY_PROBES } from "../fixtures/company-intent-probes";
 
 /**
@@ -237,4 +241,56 @@ test("no title evidence means no veto (dominance decides, as before)", () => {
     assert.equal(isCompanyNameQuery("warehouse", probe("warehouse", false)), true);
     const blank = { ...probe("warehouse", false), titles: Array(10).fill("") };
     assert.equal(isCompanyNameQuery("warehouse", blank), true);
+});
+
+test("extractCompoundRoleCompanyCandidates decomposes [Role] + [Company] queries without touching pure roles", () => {
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("Product Manager tesla"), [
+        { roleQ: "Product Manager", companyQ: "tesla" },
+    ]);
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("tesla Product Manager"), [
+        { roleQ: "Product Manager", companyQ: "tesla" },
+    ]);
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("Product Manager at Tesla"), [
+        { roleQ: "Product Manager", companyQ: "Tesla" },
+    ]);
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("Product Manager jpmorgan chase"), [
+        { roleQ: "Product Manager", companyQ: "jpmorgan chase" },
+    ]);
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("product manager"), []);
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("registered nurse"), []);
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("senior software engineer"), []);
+    assert.deepEqual(
+        applyCompanyDomainPin(
+            { q: "Product Manager tesla" },
+            { companyScoped: false, companyDomains: ["tesla.com"], residualRoleQ: "Product Manager" },
+        ),
+        { q: "Product Manager", companyDomain: "tesla.com" },
+    );
+});
+
+test("applyRelevanceQualityReranking demotes 1-typo company false positives (Tekla/Tesat for Tesla) and foreign titles", () => {
+    const teklaHit = {
+        id: "tekla",
+        title: "Customer Support Manager",
+        company: "Trimble Tekla",
+        ghost_badge: "clear",
+        posted_ts: 3000,
+    } as PublicJob;
+    const dutchHit = {
+        id: "dutch",
+        title: "Senior Product Specialist technisch beheer",
+        company: "Werkenvoornederland",
+        ghost_badge: "clear",
+        posted_ts: 4000,
+    } as PublicJob;
+    const realPmHit = {
+        id: "real-pm",
+        title: "Product Manager, Energy",
+        company: "Tesla",
+        ghost_badge: "clear",
+        posted_ts: 1000,
+    } as PublicJob;
+
+    const ranked = applyRelevanceQualityReranking([teklaHit, dutchHit, realPmHit], "Product Manager tesla");
+    assert.equal(ranked[0]?.id, "real-pm");
 });

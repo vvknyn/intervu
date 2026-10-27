@@ -20,6 +20,7 @@ import { decideSaveAttempt } from "@/lib/auth/guest-save-gate";
 import { readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
+    cleanSavedSearchName,
     deleteSavedSearch,
     hrefFromJobsUrlState,
     jobsUrlStateFromSavedHref,
@@ -297,12 +298,12 @@ export function SavedSearchesPanel({
                                 }}
                                 className={cn(
                                     compact
-                                        ? "max-w-[8rem] truncate text-xs text-foreground underline underline-offset-2 hover:no-underline"
-                                        : "max-w-[10rem] truncate text-xs text-foreground hover:underline",
+                                        ? "max-w-[10rem] truncate text-xs text-foreground underline underline-offset-2 hover:no-underline"
+                                        : "max-w-[12rem] truncate text-xs text-foreground hover:underline",
                                 )}
-                                title={s.name}
+                                title={cleanSavedSearchName(s.name)}
                             >
-                                {s.name}
+                                {cleanSavedSearchName(s.name)}
                             </button>
                             {(newCounts[s.id]?.value ?? 0) >= 1 && (
                                 <span

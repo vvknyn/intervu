@@ -171,11 +171,165 @@ export function dominantCompanyDomains(q: string, sample: CompanyNameSample): st
 /** Pin retrieve to probed employer domains unless `?company=` already set. */
 export function applyCompanyDomainPin(
   p: JobSearchParams,
-  intent: { companyScoped: boolean; companyDomains: string[] },
+  intent: { companyScoped: boolean; companyDomains: string[]; residualRoleQ?: string },
 ): JobSearchParams {
-  if (!intent.companyScoped || intent.companyDomains.length === 0 || p.companyDomain) return p;
+  const hasCompanyPin =
+    (intent.companyScoped || Boolean(intent.residualRoleQ)) && intent.companyDomains.length > 0;
+  if (!hasCompanyPin || p.companyDomain || p.companyDomains?.length) return p;
+  const nextQ = intent.residualRoleQ ?? p.q;
   if (intent.companyDomains.length === 1) {
-    return { ...p, companyDomain: intent.companyDomains[0] };
+    return { ...p, q: nextQ, companyDomain: intent.companyDomains[0] };
   }
-  return { ...p, companyDomains: intent.companyDomains };
+  return { ...p, q: nextQ, companyDomains: intent.companyDomains };
+}
+
+const ROLE_CONNECTORS = new Set(["of", "and", "&", "for", "to", "in"]);
+
+const ROLE_HEAD_NOUNS = new Set([
+  "engineer", "engineers", "engineering",
+  "developer", "developers",
+  "manager", "managers", "management",
+  "director", "directors",
+  "designer", "designers",
+  "analyst", "analysts",
+  "scientist", "scientists",
+  "architect", "architects",
+  "consultant", "consultants",
+  "specialist", "specialists",
+  "coordinator", "coordinators",
+  "administrator", "administrators",
+  "associate", "associates",
+  "assistant", "assistants",
+  "lead", "leader", "leaders",
+  "head", "vp", "president", "chief", "officer",
+  "intern", "internship",
+  "recruiter", "recruiters",
+  "accountant", "accountants",
+  "counsel", "attorney", "lawyer",
+  "nurse", "nurses", "nursing",
+  "physician", "physicians", "doctor",
+  "therapist", "therapists",
+  "pharmacist", "pharmacists",
+  "technician", "technicians",
+  "mechanic", "mechanics",
+  "electrician", "electricians",
+  "plumber", "plumbers",
+  "welder", "welders",
+  "driver", "drivers",
+  "cashier", "cashiers",
+  "server", "servers", "barista", "chef", "cook",
+  "teacher", "teachers", "professor", "instructor",
+  "researcher", "researchers",
+  "writer", "writers", "editor", "editors", "producer",
+  "strategist", "planner", "buyer",
+  "underwriter", "actuary", "auditor", "controller", "bookkeeper",
+  "paralegal", "clerk", "receptionist",
+  "supervisor", "supervisors", "foreman", "superintendent", "inspector",
+  "operator", "operators", "machinist", "assembler", "handler",
+  "representative", "representatives", "advisor", "advisors", "advocate",
+  "executive", "executives", "partner", "principal", "fellow",
+  "pm", "swe", "sre", "tpm", "em", "ae", "sdr", "bdr", "csm", "rn",
+]);
+
+const ROLE_VOCABULARY_TOKENS = new Set([
+  ...ROLE_HEAD_NOUNS,
+  "product", "program", "project", "software", "hardware", "data", "machine", "learning",
+  "ai", "ml", "cloud", "devops", "security", "cybersecurity", "network", "systems", "system",
+  "platform", "infrastructure", "frontend", "front", "end", "backend", "back", "fullstack", "full", "stack",
+  "mobile", "ios", "android", "web", "qa", "test", "quality", "automation", "release", "site", "reliability",
+  "database", "solutions", "enterprise", "technical", "business", "intelligence", "financial", "finance",
+  "accounting", "tax", "audit", "risk", "compliance", "legal", "hr", "human", "resources", "people",
+  "talent", "acquisition", "marketing", "growth", "brand", "content", "social", "media", "digital",
+  "seo", "paid", "performance", "demand", "generation", "sales", "account", "customer", "success",
+  "support", "service", "services", "client", "operations", "ops", "revenue", "revops", "supply", "chain",
+  "logistics", "procurement", "purchasing", "inventory", "manufacturing", "industrial", "mechanical",
+  "electrical", "civil", "chemical", "structural", "aerospace", "biomedical", "environmental", "process",
+  "materials", "packaging", "clinical", "medical", "healthcare", "health", "registered", "licensed",
+  "practical", "physical", "occupational", "speech", "respiratory", "radiology", "dental", "veterinary",
+  "pharmacy", "ux", "ui", "graphic", "visual", "motion", "interaction", "creative", "art", "copywriter",
+  "communications", "public", "relations", "pr", "investor", "corporate", "strategy", "development",
+  "investment", "banking", "equity", "portfolio", "wealth", "asset", "credit", "loan", "mortgage",
+  "real", "estate", "property", "facilities", "construction", "field", "retail", "store", "branch",
+  "shift", "kitchen", "restaurant", "hotel", "hospitality", "event", "administrative", "office",
+  "personal", "virtual", "general", "senior", "sr", "junior", "jr", "mid", "entry", "level",
+  "staff", "group", "vice", "co", "op", "graduate", "new", "grad", "trainee", "apprentice",
+  "warehouse", "production", "analytics", "science", "design", "research", "it", "information", "technology",
+  "ii", "iii", "iv", "v", "1", "2", "3",
+]);
+
+function cleanWord(w: string): string {
+  return w.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isRolePhraseWords(words: readonly string[]): boolean {
+  if (words.length === 0) return false;
+  const cleaned = words.map(cleanWord).filter(Boolean);
+  if (cleaned.length === 0) return false;
+  const allRoleOrConnector = cleaned.every((w) => ROLE_VOCABULARY_TOKENS.has(w) || ROLE_CONNECTORS.has(w));
+  if (!allRoleOrConnector) return false;
+  return cleaned.some((w) => ROLE_HEAD_NOUNS.has(w));
+}
+
+function isCandidateCompanyWords(words: readonly string[]): boolean {
+  if (words.length === 0 || words.length > 2) return false;
+  const cleaned = words.map(cleanWord).filter(Boolean);
+  if (cleaned.length !== words.length) return false;
+  return cleaned.every((w) => w.length >= 2 && !ROLE_VOCABULARY_TOKENS.has(w) && !ROLE_CONNECTORS.has(w));
+}
+
+/**
+ * Pure: extracts candidate `{ roleQ, companyQ }` splits from a multi-word query
+ * like `"Product Manager tesla"`, `"tesla Product Manager"`, or `"Product Manager at Tesla"`.
+ * Returns `[]` for pure role queries (`"product manager"`, `"registered nurse"`, `"director brand"`)
+ * so they never trigger an extra company probe.
+ */
+export function extractCompoundRoleCompanyCandidates(
+  q: string,
+): Array<{ roleQ: string; companyQ: string }> {
+  const trimmed = q.trim();
+  if (!trimmed || trimmed.includes('"') || /\bOR\b/.test(trimmed)) return [];
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 6) return [];
+
+  // Explicit "at" / "@" connector: e.g. "Product Manager at Tesla"
+  const atIdx = words.findIndex((w, i) => i >= 1 && i <= words.length - 2 && /^(?:at|@)$/i.test(w));
+  if (atIdx !== -1) {
+    const roleWords = words.slice(0, atIdx);
+    const companyWords = words.slice(atIdx + 1);
+    if (isRolePhraseWords(roleWords) && isCandidateCompanyWords(companyWords)) {
+      return [{ roleQ: roleWords.join(" "), companyQ: companyWords.join(" ") }];
+    }
+    return [];
+  }
+
+  // If every word is already in the role vocabulary, this is a pure role search.
+  if (words.map(cleanWord).every((w) => ROLE_VOCABULARY_TOKENS.has(w) || ROLE_CONNECTORS.has(w))) {
+    return [];
+  }
+
+  const out: Array<{ roleQ: string; companyQ: string }> = [];
+  const seen = new Set<string>();
+  const push = (roleWords: string[], companyWords: string[]) => {
+    if (!isRolePhraseWords(roleWords) || !isCandidateCompanyWords(companyWords)) return;
+    const roleQ = roleWords.join(" ");
+    const companyQ = companyWords.join(" ");
+    const key = `${roleQ.toLowerCase()}|${companyQ.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ roleQ, companyQ });
+  };
+
+  // Suffix company (1 word, then 2 words): e.g. "Product Manager tesla", "Product Manager jpmorgan chase"
+  for (const k of [1, 2]) {
+    if (words.length > k) {
+      push(words.slice(0, -k), words.slice(-k));
+    }
+  }
+  // Prefix company (1 word, then 2 words): e.g. "tesla Product Manager", "jpmorgan chase Product Manager"
+  for (const k of [1, 2]) {
+    if (words.length > k) {
+      push(words.slice(k), words.slice(0, k));
+    }
+  }
+  return out;
 }

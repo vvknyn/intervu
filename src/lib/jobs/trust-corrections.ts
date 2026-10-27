@@ -466,11 +466,60 @@ export function correctSalaryFromZoneTable(
   };
 }
 
+const US_PREFIX_STATE_RE = /^\s*(?:US|USA|United States)\s*(?:[-–—,/]|\s+)\s*([A-Z]{2})\b/i;
+const US_SUFFIX_CA_RE = /,\s*(?:CA|California)\s*,\s*(?:US|USA|United States)\s*$/i;
+const DUTCH_NL_POSTCODE_RE = /\bNL\b[^a-zA-Z0-9]*\d{4}\s?[A-Z]{2}\b|\b\d{4}\s?[A-Z]{2}\b[^a-zA-Z0-9]*\bNL\b/;
+
+/**
+ * Corrects upstream `location_country: "Canada"` misfilings caused by ISO/postal collisions:
+ *  1. California `"CA"` in US-prefixed/suffixed strings (`"US - CA, Sunnyvale"` -> `"United States"`).
+ *  2. Netherlands `"NL"` (colliding with Newfoundland & Labrador `"NL"`) when corroborated by a
+ *     Dutch 4-digit+2-letter postcode (`"Maasland, NL, 3155 RC"`) or a `.nl` employer domain.
+ */
+export function correctLocationCountry(
+  job: Pick<PublicJob, "location" | "location_city" | "location_state" | "location_country" | "company_domain">,
+): { location_country: PublicJob["location_country"]; location_state: PublicJob["location_state"] } {
+  const unchanged = { location_country: job.location_country, location_state: job.location_state };
+  if (!isCanadaLocationCountry(job.location_country)) return unchanged;
+
+  const rawLoc = (job.location ?? "").trim();
+  const usPrefix = rawLoc.match(US_PREFIX_STATE_RE);
+  if (usPrefix) {
+    return {
+      location_country: "United States",
+      location_state: job.location_state ?? usPrefix[1]!.toUpperCase(),
+    };
+  }
+  if (US_SUFFIX_CA_RE.test(rawLoc)) {
+    return {
+      location_country: "United States",
+      location_state: job.location_state ?? "CA",
+    };
+  }
+
+  const domain = normalizeDomain(job.company_domain);
+  const hasNlMarker = job.location_state?.trim().toUpperCase() === "NL" || /\bNL\b/.test(rawLoc);
+  const mentionsCanada = /\bcanada\b/i.test(rawLoc);
+  if (
+    !mentionsCanada &&
+    (DUTCH_NL_POSTCODE_RE.test(rawLoc) || (domain.endsWith(".nl") && hasNlMarker))
+  ) {
+    return {
+      location_country: "Netherlands",
+      location_state: job.location_state?.trim().toUpperCase() === "NL" ? null : job.location_state,
+    };
+  }
+
+  return unchanged;
+}
+
 /** True when read-path corrections would change any trusted field. */
 export function jobNeedsTrustCorrection(job: PublicJob): boolean {
   const corrected = applyTrustCorrections(job);
   return (
     corrected.company_domain !== job.company_domain ||
+    corrected.location_country !== job.location_country ||
+    corrected.location_state !== job.location_state ||
     corrected.salary_currency !== job.salary_currency ||
     corrected.salary_min !== job.salary_min ||
     corrected.salary_max !== job.salary_max ||
@@ -478,16 +527,23 @@ export function jobNeedsTrustCorrection(job: PublicJob): boolean {
   );
 }
 
-/** Shallow copy with corrected domain / salary fields when rules fire. */
+/** Shallow copy with corrected domain / location / salary fields when rules fire. */
 export function applyTrustCorrections(job: PublicJob): PublicJob {
-  const company_domain = correctCompanyDomain(job);
-  const zoneSalary = correctSalaryFromZoneTable(job);
+  const loc = correctLocationCountry(job);
+  const jobWithLoc =
+    loc.location_country === job.location_country && loc.location_state === job.location_state
+      ? job
+      : { ...job, location_country: loc.location_country, location_state: loc.location_state };
+  const company_domain = correctCompanyDomain(jobWithLoc);
+  const zoneSalary = correctSalaryFromZoneTable(jobWithLoc);
   const salary_currency = correctSalaryCurrency({
-    ...job,
+    ...jobWithLoc,
     salary_currency: zoneSalary.salary_currency,
   });
 
   const unchanged =
+    loc.location_country === job.location_country &&
+    loc.location_state === job.location_state &&
     company_domain === job.company_domain &&
     zoneSalary.salary_min === job.salary_min &&
     zoneSalary.salary_max === job.salary_max &&
@@ -498,6 +554,8 @@ export function applyTrustCorrections(job: PublicJob): PublicJob {
 
   return {
     ...job,
+    location_country: loc.location_country,
+    location_state: loc.location_state,
     company_domain,
     salary_min: zoneSalary.salary_min,
     salary_max: zoneSalary.salary_max,

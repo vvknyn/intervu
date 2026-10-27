@@ -52,6 +52,7 @@ export function Affordance({
     children,
     testId,
     inputType = "checkbox",
+    variant = "row",
 }: {
     active: boolean;
     onClick: () => void;
@@ -59,13 +60,43 @@ export function Affordance({
     children: React.ReactNode;
     testId?: string;
     inputType?: "checkbox" | "radio";
+    variant?: "row" | "chip";
 }) {
+    if (variant === "chip") {
+        return (
+            <label
+                data-testid={testId}
+                className={cn(
+                    "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-ctl border px-2.5 py-1 text-xs leading-tight whitespace-nowrap transition-colors",
+                    active
+                        ? "border-brand bg-live-tint-bg font-semibold text-brand"
+                        : "border-border bg-background text-foreground hover:bg-muted",
+                )}
+            >
+                <input
+                    type={inputType}
+                    checked={active}
+                    readOnly
+                    onClick={onClick}
+                    // control-scale-allow: checkbox/radio glyph (dynamic `type`), not a scale control
+                    className="h-3.5 w-3.5 shrink-0 accent-brand"
+                />
+                <span>{children}</span>
+                {typeof count === "number" && (
+                    <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                        {count.toLocaleString()}
+                    </span>
+                )}
+            </label>
+        );
+    }
+
     return (
         <label
             data-testid={testId}
             className={cn(
-                "flex min-h-8 cursor-pointer items-center gap-2 text-xs leading-tight text-foreground",
-                active && inputType === "radio" && "text-live",
+                "flex min-h-8 cursor-pointer items-center gap-2 rounded-ctl px-1.5 text-xs leading-tight text-foreground transition-colors hover:bg-muted",
+                active && inputType === "radio" && "font-semibold text-live",
             )}
         >
             <input
@@ -176,6 +207,9 @@ export function SalaryCustomMinInput({
 function Group({
     label,
     count,
+    caption,
+    headerRight,
+    variant = "stack",
     children,
 }: {
     label: string;
@@ -185,17 +219,28 @@ function Group({
      *  groups where "count" isn't a meaningful concept (single-select
      *  radios already name their one active choice inline). */
     count?: number;
+    caption?: string;
+    headerRight?: React.ReactNode;
+    variant?: "stack" | "chips";
     children: React.ReactNode;
 }) {
     return (
         <div className="flex flex-col">
-            <h4 className="mb-1 flex items-baseline gap-1 whitespace-nowrap text-xs font-semibold text-muted-foreground">
-                {label}
-                {typeof count === "number" && count > 0 && (
-                    <span className="font-normal normal-case tabular-nums text-live">({count})</span>
-                )}
-            </h4>
-            <div className="flex flex-col gap-1">{children}</div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h4 className="flex items-baseline gap-1.5 whitespace-nowrap text-xs font-semibold text-foreground">
+                    {label}
+                    {typeof count === "number" && count > 0 && (
+                        <span className="font-normal normal-case tabular-nums text-live">({count})</span>
+                    )}
+                    {caption && (
+                        <span className="font-normal text-muted-foreground">· {caption}</span>
+                    )}
+                </h4>
+                {headerRight}
+            </div>
+            <div className={variant === "chips" ? "flex flex-wrap gap-1.5" : "flex flex-col gap-0.5"}>
+                {children}
+            </div>
         </div>
     );
 }
@@ -209,6 +254,7 @@ function FacetGroup({
     onToggleFacet,
     cap,
     caption,
+    variant = "stack",
 }: {
     label: string;
     /** Typed off PANEL_FACET_KEYS (jobs/types.ts) — the same set MCP's
@@ -221,15 +267,17 @@ function FacetGroup({
     onToggleFacet: (key: FacetKey, value: string) => void;
     cap?: number;
     caption?: string;
+    variant?: "stack" | "chips";
 }) {
     const selected = state.facets[facetKey] ?? [];
     const options = facetOptions(distribution, selected, facetKey, cap, STATIC_FACET_LADDERS[facetKey]);
     if (!facetGroupVisible(distribution?.[facetKey], resultTotal, options)) return null;
     return (
-        <Group label={label} count={selected.length}>
+        <Group label={label} count={selected.length} caption={caption} variant={variant}>
             {options.map(([value, n]) => (
                 <Affordance
                     key={value}
+                    variant={variant === "chips" ? "chip" : "row"}
                     active={selected.includes(value)}
                     count={n > 0 ? n : undefined}
                     onClick={() => onToggleFacet(facetKey, value)}
@@ -237,7 +285,6 @@ function FacetGroup({
                     {facetValueLabel(facetKey, value)}
                 </Affordance>
             ))}
-            {caption && <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{caption}</p>}
         </Group>
     );
 }
@@ -284,17 +331,9 @@ export function SerpFilters({
     /**
      * How much horizontal room the caller is giving us.
      *
-     * `panel` (default) is the full-width expand — the groups sit side by side.
-     * `sheet` is the bottom sheet: the same grid, but the sheet's own sticky
-     * footer owns "Clear all", so the in-panel reset is left out. `rail` is the
-     * dense layout's 232px column, where they must stack.
-     *
-     * This is a PROP and not a breakpoint because Tailwind's `md:` asks the
-     * VIEWPORT how wide it is, not this element. In the dense rail those two
-     * answers disagree completely: a 1512px window happily applies
-     * `md:grid-cols-4` to a 232px box and packs four columns of radio labels
-     * into ~50px each, which overlaps them into an unreadable stack. Only the
-     * caller knows which box the filters landed in.
+     * `panel` (default) is the desktop modal dialog; `sheet` is the mobile bottom sheet.
+     * Both share a sticky modal footer with "Clear all" + "Show N roles".
+     * `rail` is a narrow 232px column where groups stack vertically.
      */
     layout?: "panel" | "sheet" | "rail";
 }) {
@@ -304,21 +343,89 @@ export function SerpFilters({
             : "Hide possibly stale";
     const workShare = distributionTaggedShare(distribution?.work_type, resultTotal ?? 0);
     const visaShare = distributionTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0);
+    const isRail = layout === "rail";
+    const choiceVariant = isRail ? "stack" : "chips";
+    const itemVariant = isRail ? "row" : "chip";
+
+    if (isRail) {
+        return (
+            <>
+                <div className="grid grid-cols-1 gap-y-3">
+                    {postedDateSupported && (
+                        <Group label="Date posted">
+                            {POSTED_BUCKET_PRESETS.map((o) => (
+                                <Affordance
+                                    key={o.label}
+                                    inputType="radio"
+                                    active={appliedPostedBucket(state) === o.value}
+                                    onClick={() => onPostedBucket(o.value)}
+                                >
+                                    {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
+                                </Affordance>
+                            ))}
+                        </Group>
+                    )}
+                    <Group label="Salary">
+                        {SALARY_PRESETS.map((s) => (
+                            <Affordance
+                                key={s.value}
+                                inputType="radio"
+                                active={state.salaryMin === s.value}
+                                onClick={() => onSalaryMin(s.value)}
+                            >
+                                {s.label}
+                            </Affordance>
+                        ))}
+                        <SalaryCustomMinInput salaryMin={state.salaryMin} onSalaryMin={onSalaryMin} />
+                    </Group>
+                    <FacetGroup
+                        label="Work mode"
+                        facetKey="work_type"
+                        distribution={distribution}
+                        resultTotal={resultTotal ?? 0}
+                        state={state}
+                        onToggleFacet={onToggleFacet}
+                    />
+                    <FacetGroup
+                        label="Experience"
+                        facetKey="experience_level"
+                        distribution={distribution}
+                        resultTotal={resultTotal ?? 0}
+                        state={state}
+                        onToggleFacet={onToggleFacet}
+                        cap={TOP_N}
+                    />
+                    <FacetGroup
+                        label="Employment"
+                        facetKey="employment_type"
+                        distribution={distribution}
+                        resultTotal={resultTotal ?? 0}
+                        state={state}
+                        onToggleFacet={onToggleFacet}
+                        cap={TOP_N}
+                    />
+                </div>
+                {activeCount > 0 && (
+                    <div className="mt-2 flex justify-end border-t border-border pt-2">
+                        <Button variant="ghost" size="xs" onClick={onClearAll}>
+                            Reset all ✕
+                        </Button>
+                    </div>
+                )}
+            </>
+        );
+    }
 
     return (
-        <>
-            <div
-                className={
-                    layout === "rail"
-                        ? "grid grid-cols-1 gap-y-3"
-                        : "grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 md:grid-cols-4"
-                }
-            >
+        <div className="flex flex-col divide-y divide-border">
+            {/* Tier 1: Primary quick-select pill bars (Date posted & Salary) */}
+            <div className="flex flex-col gap-4 pb-4">
                 {postedDateSupported && (
-                    <Group label="Date posted">
+                    <Group label="Date posted" variant={choiceVariant}>
                         {POSTED_BUCKET_PRESETS.map((o) => (
                             <Affordance
                                 key={o.label}
+                                variant={itemVariant}
                                 inputType="radio"
                                 active={appliedPostedBucket(state) === o.value}
                                 onClick={() => onPostedBucket(o.value)}
@@ -329,10 +436,15 @@ export function SerpFilters({
                     </Group>
                 )}
 
-                <Group label="Salary">
+                <Group
+                    label="Minimum salary"
+                    variant={choiceVariant}
+                    headerRight={<SalaryCustomMinInput salaryMin={state.salaryMin} onSalaryMin={onSalaryMin} />}
+                >
                     {SALARY_PRESETS.map((s) => (
                         <Affordance
                             key={s.value}
+                            variant={itemVariant}
                             inputType="radio"
                             active={state.salaryMin === s.value}
                             onClick={() => onSalaryMin(s.value)}
@@ -340,9 +452,11 @@ export function SerpFilters({
                             {s.label}
                         </Affordance>
                     ))}
-                    <SalaryCustomMinInput salaryMin={state.salaryMin} onSalaryMin={onSalaryMin} />
                 </Group>
+            </div>
 
+            {/* Tier 2: Role attributes in a balanced 2x2 grid */}
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 py-4 sm:grid-cols-2">
                 <FacetGroup
                     label="Work mode"
                     facetKey="work_type"
@@ -350,50 +464,49 @@ export function SerpFilters({
                     resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
-                    caption={workShare != null ? `work mode is tagged on ~${Math.round(workShare * 100)}% of roles` : undefined}
+                    variant={choiceVariant}
+                    caption={workShare != null ? `~${Math.round(workShare * 100)}% tagged` : undefined}
                 />
 
+                <Group label="Years of experience" variant={choiceVariant}>
+                    {YEARS_EXPERIENCE_PRESETS.map((o) => (
+                        <Affordance
+                            key={o.label}
+                            variant={itemVariant}
+                            inputType="radio"
+                            active={state.yearsExperience === o.value}
+                            onClick={() => onYearsExperience(o.value)}
+                        >
+                            {o.label}
+                        </Affordance>
+                    ))}
+                </Group>
+
                 <FacetGroup
-                    label="Experience"
+                    label="Experience level"
                     facetKey="experience_level"
                     distribution={distribution}
                     resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
+                    variant={choiceVariant}
                 />
 
                 <FacetGroup
-                    label="Employment"
+                    label="Employment type"
                     facetKey="employment_type"
                     distribution={distribution}
                     resultTotal={resultTotal ?? 0}
                     state={state}
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
+                    variant={choiceVariant}
                 />
+            </div>
 
-                <Group label="Visa">
-                    <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
-                        {/* Caption nests inside the label's text column instead of a
-                            sibling <p> aligned to it with a pl-[icon-width+gap] literal
-                            — it inherits the column's left edge for free. stopPropagation
-                            keeps the caption inert (info only, not part of the toggle
-                            target), matching the old sibling <p>'s behavior. */}
-                        <span className="flex flex-col gap-0.5">
-                            <span>Sponsors visas</span>
-                            {visaShare != null && (
-                                <span
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="text-xs leading-snug text-muted-foreground"
-                                >
-                                    sponsorship info exists on ~{Math.round(visaShare * 100)}% of roles
-                                </span>
-                            )}
-                        </span>
-                    </Affordance>
-                </Group>
-
+            {/* Tier 3: High-cardinality corpus facets with aligned tabular counts */}
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 py-4 sm:grid-cols-3">
                 <FacetGroup
                     label="Country"
                     facetKey="location_country"
@@ -423,42 +536,43 @@ export function SerpFilters({
                     onToggleFacet={onToggleFacet}
                     cap={TOP_N}
                 />
+            </div>
 
-                <Group label="Years of experience">
-                    {YEARS_EXPERIENCE_PRESETS.map((o) => (
-                        <Affordance
-                            key={o.label}
-                            inputType="radio"
-                            active={state.yearsExperience === o.value}
-                            onClick={() => onYearsExperience(o.value)}
-                        >
-                            {o.label}
-                        </Affordance>
-                    ))}
-                </Group>
-
-                <Group label="Posting check">
-                    <Affordance inputType="radio" active={hideGhosts} onClick={() => onHideGhosts(true)}>
+            {/* Tier 4: Listing quality, visa, viewed & company board preferences */}
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 pt-4 sm:grid-cols-2">
+                <Group label="Posting check" variant={choiceVariant}>
+                    <Affordance variant={itemVariant} inputType="radio" active={hideGhosts} onClick={() => onHideGhosts(true)}>
                         {ghostHideLabel}
                     </Affordance>
-                    <Affordance inputType="radio" active={!hideGhosts} onClick={() => onHideGhosts(false)}>
+                    <Affordance variant={itemVariant} inputType="radio" active={!hideGhosts} onClick={() => onHideGhosts(false)}>
                         Show all postings
                     </Affordance>
                 </Group>
 
-                <Group label="Viewed">
-                    <Affordance inputType="radio" active={!hideViewed} onClick={() => onHideViewed(false)}>
+                <Group label="Viewed" variant={choiceVariant}>
+                    <Affordance variant={itemVariant} inputType="radio" active={!hideViewed} onClick={() => onHideViewed(false)}>
                         Show all
                     </Affordance>
-                    <Affordance inputType="radio" active={hideViewed} onClick={() => onHideViewed(true)}>
+                    <Affordance variant={itemVariant} inputType="radio" active={hideViewed} onClick={() => onHideViewed(true)}>
                         Hide already viewed
                     </Affordance>
                 </Group>
 
+                <Group
+                    label="Visa sponsorship"
+                    variant={choiceVariant}
+                    caption={visaShare != null ? `~${Math.round(visaShare * 100)}% tagged` : undefined}
+                >
+                    <Affordance variant={itemVariant} active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
+                        Sponsors visas
+                    </Affordance>
+                </Group>
+
                 {onBoardChange && (
-                    <Group label="Boards">
+                    <Group label="Boards" variant={choiceVariant}>
                         <Affordance
                             testId="board-filter-elite"
+                            variant={itemVariant}
                             inputType="radio"
                             active={board === "elite"}
                             onClick={() => onBoardChange("elite")}
@@ -467,6 +581,7 @@ export function SerpFilters({
                         </Affordance>
                         <Affordance
                             testId="board-filter-all"
+                            variant={itemVariant}
                             inputType="radio"
                             active={board !== "elite"}
                             onClick={() => onBoardChange("all")}
@@ -476,14 +591,6 @@ export function SerpFilters({
                     </Group>
                 )}
             </div>
-
-            {activeCount > 0 && layout !== "sheet" && (
-                <div className="mt-2 flex justify-end border-t border-border pt-2">
-                    <Button variant="ghost" size="xs" onClick={onClearAll}>
-                        Reset all ✕
-                    </Button>
-                </div>
-            )}
-        </>
+        </div>
     );
 }

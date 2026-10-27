@@ -1128,7 +1128,7 @@ export function JobDetail({
                                     <>
                                         <div
                                             data-testid="job-detail-description"
-                                            className={cn("relative", READING_MEASURE, collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
+                                            className={cn("relative", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                                         >
                                             <FormattedJobDescription description={job.description} headingLevel={4} />
                                             {collapsible && !descExpanded && (
@@ -1194,73 +1194,91 @@ export function JobDetail({
                     })()}
                 </div>
 
-                {visibleTags(job.tags, 16).length > 0 && (
-                    <div className="py-4">
-                        {/* Rulebook item c: no bordered tag chips — a sentence-case
-                            label plus one flowing secondary line joined by " · ". */}
-                        <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
-                        <div className="mono-data text-sm text-muted-foreground">
-                            {visibleTags(job.tags, 16).join(" · ")}
-                        </div>
-                    </div>
-                )}
-
-                {/* Company hiring mini-KPI rail (rulebook item g): keep
-                    content, render on page bg with a hairline top divider
-                    instead of a bordered/bg panel. */}
-                {hasCompanyIntel && (
-                    <div className="py-4">
-                        <h3 className="text-base font-semibold text-foreground">
-                            {companyBrand || "This company"} · hiring record
-                        </h3>
-                        {/* Verbatim-or-absent (founding-wound law, about-line.ts) — a
-                            single job's description is a much thinner corpus than
-                            /co's full posting set, so this returns null far more
-                            often here; that's the correct, honest behavior, not a
-                            bug to work around. */}
-                        {aboutLine && (
-                            <p className="mt-2 max-w-[640px] text-sm leading-snug text-foreground">&ldquo;{aboutLine}&rdquo;</p>
+                {(visibleTags(job.tags, 16).length > 0 || hasCompanyIntel) && (
+                    <div
+                        className={cn(
+                            "grid grid-cols-1 gap-6 py-4",
+                            visibleTags(job.tags, 16).length > 0 && hasCompanyIntel && "@min-[520px]:grid-cols-2",
                         )}
-                        <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
-                            {showOpenCount && liveOpenCount && (
-                                <KpiStat
-                                    value={openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })}
-                                    label="Live roles"
-                                />
-                            )}
-                        </div>
-                        {hiringRecord && <p data-testid="job-detail-hiring-record" className="mt-3 text-sm text-muted-foreground">{hiringRecord}</p>}
-                        {cleanedCompany && (
-                            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
-                                <Link
-                                    href={
-                                        job.company_domain?.trim()
-                                            ? buildCompanyJobsUrl({ domain: job.company_domain.trim() })
-                                            : jobCompanyHref(cleanedCompany, job.company_domain)
-                                    }
-                                    onClick={() => {
-                                        if (onClose) onClose();
-                                    }}
-                                    className="text-sm text-brand hover:underline"
-                                >
-                                    All jobs at {companyBrand || cleanedCompany}
-                                </Link>
-                                {/* The company page (/co/[slug]) — only with a
-                                    domain: without one, "All jobs at" above
-                                    already points at this same URL. Named for
-                                    where it goes; a bare company name beside
-                                    "All jobs at {brand}" read as a duplicate. */}
-                                {job.company_domain?.trim() && (
-                                    <Link
-                                        href={jobCompanyHref(cleanedCompany, job.company_domain)}
-                                        onClick={() => {
-                                            if (onClose) onClose();
-                                        }}
-                                        className="text-sm text-brand hover:underline"
-                                    >
-                                        {companyBrand || cleanedCompany} company page
-                                    </Link>
+                    >
+                        {visibleTags(job.tags, 16).length > 0 && (
+                            <div>
+                                {/* Rulebook item c: no bordered tag chips — a sentence-case
+                                    label plus one flowing secondary line joined by " · ". */}
+                                <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
+                                <div className="mono-data text-sm text-muted-foreground">
+                                    {visibleTags(job.tags, 16).join(" · ")}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Company hiring mini-KPI rail (rulebook item g): keep
+                            content, render on page bg with a hairline top divider
+                            instead of a bordered/bg panel. */}
+                        {hasCompanyIntel && (
+                            <div
+                                className={cn(
+                                    visibleTags(job.tags, 16).length === 0 &&
+                                        "grid grid-cols-1 gap-4 @min-[520px]:grid-cols-2 @min-[520px]:items-start",
                                 )}
+                            >
+                                <div>
+                                    <h3 className="text-base font-semibold text-foreground">
+                                        {companyBrand || "This company"} · hiring record
+                                    </h3>
+                                    {/* Verbatim-or-absent (founding-wound law, about-line.ts) — a
+                                        single job's description is a much thinner corpus than
+                                        /co's full posting set, so this returns null far more
+                                        often here; that's the correct, honest behavior, not a
+                                        bug to work around. */}
+                                    {aboutLine && (
+                                        <p className="mt-2 max-w-[640px] text-sm leading-snug text-foreground">&ldquo;{aboutLine}&rdquo;</p>
+                                    )}
+                                    {cleanedCompany && (
+                                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                            <Link
+                                                href={
+                                                    job.company_domain?.trim()
+                                                        ? buildCompanyJobsUrl({ domain: job.company_domain.trim() })
+                                                        : jobCompanyHref(cleanedCompany, job.company_domain)
+                                                }
+                                                onClick={() => {
+                                                    if (onClose) onClose();
+                                                }}
+                                                className="text-sm text-brand hover:underline"
+                                            >
+                                                All jobs at {companyBrand || cleanedCompany}
+                                            </Link>
+                                            {/* The company page (/co/[slug]) — only with a
+                                                domain: without one, "All jobs at" above
+                                                already points at this same URL. Named for
+                                                where it goes; a bare company name beside
+                                                "All jobs at {brand}" read as a duplicate. */}
+                                            {job.company_domain?.trim() && (
+                                                <Link
+                                                    href={jobCompanyHref(cleanedCompany, job.company_domain)}
+                                                    onClick={() => {
+                                                        if (onClose) onClose();
+                                                    }}
+                                                    className="text-sm text-brand hover:underline"
+                                                >
+                                                    {companyBrand || cleanedCompany} company page
+                                                </Link>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className={cn(visibleTags(job.tags, 16).length > 0 && "mt-3")}>
+                                    <div className="flex flex-wrap gap-4 sm:gap-6">
+                                        {showOpenCount && liveOpenCount && (
+                                            <KpiStat
+                                                value={openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })}
+                                                label="Live roles"
+                                            />
+                                        )}
+                                    </div>
+                                    {hiringRecord && <p data-testid="job-detail-hiring-record" className="mt-2 text-sm text-muted-foreground">{hiringRecord}</p>}
+                                </div>
                             </div>
                         )}
                     </div>

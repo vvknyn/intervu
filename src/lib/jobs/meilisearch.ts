@@ -13,6 +13,7 @@ import {
   applyCompanyDomainPin,
   COMPANY_INTENT_SAMPLE,
   dominantCompanyDomains,
+  extractCompoundRoleCompanyCandidates,
   isCompanyNameQuery,
   normalizeCompanyName,
   type CompanyNameSample,
@@ -25,11 +26,12 @@ import {
   type CompanyLaneFetch,
 } from "./company-scoped-lanes";
 import { isTechSkillQuery } from "./tech-skills";
-import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
+import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, meaningfulTitleTokens, titleMatchesQuery, titleRelevanceScore } from "./presentation";
 import { parseQuotedOrPhrases, resolveFitPhrases, shouldRunFitPhraseLane } from "./fit-phrases";
 import { sanitizeContentPhrases } from "./for-you/content-phrases";
 import { roleTitlePairQueries, shouldRunRoleTitleLane, titleSatisfiesRoleQuery } from "./role-title-lane";
 import { normalizePublicJobs } from "./normalize-public-job";
+import { correctLocationCountry } from "./trust-corrections";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
@@ -1218,6 +1220,22 @@ export function buildTieredQuerySpecs(p: JobSearchParams) {
   return specs;
 }
 
+function hasRequestedCountryFilter(p?: JobSearchParams): boolean {
+  if (!p) return false;
+  if ((p.facets?.location_country?.length ?? 0) > 0) return true;
+  return p.places?.some((pl) => pl.any.some((a) => a.field === "location_country")) ?? false;
+}
+
+function normalizePublicJobsForSearch(
+  rawHits: (PublicJob & { url?: string | null })[],
+  p?: JobSearchParams,
+): PublicJob[] {
+  const filtered = hasRequestedCountryFilter(p)
+    ? rawHits.filter((raw) => correctLocationCountry(raw).location_country === raw.location_country)
+    : rawHits;
+  return normalizePublicJobs(filtered);
+}
+
 async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
   const specs = buildTieredQuerySpecs(p);
 
@@ -1254,11 +1272,12 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
   // document) regardless of where a client-side filter later moves it in the
   // rendered list — see `PublicJob.tier` (types.ts) for why this beats
   // indexing into `hits` by `tier1Total`.
-  const hits = normalizePublicJobs(
+  const hits = normalizePublicJobsForSearch(
     (body.hits ?? []).map(({ _federation, ...hit }) => ({
       ...hit,
       tier: specs[_federation?.queriesPosition ?? -1]?.tier ?? 2,
     })),
+    p,
   );
   return {
     hits,
@@ -1294,7 +1313,9 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   // an inferred `intent.companyScoped` triggers the retry.
   const runWithIntent = async (intent: CompanyIntentResult): Promise<JobSearchResult> => {
     const companyScoped = intent.companyScoped;
+    const isCompoundEmployerSearch = Boolean(intent.residualRoleQ && intent.companyDomains.length > 0);
     const searchParams = applyCompanyDomainPin(p, intent);
+    const effectiveQ = searchParams.q ?? p.q ?? "";
 
     const runSearch = async (params: JobSearchParams = searchParams): Promise<JobSearchResult> => {
       const needsDomain = needsDomainFilters(params);
@@ -1370,7 +1391,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
           processingTimeMs?: number;
         };
         return {
-          hits: normalizePublicJobs(body.hits ?? []),
+          hits: normalizePublicJobsForSearch(body.hits ?? [], params),
           total: body.totalHits ?? body.estimatedTotalHits ?? body.hits?.length ?? 0,
           backend: "meilisearch",
           configured: true,
@@ -1393,10 +1414,10 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     const isRelevance = resolveEffectiveSort(p) === "relevance";
     let result: JobSearchResult;
 
-    if (shouldRunCompanyScopedLanes(companyScoped, searchParams)) {
+    if (shouldRunCompanyScopedLanes(companyScoped || isCompoundEmployerSearch, searchParams)) {
       const { lanes, facetDistribution } = await fetchCompanyScopedLanes(h, searchParams, companyScoped);
       const pool = assembleCompanyLanePool(lanes, (hits) =>
-        isRelevance ? applyRelevanceQualityReranking(hits, p.q ?? "") : hits,
+        isRelevance ? applyRelevanceQualityReranking(hits, effectiveQ) : hits,
       );
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
@@ -1461,7 +1482,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         ? composeContentFirstPool({
             content: content ? keepWithinSenior(content.placed.strong) : [],
             weak: content ? keepWithinSenior(content.placed.weak) : [],
-            titleLanes: lanes.map((lane, i) => applyRelevanceQualityReranking(lane, fitPhrases[i] ?? p.q ?? "")),
+            titleLanes: lanes.map((lane, i) => applyRelevanceQualityReranking(lane, fitPhrases[i] ?? effectiveQ)),
             unplaced: searchParams.unplacedRemote && content ? keepWithinSenior(content.unplaced) : [],
             // The pool is composed for its first `FOR_YOU_POOL_WINDOW` rows (a smaller first page, the same shares);
             // a deeper first page (`FOR_YOU_READ_DEPTH`) or a later page reads on into the same composed list.
@@ -1477,7 +1498,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       };
     }
 
-    if (shouldRunRoleTitleLane(p.q ?? "", companyScoped)) {
+    if (shouldRunRoleTitleLane(effectiveQ, companyScoped)) {
       const { hits: laneHits, facetDistribution } = await fetchRoleTitleLaneHits(h, searchParams, companyScoped);
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
@@ -1487,7 +1508,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         unique.push(hit);
       }
       const ranked = isRelevance
-        ? applyRelevanceQualityReranking(unique, p.q ?? "")
+        ? applyRelevanceQualityReranking(unique, effectiveQ)
         : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
@@ -1512,14 +1533,14 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       // the rerank's relevance tiers hold; it also strips the ranking-score
       // details. Relevance only — the sort-integrity guard below returns
       // early for relevance, so it can never flag (or re-sort) this page.
-      result.hits = preferNewerAmongCloseMatches(applyRelevanceQualityReranking(result.hits, p.q), p.q);
+      result.hits = preferNewerAmongCloseMatches(applyRelevanceQualityReranking(result.hits, effectiveQ), effectiveQ);
     }
 
-    return applySortIntegrityGuard(result, p, () => runSearch());
+    return applySortIntegrityGuard(result, searchParams, () => runSearch());
   };
 
   const result = await runWithIntent(intent);
-  if (intent.companyScoped && result.total === 0) {
+  if ((intent.companyScoped || Boolean(intent.residualRoleQ)) && result.total === 0) {
     const fallback = await runWithIntent({ companyScoped: false, companyDomains: [] });
     return {
       ...fallback,
@@ -1947,6 +1968,63 @@ async function fetchRoleTitleLaneHits(
 
 const NON_TECH_ROLE_REGEX = /\b(therapist|nurse|nursing|physician|dental|dentist|driver|paramedic|phlebotomist|teacher|substitute teacher|caregiver|cook|waiter|bus monitor|janitor|custodian)\b/i;
 
+const FOREIGN_TITLE_MARKER_REGEX =
+  /\b(technisch|beheer|medewerker|adviseur|gezocht|entwickler|referent|mitarbeiter|werkstudent|projektleiter|abteilungsleiter|sachbearbeiter)\b|^\s*(responsable\s+produit|charg[ée]\s+de|chef\s+de\s+projet|directeur\s+de|ing[ée]nieur\s+de)\b/i;
+
+function isLikelyForeignTitleForQuery(title: string, query: string): boolean {
+  if (!query || !FOREIGN_TITLE_MARKER_REGEX.test(title)) return false;
+  return !FOREIGN_TITLE_MARKER_REGEX.test(query);
+}
+
+function isOneEditTypo(a: string, b: string): boolean {
+  if (a === b || a.startsWith(b) || b.startsWith(a)) return false;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    edits++;
+    if (edits > 2) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else {
+      i++;
+      j++;
+    }
+  }
+  if (i < a.length || j < b.length) edits++;
+  return edits >= 1 && edits <= 2 && a[0] === b[0];
+}
+
+/**
+ * True when a query token (length >= 5, e.g. "tesla") is absent from `title`
+ * and `company` as an exact/prefix match, and `company` carries a 1-typo near-miss
+ * ("tekla", "tesat") that caused Meilisearch's typo tolerance to admit the row.
+ */
+function hasFuzzyCompanyTypoOnlyMatch(hit: PublicJob, query: string): boolean {
+  if (!query || !hit.company) return false;
+  const qTokens = meaningfulTitleTokens(query).filter((t) => t.length >= 5);
+  if (qTokens.length < 2) return false;
+  const titleTokens = meaningfulTitleTokens(decodeText(hit.title));
+  const companyTokens = meaningfulTitleTokens(decodeText(hit.company));
+  if (companyTokens.length === 0) return false;
+
+  for (const qt of qTokens) {
+    const exactInTitle = titleTokens.some((tt) => tt === qt || tt.startsWith(qt) || qt.startsWith(tt));
+    const exactInCompany = companyTokens.some((ct) => ct === qt || ct.startsWith(qt));
+    if (exactInTitle || exactInCompany) continue;
+    if (companyTokens.some((ct) => ct.length >= 4 && isOneEditTypo(qt, ct))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Per-query inputs to the relevance rerank's leading keys, resolved once. */
 interface RelevanceRerankContext {
   query: string;
@@ -1961,16 +2039,23 @@ function relevanceRerankContext(q?: string): RelevanceRerankContext {
 
 /**
  * The rerank's relevance keys for one hit, lower = better, compared in
- * order: (0) a non-tech title on a tech query, (0b) a title that misses the
- * role-title query's shape, (1) minus the title-token coverage score. Shared
- * by `applyRelevanceQualityReranking` and `preferNewerAmongCloseMatches` so
- * the two can never disagree about which hits are equally relevant.
+ * order: (0) a non-tech title on a tech query or fuzzy company typo match,
+ * (0b) a title that misses the role-title query's shape or is in a foreign
+ * language on an English query, (1) minus the title-token coverage score.
+ * Shared by `applyRelevanceQualityReranking` and `preferNewerAmongCloseMatches`
+ * so the two can never disagree about which hits are equally relevant.
  */
 function relevanceTierKey(hit: PublicJob, ctx: RelevanceRerankContext): [number, number, number] {
   const title = decodeText(hit.title);
+  const nonTechOrTypo =
+    (ctx.isTech && NON_TECH_ROLE_REGEX.test(title)) || hasFuzzyCompanyTypoOnlyMatch(hit, ctx.query) ? 1 : 0;
+  const shapeOrLang =
+    (ctx.rolePair && !titleSatisfiesRoleQuery(title, ctx.query)) || isLikelyForeignTitleForQuery(title, ctx.query)
+      ? 1
+      : 0;
   return [
-    ctx.isTech && NON_TECH_ROLE_REGEX.test(title) ? 1 : 0,
-    ctx.rolePair && !titleSatisfiesRoleQuery(title, ctx.query) ? 1 : 0,
+    nonTechOrTypo,
+    shapeOrLang,
     ctx.query ? -titleRelevanceScore(title, ctx.query) : 0,
   ];
 }
@@ -2689,6 +2774,10 @@ const COMPANY_INTENT_CACHE_MAX = 500;
 export interface CompanyIntentResult {
   companyScoped: boolean;
   companyDomains: string[];
+  /** When a compound "[role] [company]" query is decomposed (e.g. "Product Manager tesla"),
+   *  `residualRoleQ` holds the role query ("Product Manager") and `companyDomains` holds the
+   *  employer's domain(s) (["tesla.com"]). */
+  residualRoleQ?: string;
 }
 
 const companyIntentCache = new Map<string, { value: CompanyIntentResult; atMs: number }>();
@@ -2721,10 +2810,27 @@ async function probeCompanyIntent(query: string, key: string): Promise<CompanyIn
   const now = Date.now();
   const sample = await probeCompanyNames(query, COMPANY_INTENT_SAMPLE);
   const companyScoped = isCompanyNameQuery(query, sample);
-  const value: CompanyIntentResult = {
+  let value: CompanyIntentResult = {
     companyScoped,
     companyDomains: companyScoped ? dominantCompanyDomains(query, sample) : [],
   };
+
+  if (!companyScoped) {
+    const candidates = extractCompoundRoleCompanyCandidates(query);
+    for (const candidate of candidates) {
+      const subSample = await probeCompanyNames(candidate.companyQ, COMPANY_INTENT_SAMPLE);
+      const domains = dominantCompanyDomains(candidate.companyQ, subSample);
+      if (domains.length > 0) {
+        value = {
+          companyScoped: false,
+          companyDomains: domains,
+          residualRoleQ: candidate.roleQ,
+        };
+        break;
+      }
+    }
+  }
+
   if (companyIntentCache.size >= COMPANY_INTENT_CACHE_MAX) {
     const oldest = companyIntentCache.keys().next().value;
     if (oldest !== undefined) companyIntentCache.delete(oldest);

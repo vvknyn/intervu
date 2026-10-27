@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
     applyTrustCorrections,
     correctCompanyDomain,
+    correctLocationCountry,
     correctSalaryCurrency,
     correctSalaryFromZoneTable,
     detectSalaryCurrencyFromText,
@@ -258,5 +259,60 @@ test("zone table with null description is unchanged (SERP list hit)", () => {
     assert.equal(corrected.salary_max, 799_300);
     assert.equal(corrected.salary_currency, "USD");
     assert.equal(corrected.salary_period, null);
+    assert.equal(jobNeedsTrustCorrection(raw), false);
+});
+
+test("correctLocationCountry: US - CA, Sunnyvale misfiled as Canada is corrected to United States", () => {
+    const raw = job({
+        id: "b8720166-0b69-495f-a004-dd35de3c9335",
+        company: "Trimble Tekla",
+        location: "US - CA, Sunnyvale",
+        location_city: "Sunnyvale",
+        location_state: null,
+        location_country: "Canada",
+    });
+    assert.deepEqual(correctLocationCountry(raw), {
+        location_country: "United States",
+        location_state: "CA",
+    });
+    const corrected = applyTrustCorrections(raw);
+    assert.equal(corrected.location_country, "United States");
+    assert.equal(corrected.location_state, "CA");
+    assert.equal(jobNeedsTrustCorrection(raw), true);
+});
+
+test("correctLocationCountry: Maasland, NL, 3155 RC (.nl) misfiled as Canada is corrected to Netherlands", () => {
+    const raw = job({
+        id: "01e1fdc0-5243-4fba-ac65-a91971f79952",
+        company: "Werkenvoornederland",
+        company_domain: "werkenvoornederland.nl",
+        location: "Maasland, NL, 3155 RC",
+        location_city: "Maasland",
+        location_state: "NL",
+        location_country: "Canada",
+    });
+    assert.deepEqual(correctLocationCountry(raw), {
+        location_country: "Netherlands",
+        location_state: null,
+    });
+    const corrected = applyTrustCorrections(raw);
+    assert.equal(corrected.location_country, "Netherlands");
+    assert.equal(corrected.location_state, null);
+    assert.equal(jobNeedsTrustCorrection(raw), true);
+});
+
+test("correctLocationCountry: genuine Newfoundland & Labrador (Canada) posting stays Canada", () => {
+    const raw = job({
+        company: "Memorial University",
+        company_domain: "mun.ca",
+        location: "St. John's, NL, Canada",
+        location_city: "St. John's",
+        location_state: "NL",
+        location_country: "Canada",
+    });
+    assert.deepEqual(correctLocationCountry(raw), {
+        location_country: "Canada",
+        location_state: "NL",
+    });
     assert.equal(jobNeedsTrustCorrection(raw), false);
 });

@@ -46,8 +46,18 @@ export function isSavedSearchHref(href: string): boolean {
     return href.startsWith("?") || href === "/jobs" || href.startsWith("/jobs?");
 }
 
+/** Strips raw boolean `"Role A" OR "Role B"…` query syntax down to the primary role title. */
+export function cleanSavedSearchName(raw: string): string {
+    const trimmed = raw.trim();
+    const quotedOr = trimmed.match(/^\s*"([^"]+)"\s+OR\b/i);
+    if (quotedOr?.[1]?.trim()) {
+        return quotedOr[1].trim();
+    }
+    return trimmed;
+}
+
 export function suggestSavedSearchName(state: JobsUrlState): string {
-    const q = state.q.trim();
+    const q = cleanSavedSearchName(state.q);
     if (q) return q.length > 48 ? `${q.slice(0, 45)}…` : q;
     return "Saved search";
 }
