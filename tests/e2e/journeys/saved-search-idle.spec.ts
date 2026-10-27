@@ -11,7 +11,10 @@ import { expect, test } from './fixtures';
  * deferred AuthKit/PostHog mounts after 9s, so a 9s clock counted that startup burst — 6 commits on
  * a lighter pass, 25–39 when the server was busiest. Bisecting 75598f92, #1143, #1147 and #1149 at
  * 390 with a 6× CPU throttle showed 0 commits in the old window at every one of those commits, so
- * none of them added a loop. A real loop never stays quiet, and the bound on the quiet window stays 5.
+ * none of them added a loop. On a production server (`next build && next start`), the original
+ * 9s-then-10s clock at 390 stays at 0 commits: alone in Chromium and WebKit, and inside
+ * the full mobile journey run on each engine. The burst was the dev server, not a loop
+ * in the build. A real loop never stays quiet, and the bound on the quiet window stays 5.
  */
 const QUIET_GAP_MS = 2_000;
 const QUIET_POLL_MS = 250;
