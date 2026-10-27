@@ -7,32 +7,32 @@
 export const indexCategories = [
   {
     title: "Software and tech",
-    desc: "Engineering, data, product, and design roles",
+    desc: "Backend, frontend, full-stack, cloud, and platform engineering",
     q: "Software Engineer",
   },
   {
-    title: "Nursing and patient care",
-    desc: "Registered nurses, aides, technicians, and clinic staff",
-    q: "Registered Nurse",
+    title: "AI and data",
+    desc: "Data science, machine learning, analytics, and AI engineering",
+    q: "Data Scientist",
   },
   {
-    title: "Driving and delivery",
-    desc: "Truck, delivery, and transit roles, local and long haul",
-    q: "Truck Driver",
+    title: "Product and design",
+    desc: "Product management, UX/UI design, and program leadership",
+    q: "Product Manager",
   },
   {
-    title: "Skilled trades",
-    desc: "Electricians, plumbers, welders, machinists, and technicians",
-    q: "Electrician",
+    title: "Sales and marketing",
+    desc: "Account executives, growth, marketing, and customer success",
+    q: "Account Executive",
   },
   {
-    title: "Retail and customer service",
-    desc: "Store, call centre, and front-of-house roles",
-    q: "Customer Service",
+    title: "Finance and operations",
+    desc: "Finance, strategy, business operations, legal, and people ops",
+    q: "Financial Analyst",
   },
   {
-    title: "Office and admin",
-    desc: "Administrative, scheduling, reception, and support roles",
-    q: "Administrative Assistant",
+    title: "Biotech and life sciences",
+    desc: "Biotech, pharma R&D, clinical research, and bioinformatics",
+    q: "Clinical Research",
   },
 ] as const;

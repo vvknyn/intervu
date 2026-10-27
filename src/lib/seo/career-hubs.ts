@@ -42,7 +42,7 @@ export const CAREER_HUBS: readonly CareerHub[] = [
     h1: "Remote jobs, read from the career page",
     intro: [
       "Remote listings on big boards often outlive the req. Velai reads what the company still shows on its own hiring site — when they close it there, it leaves here.",
-      "Search remote roles across software, healthcare, operations, and more. No reposted copy, no sponsored bump.",
+      "Search remote roles across software, data, product, design, finance, operations, and biotech. No reposted copy, no sponsored bump.",
     ],
     alternativePath: "/indeed-alternative",
     jobsFacets: { work_type: "remote" },
@@ -93,51 +93,6 @@ export const CAREER_HUBS: readonly CareerHub[] = [
     ],
     jobsQuery: "Data Scientist",
     searchLabel: "Search data scientist jobs",
-  },
-  {
-    slug: "nursing-jobs",
-    label: "Nursing jobs",
-    path: "/careers/nursing-jobs",
-    title: "Nursing jobs from hospital and health system career pages",
-    description:
-      "Nursing and clinical jobs sourced from employer career pages — hospitals, health systems, and care networks.",
-    h1: "Nursing jobs from the employer's own site",
-    intro: [
-      "Clinical hiring moves quickly. Velai tracks nursing and patient-care roles where hospitals publish them — not a stale copy on a generic board.",
-      "Search RN, LPN, and specialty nursing openings with the same freshness screening we apply to every listing.",
-    ],
-    jobsQuery: "Nurse",
-    searchLabel: "Search nursing jobs",
-  },
-  {
-    slug: "healthcare-jobs",
-    label: "Healthcare jobs",
-    path: "/careers/healthcare-jobs",
-    title: "Healthcare jobs — verified career-page listings",
-    description:
-      "Healthcare jobs from employer career pages: clinical, admin, and support roles. Screened for stale and ghost postings.",
-    h1: "Healthcare jobs read from career pages",
-    intro: [
-      "Health systems post on their own sites first. Velai follows those career pages so you see what is still open before you apply.",
-      "From nursing to operations, search healthcare roles with posting-age signals instead of aggregator leftovers.",
-    ],
-    jobsQuery: "Healthcare",
-    searchLabel: "Search healthcare jobs",
-  },
-  {
-    slug: "skilled-trades-jobs",
-    label: "Skilled trades jobs",
-    path: "/careers/skilled-trades-jobs",
-    title: "Skilled trades jobs from employer career pages",
-    description:
-      "Skilled trades jobs — electrical, plumbing, HVAC, construction, and more — sourced from company career pages.",
-    h1: "Skilled trades jobs from companies that are hiring",
-    intro: [
-      "Trades employers often post on a simple careers page, not a national board. Velai reads those pages so you do not miss local openings.",
-      "Search skilled-trades roles with the same freshness checks we run on tech and healthcare listings.",
-    ],
-    jobsQuery: "Electrician",
-    searchLabel: "Search electrician jobs",
   },
   {
     slug: "tech-jobs",

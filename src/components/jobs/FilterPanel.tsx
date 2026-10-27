@@ -120,8 +120,12 @@ const SENTINEL_VALUES = new Set(["", "unknown", "null", "undefined", "n/a", "non
  *  location_country's real-country-membership check. Open/closed: a future
  *  facet earns its own guard by adding a row here, never by growing a chain
  *  of `if (key === ...)` special cases in `isNoiseFacetValue`. */
+const NON_PORTAL_SKILL_FACET_RE =
+    /^(?:bls|acls|pals|nrp|cpr|first\s+aid|rn|lpn|lvn|cna|aprn|crna|np|pa-c|cdl|cdl-a|cdl-b|forklift|osha\s*10|osha\s*30|epa\s*608|servsafe|phlebotomy|med\s*pass|patient\s+care|vital\s+signs|hipaa)$/i;
+
 const FACET_VALUE_VALIDATORS: Partial<Record<FacetKey, (value: string) => boolean>> = {
     location_country: (value) => classifyCountryValue(value).kind === "country",
+    tech_stack: (value) => !NON_PORTAL_SKILL_FACET_RE.test(value.trim()),
 };
 
 /**
