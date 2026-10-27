@@ -2720,7 +2720,12 @@ export function JobsContent({
             placeDropped ? [] : clusters.map((c) => c.primary),
             listApplied ? (job) => trackedPursuitFor(job, listApplied.index) != null : undefined,
         );
-        const { ranked, lower, summary } = deckListFor(read.candidates, (job) => matchScores.get(job.id) ?? null, nowMs, { abroad: includeAbroad, older: includeOlder });
+        const { ranked, lower, summary } = deckListFor(
+            read.candidates,
+            (job) => matchScores.get(job.id) ?? null,
+            nowMs,
+            { abroad: includeAbroad || result?.inPlace !== undefined || (facets.location_country?.length ?? 0) > 0, older: includeOlder },
+        );
         // The roles that fit lead, in the one order; the ones that only rank lower follow in the same order.
         const inOrder = (jobs: typeof ranked) => {
             const ids = new Set(jobs.map((job) => job.id));
@@ -2732,11 +2737,34 @@ export function JobsContent({
         };
         const lowerIds = new Set(lower.map((job) => job.id));
         const held = [...inOrder(ranked), ...inOrder(lower)];
-        const slots = collapseByEmployer(held, (c) => c.primary);
+        const isEmployerScopedSearch = Boolean(companyDomain || result?.inPlace !== undefined);
+        const slots = isEmployerScopedSearch
+            ? held.map((lead) => ({ lead, more: [], hidden: 0 }))
+            : collapseByEmployer(held, (c) => c.primary);
         const tailLeadId = slots.find((slot) => lowerIds.has(slot.lead.primary.id))?.lead.primary.id ?? null;
         return { slots, roles: held.length, tailLeadId, summary: withListRemovals(summary, read, result?.total) };
-    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, result?.total, includeAbroad, includeOlder]);
-    const rankedClusters = useMemo(() => (recommended ? recommended.slots.map((slot) => slot.lead) : clusters), [recommended, clusters]);
+    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, result?.total, result?.inPlace, companyDomain, facets.location_country, includeAbroad, includeOlder]);
+    const rankedClusters = useMemo(() => {
+        if (recommended) return recommended.slots.map((slot) => slot.lead);
+        if (!matchScores || effectiveSort !== "relevance") return clusters;
+        // When a résumé is loaded during a standard relevance search, preserve
+        // the strict vs mention seam (`seamIndex`) and use résumé fit band
+        // (`strong` > `good`) as a tie-breaker within each relevance partition.
+        const rankClusterTier = (slice: typeof clusters) =>
+            [...slice].sort((a, b) => {
+                const tierA = a.primary.tier ?? 1;
+                const tierB = b.primary.tier ?? 1;
+                if (tierA !== tierB) return tierA - tierB;
+                const scoreA = matchScores.get(a.primary.id)?.total ?? 0;
+                const scoreB = matchScores.get(b.primary.id)?.total ?? 0;
+                return scoreB - scoreA;
+            });
+        const splitAt = seamIndex > 0 ? clusters.findIndex((c) => c.primaryIndex >= seamIndex) : -1;
+        if (splitAt > 0) {
+            return [...rankClusterTier(clusters.slice(0, splitAt)), ...rankClusterTier(clusters.slice(splitAt))];
+        }
+        return rankClusterTier(clusters);
+    }, [recommended, clusters, matchScores, effectiveSort, seamIndex]);
     // The other roles of each employer's slot, by the role that leads it, with the fit label each has elsewhere.
     const employerMoreByLead = useMemo(() => {
         const byLead = new Map<string, { roles: EmployerMoreRole[]; hidden: number }>();
@@ -4019,12 +4047,12 @@ export function JobsContent({
         return readLocalFallback();
     };
 
-    // A role opened by an account with a résumé on file: load it, so the role
-    // offers Customize with it instead of asking for an upload it already has
-    // (opened from a typed search, nothing else had loaded it).
+    // Eagerly hydrate a signed-in user's server résumé whenever `resumeOnFile === true`
+    // so that any search bar query or filter change immediately has `resume`, `signals`,
+    // `matchScores`, the résumé strip, and `FitReasons` without waiting for a job click.
     const detailResumeLoadRef = useRef(false);
     useEffect(() => {
-        if (!detailJob || !user || resumeOnFile !== true) return;
+        if (!user || resumeOnFile !== true) return;
         if (resume && resumeIsUsable(resume)) return;
         if (detailResumeLoadRef.current) return;
         detailResumeLoadRef.current = true;
@@ -4735,6 +4763,8 @@ export function JobsContent({
             </div>
         ) : null;
 
+    const tourReplayEl = <JobsTourReplayButton />;
+
     // G5b (Grok UX wave): the filters panel's own content, shared verbatim
     // between the desktop inline expand and the mobile Sheet below — one
     // SerpFilters render, not two copies that could drift on props.
@@ -4774,7 +4804,7 @@ export function JobsContent({
         </>
     );
 
-    const filtersDialogEl = (
+    const renderFiltersDialog = () => (
         <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
             <DialogContent className="gap-0 rounded-panel p-0 sm:max-w-3xl">
                 <div className="shrink-0 border-b border-border px-6 py-4 pr-12">
@@ -5021,8 +5051,6 @@ export function JobsContent({
             onPostedBucket={panelPostedBucket}
         />
     );
-
-    const tourReplayEl = <JobsTourReplayButton />;
 
     // Where a signed-out gate returns to — this exact SERP, filters and all.
     // usePathname() always starts with "/"; the slice lets the type say so.
@@ -5486,7 +5514,7 @@ export function JobsContent({
                 </section>
                 )}
 
-                {headerDockActive && showSearchHome && facetsMountSite === "inline" && filtersDialogEl}
+                {headerDockActive && showSearchHome && facetsMountSite === "inline" && renderFiltersDialog()}
                 {showJobsToolbarSection && showSearchHome && (
                 <section
                     data-testid="jobs-toolbar"
@@ -5618,7 +5646,7 @@ export function JobsContent({
                     </div>
 
                     {facetsMountSite === "inline" && !headerDockActive ? (
-                        filtersDialogEl
+                        renderFiltersDialog()
                     ) : facetsMountSite === "sheet" ? (
                         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
                             <SheetContent
