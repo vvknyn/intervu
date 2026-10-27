@@ -865,7 +865,7 @@ export function JobDetail({
                             outlined control. rounded-ctl on both, same as
                             every other control in this row. */}
                         {job.apply_url && !actionBarBelow && (
-                            <Button size={jobActionSize} onClick={onOpenPosting} className="gap-2 px-4 bg-foreground text-background transition-colors">
+                            <Button size={jobActionSize} onClick={onOpenPosting} className="gap-2 px-4 transition-colors">
                                 <ApplyButtonIcon signedOut={signedOut} size={16} />
                                 {applyButtonLabel(signedOut)}
                             </Button>

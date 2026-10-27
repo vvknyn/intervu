@@ -39,13 +39,16 @@ const DIGIT_TOKENS_TAIL_RE = /(?:^|\s+)(?:[\p{L}\d-]*\d[\p{L}\d-]*\s*)+$/u;
 /** "Greater Toronto Area", "San Francisco Bay Area". */
 const AREA_RE = /^\p{Lu}[\p{L}\p{M} .'’-]*\s(?:Area|Region)$/u;
 
-/** Company suffix on the first comma part of a contact segment ("Acme Private Ltd., Austin, TX"). */
+/** Company or employer suffix on the leading comma part(s) of a segment ("Acme Private Ltd., Austin, TX", "Sakra World Hospital, Bangalore, India"). */
 const ORG_IN_FIRST_PART_RE =
-    /\b(?:Private\s+Ltd\.?|Pvt\.?\s*Ltd\.?|Limited|LLC|LLP|GmbH|Corp\.?|Inc\.?)\b|\bLtd\.?\s*$/iu;
+    /\b(?:Private\s+Ltd\.?|Pvt\.?\s*Ltd\.?|Limited|LLC|LLP|GmbH|Corp\.?|Inc\.?|Hospitals?|Clinics?|Medical\s+Cent(?:re|er)|Cent(?:re|er)|Health(?:care)?|Systems?|Solutions|Technologies|Labs?|Laboratory|Foundation|Services|Group|Company)\b|\bLtd\.?\s*$/iu;
 
 function dropLeadingOrganizationPart(parts: string[]): string[] {
     if (parts.length < 2 || !ORG_IN_FIRST_PART_RE.test(parts[0])) return parts;
-    const rest = parts.slice(1);
+    let rest = parts.slice(1);
+    while (rest.length >= 2 && ORG_IN_FIRST_PART_RE.test(rest[0])) {
+        rest = rest.slice(1);
+    }
     const shaped =
         rest.length >= 1 &&
         rest.length <= 3 &&

@@ -14,7 +14,7 @@ import { RESUME_LOCAL_DEVICE_BANNER_LABEL } from "../../src/lib/jobs/resume-priv
 const SOURCE = readFileSync(join(__dirname, "../../src/app/resume/page.tsx"), "utf8");
 
 function sliceFn(name: string): string {
-    const start = SOURCE.indexOf(`const ${name} = () => {`);
+    const start = SOURCE.indexOf(`const ${name} = (`);
     assert.ok(start !== -1, `${name} not found`);
     const end = SOURCE.indexOf("};", start);
     assert.ok(end !== -1, `${name} end not found`);
@@ -46,7 +46,7 @@ test("Edit, PDF, and sync are explicit resume auth clicks, not auto nudges", () 
     assert.match(openResumeAuth, /originSurface: "resume_page"/);
     assert.match(openResumeAuth, /gate\(\{\s*kind:\s*"upload"/);
     assert.match(openResumeAuth, /gateReason: "resume"/);
-    const editHits = SOURCE.split("openResumeAuth()").length - 1;
+    const editHits = SOURCE.split("openResumeAuth(").length - 1;
     assert.ok(editHits >= 3, `expected Edit, PDF, and sync to call openResumeAuth, found ${editHits}`);
 });
 

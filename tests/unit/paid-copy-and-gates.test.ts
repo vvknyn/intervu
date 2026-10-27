@@ -10,11 +10,12 @@ describe("paid feature list is one constant that matches what the server gates",
   it("names no PDF export and no rule-based tailoring (neither is gated)", () => {
     for (const item of PAID_FEATURES) assert.doesNotMatch(item, /pdf|rule-based/i);
   });
-  it("the pricing card and the subcopy read the same constant", () => {
+  it("the pricing card and paidFeaturesSentence read the same constant", () => {
     const pricing = readFileSync(join(__dirname, "../../src/app/pricing/pricing-client.tsx"), "utf8");
     assert.match(pricing, /PAID_FEATURES\.map/);
     assert.doesNotMatch(pricing, /const PAID_FEATURES/);
-    assert.ok(RESUME_PAGE_SUBCOPY.includes(paidFeaturesSentence()));
+    for (const item of PAID_FEATURES) assert.ok(paidFeaturesSentence().includes(item));
+    assert.ok(RESUME_PAGE_SUBCOPY.length > 0 && RESUME_PAGE_SUBCOPY.length <= 90);
   });
 });
 

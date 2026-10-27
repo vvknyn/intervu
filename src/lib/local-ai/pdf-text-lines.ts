@@ -112,9 +112,14 @@ function wrapsOnto(prev: PrintedLine, next: PrintedLine, rightEdge: number): boo
     // A continuation starts at the paragraph's left edge (or left of a first-line
     // indent), or under the text of a bullet whose glyph shares its first item.
     if (next.left > prev.left + (prev.bulletInText ? 24 : 1.5)) return false;
-    // The next line's first word, plus a space, would have run past the right edge.
+    // The next line's first word, plus a space, would have run past the right edge —
+    // or `prev` is a ragged-right prose line (>=60% of line width, no sentence end) followed by a lowercase word.
     const needed = (1 + firstWordLength(next.text)) * charWidth(next);
-    if (prev.right + needed <= rightEdge + 1) return false;
+    const lowercaseContinuation =
+        !SENTENCE_END_RE.test(prev.text) &&
+        /^\p{Ll}/u.test(next.text) &&
+        prev.right - prev.left >= 0.6 * (rightEdge - prev.left);
+    if (prev.right + needed <= rightEdge + 1 && !lowercaseContinuation) return false;
     // A full line that ends a sentence, then a capital: how one bullet ends and the next begins.
     if (SENTENCE_END_RE.test(prev.text) && /^\p{Lu}/u.test(next.text)) return false;
     return true;

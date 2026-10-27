@@ -36,9 +36,11 @@ function firstWord(line: string): string {
     return line.split(/\s+/, 1)[0] ?? "";
 }
 
-/** `line` would have fit its first word on the previous line if the printer hadn't run out of width. */
+/** `line` would have fit its first word on the previous line if the printer hadn't run out of width,
+ *  or `prev` is a ragged-right prose line (>=60% width, no sentence end) followed by a lowercase word. */
 function isFull(prev: string, next: string, width: number): boolean {
-    return prev.length + 1 + firstWord(next).length > 0.95 * width;
+    if (prev.length + 1 + firstWord(next).length > 0.95 * width) return true;
+    return prev.length >= 0.6 * width && !SENTENCE_END_RE.test(prev) && /^\p{Ll}/u.test(next);
 }
 
 /** Starts mid-sentence: lowercase, a digit, or punctuation such as "<20-minute" or "(live)". */

@@ -25,7 +25,7 @@ import { captureEvent } from "@/lib/analytics/events";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { SETTINGS_RESUME_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
-import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
+import { GuestResumeReadout } from "@/components/resume-builder/GuestResumeReadout";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import type { ResumeIntent } from "@/lib/jobs/pending-actions";
 import type { ResumeData } from "@/types/resume";
@@ -218,7 +218,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
             ) : (
                 <p className="text-sm text-muted-foreground mb-4">
                     {embedded
-                        ? "One base file. Edit the template in the browser, or upload a PDF or Word file."
+                        ? "Edit in the browser or upload a PDF or Word file."
                         : "The resume your agent has on file."}
                 </p>
             )}
@@ -378,32 +378,40 @@ function ResumeSummaryBody({
         );
     }
 
-    const manageRow = (
-        <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
-            <Button
-                type="button"
-                size="sm"
-                onClick={onOpenEditor}
-                className="w-full gap-1.5 sm:w-auto"
-            >
-                <PencilSimple /> Edit template
-            </Button>
-            <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 sm:w-auto">
-                <Upload /> Replace
-            </Button>
-            {deleteControl}
-        </div>
-    );
-
-    // One document render for both sources — `summaryToResumeData` already
-    // normalizes `resume_text` (parsed) and `resume_data` (as-is) into the
-    // same `ResumeData` shape, so the base resume renders as the actual
-    // typeset document (the same component the tailoring flow's live
-    // preview uses) instead of a raw text dump or a settings-style grid.
     const resumeData = summaryToResumeData(summary, user);
     return (
-        <div className="space-y-3">
-            {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
+        <div className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                        type="button"
+                        size="sm"
+                        onClick={onOpenEditor}
+                        className="gap-1.5"
+                    >
+                        <PencilSimple /> Edit template
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={onReplace} className="gap-1.5">
+                        <Upload /> Replace
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => void downloadBaseResumePdf(summary)}>
+                        Download .pdf
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                            summary.source === "resume_text"
+                                ? downloadBlob(summary.resume_text, "resume.txt", "text/plain")
+                                : downloadBlob(JSON.stringify(summary.resume_data, null, 2), "resume.json", "application/json")
+                        }
+                    >
+                        {summary.source === "resume_text" ? "Download .txt" : "Download .json"}
+                    </Button>
+                    {deleteControl}
+                </div>
+                {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
+            </div>
             {summary.accountCopyLocked && (
                 <p data-testid="settings-resume-also-locked" className="text-xs text-muted-foreground">
                     Your account also holds a saved copy. Opening it needs a paid month.{" "}
@@ -412,27 +420,7 @@ function ResumeSummaryBody({
                     </Link>
                 </p>
             )}
-            <div className="max-h-96 overflow-y-auto rounded-panel border border-border bg-background p-4 sm:p-6">
-                <LiveResumePreview data={resumeData} />
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => void downloadBaseResumePdf(summary)} className="w-full sm:w-auto">
-                    Download .pdf
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                        summary.source === "resume_text"
-                            ? downloadBlob(summary.resume_text, "resume.txt", "text/plain")
-                            : downloadBlob(JSON.stringify(summary.resume_data, null, 2), "resume.json", "application/json")
-                    }
-                    className="w-full sm:w-auto"
-                >
-                    {summary.source === "resume_text" ? "Download .txt" : "Download .json"}
-                </Button>
-            </div>
-            {manageRow}
+            <GuestResumeReadout data={resumeData} />
             {deleteError && (
                 <p role="alert" className="text-xs text-danger-text">
                     {deleteError}

@@ -1001,13 +1001,19 @@ function resumeTargets(resume: ResumeData, preferred: readonly string[] = []): R
 export type RoleFit = "target" | "unverified" | "off-target";
 
 export function roleFit(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): RoleFit {
-    const { families, searched } = resumeTargets(resume, preferred);
+    const { families, searched, own } = resumeTargets(resume, preferred);
     const title = job.title ?? "";
     // Whole words, in order (`jobTitleMatchesTarget`): a substring test read
     // "Nursery Teacher" as a "Nurse" posting.
     if (searched.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "target";
     const jobFamilies = familiesNamedBy([job.title ?? ""]);
-    if (jobFamilies.length === 0 || families.length === 0) return "unverified";
+    if (jobFamilies.length === 0) return "unverified";
+    if (families.length === 0) {
+        if (own.length === 0) return "unverified";
+        const ownTokens = new Set(own.flatMap((o) => relevanceTokens(o)));
+        const sharesOwnLineWord = relevanceTokens(title).some((t) => ownTokens.has(t));
+        return sharesOwnLineWord ? "unverified" : "off-target";
+    }
     return jobFamilies.some((family) => families.includes(family)) ? "target" : "off-target";
 }
 

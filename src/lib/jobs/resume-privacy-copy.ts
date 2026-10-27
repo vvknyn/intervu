@@ -38,18 +38,18 @@ export const RESUME_SIGNED_OUT_EMPTY_TITLE = "You're one upload away.";
 
 /** /resume PageHeader description — plain English, no product codenames. */
 export const RESUME_PAGE_SUBCOPY =
-    `Upload a résumé to find matching roles. It stays in this browser. A paid month adds ${paidFeaturesSentence()}.`;
+    "Parsed in this browser to rank matching roles — never uploaded.";
 
 /** /resume subcopy for a signed-in visitor, who can already export. */
 export const RESUME_PAGE_SUBCOPY_SIGNED_IN =
-    "The résumé your matches are ranked by. It stays on this device; a paid month saves it to your account, encrypted. Edit it, export a PDF, or replace it with a new file.";
+    "The résumé your matches are ranked by — edit, export a PDF, or replace it.";
 
 /** /resume local-résumé banner — semibold label (matches prior banner markup). */
 export const RESUME_LOCAL_DEVICE_BANNER_LABEL = "Parsed on this device";
 
 /** /resume local-résumé banner — body after em dash in UI. */
 export const RESUME_LOCAL_DEVICE_BANNER_BODY =
-    "The file is read here and never uploaded. The structured result stays in this browser. Saving it to your account, encrypted, needs a paid month. To find jobs, our servers send role and skill phrases derived from your résumé to our search index, not your full résumé file, and those searches aren't logged.";
+    "Read in this browser; job search sends role and skill phrases derived from your résumé, not your full résumé file.";
 
 /** Full banner text (tests / grep); UI uses label + body spans. */
 export const RESUME_LOCAL_DEVICE_BANNER = `${RESUME_LOCAL_DEVICE_BANNER_LABEL}. ${RESUME_LOCAL_DEVICE_BANNER_BODY}`;

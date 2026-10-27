@@ -147,7 +147,7 @@ export function listNoticeLine(kind: DeckListKind): { text: string; action?: { l
 export const rankedLowerTotal = (summary: DeckLeftOutSummary): number => Object.values(summary.rankedLower ?? {}).reduce((sum, n) => sum + n, 0);
 export const hiddenTotal = (summary: DeckLeftOutSummary): number => Object.values(summary.byReason).reduce((sum, n) => sum + n, 0);
 
-/** "Showing 236 of 368 · 122 ranked lower · 54 hidden": the roles on the page of those the search found, and the two ways the rest differ. Null when there is nothing to say. */
+/** "368 evaluated · 122 ranked lower · 55 hidden": how many postings the search evaluated and the two ways the rest differ from the primary fit list above (`formatDeckShowingLine`). Null when there is nothing to say. */
 export function formatRankedLine(summary: DeckLeftOutSummary | null | undefined): string | null {
     if (!summary) return null;
     const lower = rankedLowerTotal(summary);
@@ -155,7 +155,10 @@ export function formatRankedLine(summary: DeckLeftOutSummary | null | undefined)
     const of = summary.found ?? summary.considered;
     const shown = summary.listed + lower;
     if (lower === 0 && hidden === 0 && shown >= of) return null;
-    return ["Showing " + shown.toLocaleString() + " of " + of.toLocaleString(), lower > 0 ? `${lower.toLocaleString()} ranked lower` : null, hidden > 0 ? `${hidden.toLocaleString()} hidden` : null]
+    if (lower === 0 && hidden === 0) {
+        return `Showing ${shown.toLocaleString()} of ${of.toLocaleString()}`;
+    }
+    return [`${of.toLocaleString()} evaluated`, lower > 0 ? `${lower.toLocaleString()} ranked lower` : null, hidden > 0 ? `${hidden.toLocaleString()} hidden` : null]
         .filter(Boolean)
         .join(" · ");
 }

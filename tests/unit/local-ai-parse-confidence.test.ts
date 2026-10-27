@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
     canAcceptLocalParse,
+    canSkipParseReview,
     LOCAL_PARSE_COMPLETE_MIN,
     missingMatchFields,
     scoreLocalParseConfidence,
@@ -128,13 +129,15 @@ describe("scoreLocalParseConfidence", () => {
         assert.deepEqual(missingMatchFields(data), ["job title", "work history", "skills"]);
     });
 
-    it("a read with only a skill, or only a role, can rank jobs", () => {
+    it("a read with only a skill, or only a role, can rank jobs but cannot skip review", () => {
         const base = coreFourBase();
         const skillOnly = { ...base, profile: { ...base.profile, profession: "" }, experience: [] };
         assert.ok(canAcceptLocalParse(skillOnly));
+        assert.equal(canSkipParseReview(skillOnly), false);
         assert.deepEqual(missingMatchFields(skillOnly), ["job title", "work history"]);
         const roleOnly = { ...base, profile: { ...base.profile, profession: "" }, competencies: [] };
         assert.ok(canAcceptLocalParse(roleOnly));
+        assert.equal(canSkipParseReview(roleOnly), true);
         assert.deepEqual(missingMatchFields(roleOnly), ["skills"]);
     });
 

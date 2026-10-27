@@ -26,7 +26,6 @@ import {
     RESUME_PAGE_SUBCOPY_SIGNED_IN,
     RESUME_SIGNED_OUT_EMPTY_TITLE,
     RESUME_UPLOAD_PROMISE,
-    paidFeaturesSentence,
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeIntent } from "@/lib/jobs/pending-actions";
 import type { ResumeData } from "@/types/resume";
@@ -202,29 +201,34 @@ function ResumeContent() {
                 ) : !user ? (
                     localResume ? (
                         <div className="space-y-4">
-                            <div className="flex items-start gap-2 rounded-panel border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
-                                <ShieldCheck size={16} className="mt-px text-live shrink-0" />
+                            <div className="flex items-center gap-2 rounded-panel border border-border bg-surface-2 px-4 py-2.5 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
+                                <ShieldCheck size={16} className="text-live shrink-0" />
                                 {/* One run of text, so the label doesn't squeeze into a narrow column beside the body on a phone. */}
                                 <p>
                                     <span className="font-semibold text-foreground">{RESUME_LOCAL_DEVICE_BANNER_LABEL}</span>{" "}
                                     — {RESUME_LOCAL_DEVICE_BANNER_BODY}
                                 </p>
                             </div>
-                            <div className="flex flex-col gap-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
-                                <div className="flex items-start gap-2 min-w-0">
+                            <div className="flex flex-col gap-3 rounded-panel border border-border bg-surface px-4 py-3.5 shadow-[var(--shadow-bevel-highlight)] sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-start gap-2.5 min-w-0">
                                     <FileText size={20} className="text-live shrink-0 mt-0.5" />
-                                    <div className="min-w-0 flex-1">
+                                    <div className="min-w-0">
                                         <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>
                                         {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}
                                         <p
                                             data-testid="resume-local-account-pitch"
-                                            className="text-xs text-muted-foreground mt-1"
+                                            className="text-xs text-muted-foreground mt-0.5"
                                         >
-                                            Create a free account for saved jobs and alerts. A paid month adds {paidFeaturesSentence()}.
+                                            Saved in this browser · Sign up for saved jobs, alerts, and cloud sync
                                         </p>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                    <Button asChild size="sm">
+                                        <Link href="/jobs" data-testid="resume-see-matches">
+                                            See jobs ranked for this résumé
+                                        </Link>
+                                    </Button>
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -249,6 +253,7 @@ function ResumeContent() {
                                         PDF
                                     </Button>
                                     <Button
+                                        variant="secondary"
                                         size="sm"
                                         onClick={() => openResumeAuth()}
                                     >
@@ -256,12 +261,8 @@ function ResumeContent() {
                                     </Button>
                                 </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                                <Button asChild>
-                                    <Link href="/jobs" data-testid="resume-see-matches">
-                                        See jobs ranked for this résumé
-                                    </Link>
-                                </Button>
+                            <GuestResumeReadout data={localResume} />
+                            <div className="flex items-center justify-end text-xs">
                                 {confirmingRemove ? (
                                     <InlineConfirm
                                         prompt="Remove this résumé from this device?"
@@ -280,7 +281,6 @@ function ResumeContent() {
                                     </button>
                                 )}
                             </div>
-                            <GuestResumeReadout data={localResume} />
                         </div>
                     ) : (
                         <SignedOutEmptyState onUploadClick={() => beginResumeUpload()} />

@@ -32,6 +32,7 @@ import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { titleLevel } from "./role-level";
 import { meaningfulTitleTokens } from "./presentation";
 import { jobTitleMatchesTarget } from "./for-you/title-relevance";
+import { expandTitleQuery } from "./title-aliases";
 
 export interface DerivedQuery {
     q: string;
@@ -348,8 +349,16 @@ export function targetRoles(resume: ResumeData, preferred: readonly string[] = [
     // Only the title the summary OPENS with is the candidate's own: in "Technical
     // Account Manager and client-facing product owner" the second half describes
     // the job, it is not a second job they are after.
-    const leadTitle = cleanRoleTitle((joinedTitles(lead)[0] ?? "").replace(LEAD_ADJECTIVES, ""));
-    const leadIsTitle = Boolean(leadTitle) && isRoleTitlePhrase(leadTitle) && familiesNamedBy([leadTitle]).length > 0;
+    const leadTitle = cleanRoleTitle(
+        (joinedTitles(lead)[0] ?? "")
+            .replace(/\s*\([A-Za-z0-9/-]{2,10}\)/g, "")
+            .replace(LEAD_ADJECTIVES, ""),
+    );
+    const leadIsKnownOccupation = Boolean(leadTitle) && expandTitleQuery(leadTitle).length > 1;
+    const leadIsTitle =
+        Boolean(leadTitle) &&
+        isRoleTitlePhrase(leadTitle) &&
+        (familiesNamedBy([leadTitle]).length > 0 || leadIsKnownOccupation);
     // A stated role is their own only when the résumé shows them holding it (`heldTitles`);
     // the headline and current role are theirs by definition.
     // A stated role in another line of work is a move they are making (a PM asking for Data Analyst) and leads as
@@ -366,6 +375,9 @@ export function targetRoles(resume: ResumeData, preferred: readonly string[] = [
     for (const title of yearsBackedTitles(resume)) {
         if (!phrases.some((p) => p.toLowerCase() === title.toLowerCase())) phrases.push(title);
         if (!own.some((p) => p.toLowerCase() === title.toLowerCase())) own.push(title);
+    }
+    if (leadIsTitle && families.length === 0 && !phrases.some((p) => p.toLowerCase() === leadTitle.toLowerCase())) {
+        phrases.push(leadTitle);
     }
     if (leadIsTitle && !own.some((p) => p.toLowerCase() === leadTitle.toLowerCase())) own.push(leadTitle);
     // A second title the summary joins counts too when the résumé's body backs it: Vivek's
@@ -590,6 +602,9 @@ export function buildMatchQuery(
         [...ownTitles, ...familyRetrievalTitles(target.families).filter((t) => ownFamilyTitles.has(t) || close(t)), ...recentTitles],
         4,
     );
+    if (terms.length < 4 && target.families.length === 0 && terms.length > 0) {
+        terms = capExploreTerms([...terms, ...aliasVariantsFor(terms)], 4);
+    }
     if (terms.length < 4 && ownTitles.length > 0 && ADJACENCY_INDUSTRIES.has(resumeIndustry(resume))) {
         terms = capExploreTerms([...terms, ...suggestAdjacentRolesLocal(ownTitles, skills, 8).filter(close)], 4);
     }
@@ -652,6 +667,33 @@ const GENERIC_TITLE_WORDS = new Set([
 /** A title's words that name its line of work: "data" and "science" in "Data Science Intern". */
 function lineWords(title: string): string[] {
     return meaningfulTitleTokens(title).filter((word) => !GENERIC_TITLE_WORDS.has(word));
+}
+
+function titleCasePhrase(phrase: string): string {
+    return phrase.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Occupation synonyms from the Wikidata-derived alias graph (`expandTitleQuery`) for
+ * professions outside the hardcoded `RoleFamilyId` table (e.g. Speech and Language
+ * Therapist ↔ Speech Language Pathologist ↔ Speech Therapist). Skips simple plural
+ * forms of already-included phrases so slots go to distinct title variants.
+ */
+function aliasVariantsFor(titles: readonly string[]): string[] {
+    const out: string[] = [];
+    const seen = new Set(titles.map((t) => t.toLowerCase()));
+    const isPluralOfSeen = (alias: string) =>
+        [...seen].some((s) => alias === `${s}s` || alias === `${s}es` || (s.endsWith("y") && alias === `${s.slice(0, -1)}ies`));
+    for (const title of titles) {
+        const aliases = expandTitleQuery(title).slice(1);
+        for (const alias of aliases) {
+            const lower = alias.toLowerCase();
+            if (seen.has(lower) || isPluralOfSeen(lower)) continue;
+            seen.add(lower);
+            out.push(titleCasePhrase(alias));
+        }
+    }
+    return out;
 }
 
 /**

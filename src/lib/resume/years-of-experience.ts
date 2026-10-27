@@ -106,31 +106,63 @@ function parseDateRange(dates: string, now: Date): ParsedRange | null {
 }
 
 /**
+ * Parse a standalone duration string ("1 year 7 months", "3 years 6 months", "6 months")
+ * into total whole months. Null when `dates` does not state a duration.
+ */
+function parseDurationMonths(dates: string): number | null {
+    if (!dates || !dates.trim()) return null;
+    const yearsMatch = dates.match(/\b(\d{1,2})\s*(?:years?|yrs?)\b(?!\s+of\b)/i);
+    const monthsMatch = dates.match(/\b(\d{1,2})\s*(?:months?|mos?)\b(?!\s+of\b)/i);
+    if (!yearsMatch && !monthsMatch) return null;
+    const years = yearsMatch ? Number(yearsMatch[1]) : 0;
+    const months = monthsMatch ? Number(monthsMatch[1]) : 0;
+    const total = years * 12 + months;
+    return total > 0 ? total : null;
+}
+
+/**
  * Compute total years of experience as the sum of the merged role spans: overlapping
  * roles count once, gaps between roles do not count, and an ongoing role runs to `now`.
  * Dates are month-granular ("Dec 2019" parses as Dec 1), so a role starting the month
- * after another ends is back-to-back, not a gap. Entries with unparseable or
- * future-only dates are excluded, not guessed at. Returns null when no entry had a
- * usable date — callers should fall back to the model's own estimate only in that case.
+ * after another ends is back-to-back, not a gap. Entries with duration spans ("1 year
+ * 7 months", "6 months") contribute their stated months when they hold no calendar
+ * range. Returns null when no entry had a usable date or duration.
  */
 export function computeYearsOfExperience(experience: ResumeExperience[], now: Date): number | null {
-    const ranges = (experience || [])
-        .map(exp => parseDateRange(exp?.dates ?? "", now))
-        .filter((r): r is ParsedRange => r !== null)
-        .sort((a, b) => a.start.getTime() - b.start.getTime());
+    const ranges: ParsedRange[] = [];
+    let durationMonths = 0;
+    let hasDuration = false;
 
-    if (ranges.length === 0) return null;
-
-    const merged: ParsedRange[] = [{ ...ranges[0] }];
-    for (const r of ranges.slice(1)) {
-        const last = merged[merged.length - 1];
-        if (monthIndex(r.start) <= monthIndex(last.end) + 1) {
-            if (r.end > last.end) last.end = r.end;
-        } else {
-            merged.push({ ...r });
+    for (const exp of experience || []) {
+        const rawDates = exp?.dates ?? "";
+        const range = parseDateRange(rawDates, now);
+        if (range) {
+            ranges.push(range);
+            continue;
+        }
+        const dur = parseDurationMonths(rawDates);
+        if (dur !== null) {
+            durationMonths += dur;
+            hasDuration = true;
         }
     }
 
-    const months = merged.reduce((sum, r) => sum + Math.max(0, fullMonthsBetween(r.start, r.end)), 0);
-    return Math.floor(months / 12);
+    if (ranges.length === 0 && !hasDuration) return null;
+
+    let rangeMonths = 0;
+    if (ranges.length > 0) {
+        ranges.sort((a, b) => a.start.getTime() - b.start.getTime());
+        const merged: ParsedRange[] = [{ ...ranges[0] }];
+        for (const r of ranges.slice(1)) {
+            const last = merged[merged.length - 1];
+            if (monthIndex(r.start) <= monthIndex(last.end) + 1) {
+                if (r.end > last.end) last.end = r.end;
+            } else {
+                merged.push({ ...r });
+            }
+        }
+        rangeMonths = merged.reduce((sum, r) => sum + Math.max(0, fullMonthsBetween(r.start, r.end)), 0);
+    }
+
+    return Math.floor((rangeMonths + durationMonths) / 12);
 }

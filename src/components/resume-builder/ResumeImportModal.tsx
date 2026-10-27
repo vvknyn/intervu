@@ -27,6 +27,7 @@ import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resum
 import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
 import {
     canAcceptLocalParse,
+    canSkipParseReview,
     missingMatchFields,
     modelReadNeeded,
     scoreLocalParseConfidence,
@@ -364,7 +365,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
             const read = await runParse(textContent);
             const quick = read.parsed;
-            if (rankFirst && canAcceptLocalParse(quick)) {
+            if (rankFirst && canSkipParseReview(quick)) {
                 acceptRead(quick, read);
                 return;
             }

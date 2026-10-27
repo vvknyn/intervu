@@ -7,7 +7,7 @@ import { Disclosure, DisclosureCaret, DisclosureSummary } from "@/components/ui/
 import { chipVariants } from "@/components/ui/chip";
 import { buildFitReasonRows, fitReasonSourcesFromComponents } from "@/lib/jobs/for-you/fit-reasons";
 import { inferReasons, TITLE_OVERLAP_LEAD } from "@/lib/jobs/for-you/infer-reasons";
-import { labelNamesPlace, type MatchScore } from "@/lib/match/score";
+import { labelNamesPlace, MATCH_BAND_GOOD_MIN, type MatchScore } from "@/lib/match/score";
 import { fitTerms } from "@/lib/match/fit-terms";
 import { SignalChip } from "@/components/jobs/SignalChip";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -68,8 +68,12 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
     return (
         <Disclosure data-tour="jobs-fit-reasons" className="mb-4 rounded-panel bg-surface px-4 py-3.5" open>
             <DisclosureSummary marker={false} className="flex items-center justify-between gap-3">
-                {/* A role outside where they can work, or one that doesn't say where it hires, carries no fit word (`matchLabel`), so the heading doesn't claim one. */}
-                <span className="text-sm font-semibold text-foreground">{labelNamesPlace(score) ? "How this compares" : "Why this fits"}</span>
+                {/* A role outside where they can work, a Stretch role, or one with zero matched résumé terms uses a neutral comparison heading instead of claiming a strong fit. */}
+                <span className="text-sm font-semibold text-foreground">
+                    {labelNamesPlace(score) || score.total < MATCH_BAND_GOOD_MIN || (terms != null && terms.matched.length === 0)
+                        ? "How this compares"
+                        : "Why this fits"}
+                </span>
                 <span className="flex items-center gap-2">
                     <MatchChip score={score} asOfDate={asOfDate} jobId={jobId} />
                     <DisclosureCaret className="text-muted-foreground" />

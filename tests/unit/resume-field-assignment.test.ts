@@ -10,7 +10,7 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
+import { resumeDataFromPlainText, structureResumeText } from "../../src/lib/resume/structure-resume-text";
 
 interface Expected {
     name: string;
@@ -353,4 +353,41 @@ describe("education lines", () => {
             assert.deepEqual(structureResumeText(text).education, expected);
         });
     }
+});
+
+describe("duration-span experience and additional sections", () => {
+    it("parses duration-dated clinical roles, strips employer/institute prefixes from location, and preserves additionalSections", () => {
+        const text = [
+            "Krithika Ramanarayanan",
+            "krithikaram30@gmail.com | +91 9686492727 | Bangalore, India",
+            "PROFESSIONAL SUMMARY",
+            "Dedicated Speech Language Pathologist (SLP) with over 5 years of clinical experience in dysphagia management and adult neuro-rehabilitation.",
+            "EXPERIENCE",
+            "Speech and Swallow Pathologist",
+            "Sakra World Hospital, Bangalore | 1 year 7 months",
+            "• Performed bedside swallow evaluations and FEES across ICU and neuro wards.",
+            "Associate Speech Pathologist",
+            "Hearfon Systems Private Ltd., Bangalore | 3 years 6 months",
+            "• Delivered speech and language therapy for paediatric and adult caseloads.",
+            "EDUCATION",
+            "Masters in Speech Language Pathology",
+            "All India Institute of Speech and Hearing, Mysore | 2020",
+            "LICENCES",
+            "Rehabilitation Council of India (RCI) — CRR No. A12345",
+            "HONORS",
+            "Best Clinical Outgoing Student Award (2020)",
+        ].join("\n");
+        const out = resumeDataFromPlainText(text);
+        assert.equal(out.profile.name, "Krithika Ramanarayanan");
+        assert.equal(out.profile.location, "Bangalore, India");
+        assert.equal(out.profile.profession, "Speech and Swallow Pathologist");
+        assert.equal(out.profile.yearsOfExperience, 5);
+        assert.equal(out.experience.length, 2);
+        assert.equal(out.experience[0]!.role, "Speech and Swallow Pathologist");
+        assert.equal(out.experience[0]!.dates, "1 year 7 months");
+        assert.equal(out.education[0]!.degree, "Masters in Speech Language Pathology");
+        assert.equal(out.education[0]!.institution, "All India Institute of Speech and Hearing, Mysore");
+        assert.ok((out.additionalSections ?? []).some((s) => s.heading.toLowerCase() === "licences"));
+        assert.ok((out.additionalSections ?? []).some((s) => s.heading.toLowerCase() === "honors"));
+    });
 });

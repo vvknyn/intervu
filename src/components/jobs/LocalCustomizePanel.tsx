@@ -165,7 +165,7 @@ export function LocalCustomizePanel({
                 disabled={loading && dialogOpen}
                 onClick={handleOpen}
                 className={cn(
-                    "shrink-0",
+                    "shrink-0 border-border bg-surface-2 text-foreground hover:bg-surface-hover",
                     compactTrigger && "px-3",
                     loading && dialogOpen && "opacity-60",
                 )}

@@ -177,6 +177,16 @@ export function canAcceptLocalParse(data: LocalParseConfidenceInput): boolean {
 }
 
 /**
+ * Whether `rankFirst` may skip the review/disambiguation step and rank immediately:
+ * only when the quick parse found both a job title (headline or role) and work history.
+ * When either is missing (e.g. only skills were found), the modal opens the review
+ * step so the person can confirm or disambiguate their role title first.
+ */
+export function canSkipParseReview(data: LocalParseConfidenceInput): boolean {
+    return hasJobTitle(data) && experienceEntryCount(data) > 0;
+}
+
+/**
  * Whether the on-device model should read a résumé after the quick read: only
  * when the quick read left something short (a field ranking uses, or the score
  * a complete read reaches). A complete read has nothing for the model to add.

@@ -55,13 +55,13 @@ export function ExtensionTile({ className }: { className?: string }) {
             data-testid="extension-tile"
             data-variant="band"
             className={cn(
-                "surface-paper flex flex-wrap items-center gap-x-3 gap-y-2 rounded-panel border border-border bg-surface-postcard px-3 py-2 text-surface-postcard-foreground",
+                "surface-paper flex items-center gap-2.5 rounded-panel border border-border bg-surface-postcard px-3 py-2 text-surface-postcard-foreground",
                 className,
             )}
         >
-            <BrandMark src={HEADER_MARK_SRC} className="h-6 w-6 shrink-0" pixelSize={24} />
-            <p className="min-w-[14rem] flex-1 text-sm">{CHROME_EXTENSION_NAME} checks the role before you apply</p>
-            <Button asChild size="sm" className="shrink-0">
+            <BrandMark src={HEADER_MARK_SRC} className="h-5 w-5 shrink-0" pixelSize={20} />
+            <p className="min-w-0 flex-1 truncate text-xs">{CHROME_EXTENSION_NAME} checks postings before you apply</p>
+            <Button asChild variant="secondary" size="sm" className="shrink-0">
                 {ADD_TO_CHROME_LINK}
             </Button>
             <button

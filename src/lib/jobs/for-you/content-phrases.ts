@@ -33,6 +33,7 @@ const BROAD = new Set([
     "customers", "data", "software", "solutions", "solution", "engineering", "leadership", "lead", "senior", "junior", "global",
     "infrastructure", "optimization", "architecture", "implementation", "configuration", "performance", "deprecation", "governance",
     "stakeholder", "stakeholders", "communication", "communications", "integration", "integrations", "transformation", "transformations",
+    "microsoft", "excel", "word", "powerpoint", "outlook", "office", "spreadsheet", "spreadsheets",
 ]);
 
 /** A pair ending in one of these names a job ("product owner", "account manager"), not what the person does: the title lanes carry it. */

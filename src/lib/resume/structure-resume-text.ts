@@ -22,7 +22,7 @@ import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { unwrapHardWrappedLines } from "@/lib/resume/unwrap-lines";
 import { resumeCountriesFromLocation } from "@/lib/jobs/resume-location";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
-import { DATE_RANGE_RE, MONTH } from "./resume-dates";
+import { DATE_OR_DURATION_RE, DATE_RANGE_RE, DURATION_SPAN_RE, MONTH } from "./resume-dates";
 import { TITLE_WORD_RE, cleanRoleTitle } from "./title-text";
 import { ALL_SECTIONS, type ResumeAdditionalSection, type ResumeSourceHeader, type ResumeCompetencyCategory, type ResumeData, type ResumeEducation, type ResumeExperience, type ResumeProfile, type ResumeSection } from "@/types/resume";
 
@@ -222,7 +222,7 @@ function looksLikeTitle(line: string): boolean {
 function looksLikeCompany(text: string): boolean {
     if (!text.trim()) return false;
     if (
-        /\b(Inc|LLC|Ltd|Corp|Company|University|Co\.|Group|Health|Systems?|Labs?|Technologies|Solutions)\b/i.test(
+        /\b(Inc|LLC|Ltd|Corp|Company|University|Co\.|Group|Health|Hospital|Hosp|Clinic|Center|Centre|Institute|Medical|College|School|Foundation|Bank|Studio|Agency|Systems?|Labs?|Technologies|Solutions)\b/i.test(
             text,
         )
     ) {
@@ -285,6 +285,10 @@ export function extraSectionHeading(line: string): string | null {
     return EXTRA_SECTION_RE.test(trimmed) ? trimmed : null;
 }
 
+/** Inline "Heading: value" for an extra section ("Language Skills: English, Tamil", "Awards: ...", "References: ..."). */
+const INLINE_EXTRA_SECTION_RE =
+    /^(language skills|languages|awards?|honou?rs?|references|licen[cs]es?|certifications?)\s*:\s*(.+)$/i;
+
 /**
  * A line that starts a block of its own and never continues the line above:
  * a section heading (a known one, or a short all-caps line such as
@@ -296,8 +300,13 @@ export function isResumeBoundaryLine(line: string): boolean {
     const trimmed = line.trim();
     const words = trimmed.split(/\s+/).length;
     if (isSectionHeader(trimmed) || extraSectionHeading(trimmed)) return true;
-    // A dated role line, not a sentence that mentions "2019 to 2021".
-    if (DATE_RANGE_RE.test(trimmed) && words <= 12 && !/[.!?]$/.test(trimmed)) return true;
+    if (INLINE_EXTRA_SECTION_RE.test(trimmed)) return true;
+    if (/^[A-Za-z][A-Za-z\s]{1,28}\s*:\s+\S/.test(trimmed)) return true;
+    // A tabular column gap ("Role | 1 year 7 months", "Degree | June 2012") is a structured row, not wrapped prose.
+    if (/\s\|\s/.test(trimmed) && (DATE_OR_DURATION_RE.test(trimmed) || SINGLE_DATE_TAIL_RE.test(trimmed))) return true;
+    // A dated or duration role line, not a sentence that mentions "2019 to 2021".
+    if (DATE_OR_DURATION_RE.test(trimmed) && words <= 14 && !/[.!?]$/.test(trimmed)) return true;
+    if (SINGLE_DATE_TAIL_RE.test(trimmed) && (DEGREE_LIKE_RE.test(trimmed) || /^(?:certificate|diploma|award)\b/i.test(trimmed))) return true;
     return /\p{Lu}{3}/u.test(trimmed) && !/[\p{Ll},.!?;|·•]/u.test(trimmed) && words <= 4;
 }
 
@@ -459,9 +468,9 @@ function endsOnPlace(line: string): boolean {
  *  printed above a dated role line that names no company, not the last line of this entry. */
 function isCompanyOverDatedRole(lines: string[], i: number): boolean {
     const line = lines[i];
-    if (i + 1 >= lines.length || BULLET_RE.test(line) || DATE_RANGE_RE.test(line) || !looksLikeHeaderText(line)) return false;
+    if (i + 1 >= lines.length || BULLET_RE.test(line) || DATE_OR_DURATION_RE.test(line) || !looksLikeHeaderText(line)) return false;
     const next = lines[i + 1];
-    const match = next.match(DATE_RANGE_RE);
+    const match = next.match(DATE_OR_DURATION_RE);
     if (!match || BULLET_RE.test(next)) return false;
     const { role, company } = parseRoleCompanyFromLine(next, match[0]);
     return Boolean(role) && !company;
@@ -471,10 +480,10 @@ function isCompanyOverDatedRole(lines: string[], i: number): boolean {
  *  printed above the dated line that names its company, not the last line of this entry. */
 function isTitleOverDatedCompany(lines: string[], i: number): boolean {
     const line = lines[i];
-    if (i + 1 >= lines.length || BULLET_RE.test(line) || DATE_RANGE_RE.test(line)) return false;
+    if (i + 1 >= lines.length || BULLET_RE.test(line) || DATE_OR_DURATION_RE.test(line)) return false;
     if (!looksLikeHeaderText(line) || !looksLikeTitle(line) || looksLikeCompany(line)) return false;
     const next = lines[i + 1];
-    const match = next.match(DATE_RANGE_RE);
+    const match = next.match(DATE_OR_DURATION_RE);
     if (!match || BULLET_RE.test(next)) return false;
     const datedText = trimEdgePunctuation(next.replace(match[0], "").replace(/\(\s*\)/g, ""));
     return Boolean(datedText) && !looksLikeTitle(datedText);
@@ -489,7 +498,7 @@ function collectDescriptionLines(
     let i = startIndex;
     while (i < lines.length) {
         const next = lines[i];
-        if (DATE_RANGE_RE.test(next) && !BULLET_RE.test(next)) break;
+        if (DATE_OR_DURATION_RE.test(next) && !BULLET_RE.test(next)) break;
         if (
             singleDateEntryDate(next, anyName) ||
             isRoleLineOverDates(lines, i) ||
@@ -533,7 +542,7 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
 
     while (i < lines.length) {
         const line = lines[i];
-        const dateMatch = line.match(DATE_RANGE_RE);
+        const dateMatch = line.match(DATE_OR_DURATION_RE);
 
         if (dateMatch) {
             const dates = dateMatch[0];
@@ -547,16 +556,16 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
                 continue;
             }
 
-            if (!role && i > 0 && !DATE_RANGE_RE.test(lines[i - 1]) && !BULLET_RE.test(lines[i - 1])) {
+            if (!role && i > 0 && !DATE_OR_DURATION_RE.test(lines[i - 1]) && !BULLET_RE.test(lines[i - 1])) {
                 const prev = lines[i - 1];
                 if (looksLikeTitle(prev)) {
                     role = prev;
-                    if (!company && i > 1 && !DATE_RANGE_RE.test(lines[i - 2]) && !BULLET_RE.test(lines[i - 2])) {
+                    if (!company && i > 1 && !DATE_OR_DURATION_RE.test(lines[i - 2]) && !BULLET_RE.test(lines[i - 2])) {
                         company = lines[i - 2];
                     }
                 } else if (!company) {
                     company = prev;
-                    if (!role && i > 1 && !DATE_RANGE_RE.test(lines[i - 2]) && !BULLET_RE.test(lines[i - 2])) {
+                    if (!role && i > 1 && !DATE_OR_DURATION_RE.test(lines[i - 2]) && !BULLET_RE.test(lines[i - 2])) {
                         role = lines[i - 2];
                     }
                 }
@@ -579,7 +588,7 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
 
         if (i + 1 < lines.length) {
             const nextLine = lines[i + 1];
-            const nextDateMatch = nextLine.match(DATE_RANGE_RE);
+            const nextDateMatch = nextLine.match(DATE_OR_DURATION_RE);
             if (nextDateMatch && !BULLET_RE.test(nextLine)) {
                 const dates = nextDateMatch[0];
                 let { role, company } = parseRoleCompanyFromLine(nextLine, dates);
@@ -596,7 +605,7 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
                     if (own.role && own.company) ({ role, company } = own);
                 }
                 if (!role && looksLikeTitle(line)) role = line;
-                if (!company && !looksLikeTitle(line) && !DATE_RANGE_RE.test(line)) company = line;
+                if (!company && !looksLikeTitle(line) && !DATE_OR_DURATION_RE.test(line)) company = line;
                 if (!role && !company) role = line;
 
                 const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2, anyName);
@@ -606,7 +615,7 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
             }
         }
 
-        if (i + 2 < lines.length && DATE_RANGE_RE.test(lines[i + 2])) {
+        if (i + 2 < lines.length && DATE_OR_DURATION_RE.test(lines[i + 2])) {
             // Company over title is the usual order; title over company when the lines say so.
             const [first, second] = [lines[i], lines[i + 1]];
             // "Peel Packaging, Mississauga, ON" ends on its place: the company line, whatever the title says.
@@ -615,7 +624,7 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
                 (looksLikeCompany(second) && !looksLikeCompany(first)) ||
                 (endsOnPlace(second) && !endsOnPlace(first));
             const [role, company] = titleFirst ? [first, second] : [second, first];
-            const dates = lines[i + 2].match(DATE_RANGE_RE)?.[0] ?? lines[i + 2];
+            const dates = lines[i + 2].match(DATE_OR_DURATION_RE)?.[0] ?? lines[i + 2];
             const { descLines, nextIndex } = collectDescriptionLines(lines, i + 3, anyName);
             pushExperienceEntry(entries, company, role, dates, descLines);
             i = nextIndex;
@@ -1136,7 +1145,16 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     const sectionHeadings: Partial<Record<ResumeSection, string>> = {};
     const extras: Array<{ key: string; heading: string; after: ResumeSection | null }> = [];
 
+    const secondaryExperienceBlocks: Array<{ heading: string; after: ResumeSection | null; lines: string[] }> = [];
+
     for (const line of lines) {
+        const inlineExtra = line.match(INLINE_EXTRA_SECTION_RE);
+        if (inlineExtra) {
+            const key = `extra:${extras.length}`;
+            extras.push({ key, heading: inlineExtra[1].trim(), after: sectionOrder[sectionOrder.length - 1] ?? null });
+            sections[key] = [inlineExtra[2].trim()];
+            continue;
+        }
         const extraHeading = extraSectionHeading(line);
         if (extraHeading) {
             currentSection = `extra:${extras.length}`;
@@ -1146,12 +1164,24 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         }
         const header = isSectionHeader(line);
         if (header) {
-            currentSection = resolveSection(header);
+            const resolved = resolveSection(header);
+            const headingText = line.trim().replace(/[:;]+$/, "").trim();
+            if (resolved === "experience" && sectionOrder.includes("experience") && (sections.experience?.length ?? 0) > 0) {
+                currentSection = `secondary_exp:${secondaryExperienceBlocks.length}`;
+                secondaryExperienceBlocks.push({
+                    heading: headingText,
+                    after: sectionOrder[sectionOrder.length - 1] ?? null,
+                    lines: [],
+                });
+                sections[currentSection] = secondaryExperienceBlocks[secondaryExperienceBlocks.length - 1].lines;
+                continue;
+            }
+            currentSection = resolved;
             sections[currentSection] = sections[currentSection] ?? [];
             const known = resumeSectionOfHeading(line);
             if (known && !sectionOrder.includes(known)) {
                 sectionOrder.push(known);
-                sectionHeadings[known] = line.trim().replace(/[:;]+$/, "").trim();
+                sectionHeadings[known] = headingText;
             }
             continue;
         }
@@ -1160,6 +1190,16 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     }
 
     let experience = parseExperienceBlock(sections.experience ?? []);
+    for (const secExp of secondaryExperienceBlocks) {
+        const parsedSec = parseExperienceBlock(secExp.lines);
+        if (parsedSec.length > 0) {
+            experience.push(...parsedSec);
+        } else if (secExp.lines.length > 0) {
+            const key = `extra:${extras.length}`;
+            extras.push({ key, heading: secExp.heading, after: secExp.after });
+            sections[key] = secExp.lines;
+        }
+    }
     if (experience.length === 0) {
         experience = parseExperienceBlock(collectExperienceFallbackLines(sections));
     }
@@ -1186,6 +1226,12 @@ export function structureResumeText(text: string): StructuredResumeDraft {
             .join(" ")
             .trim();
         if (generatedSummary.length > 500) generatedSummary = generatedSummary.slice(0, 500);
+    }
+    if (!profession && generatedSummary) {
+        const opening = generatedSummary.split(/[.;:\n]/)[0]?.split(/\s+(?:with|who|having|driving|focused|experienced|passionate)\b|,/i)[0]?.replace(/\([^)]*\)/g, " ")?.trim() ?? "";
+        if (opening && looksLikeTitle(opening)) {
+            profession = cleanRoleTitle(opening) || profession;
+        }
     }
 
     const additionalSections: ResumeAdditionalSection[] = extras

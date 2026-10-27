@@ -518,4 +518,26 @@ Python, SQL, Pandas, scikit-learn, Tableau, Statistics`;
         const q = buildMatchQuery(read(INTERN), 2026);
         assert.deepEqual(q.phrases, ['Data Science Intern', 'Data Analyst', 'Data Engineer']);
     });
+
+    it('expands non-hardcoded professions via Wikidata occupation aliases (e.g. Speech-Language Pathologist)', () => {
+        const slp = `Krithika Ramanarayanan
+Bangalore, India | krithika@example.com
+
+Summary
+Dedicated Speech Language Pathologist (SLP) with 5 years of clinical experience in dysphagia management and voice disorders.
+
+Experience
+Speech and Swallow Pathologist
+Sakra World Hospital, Bangalore | 1 year 7 months
+• Assessed and treated adult neurogenic communication and swallowing disorders.
+
+Skills
+Dysphagia Management, Voice Disorders, Microsoft Excel`;
+        const q = buildMatchQuery(read(slp), 2026);
+        assert.ok(q.phrases.includes('Speech Language Pathologist'), q.phrases.join(', '));
+        assert.ok(
+            q.phrases.includes('Speech and Language Therapist') || q.phrases.includes('Speech Therapist'),
+            q.phrases.join(', '),
+        );
+    });
 });

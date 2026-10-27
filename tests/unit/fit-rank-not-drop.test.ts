@@ -133,12 +133,12 @@ const SUMMARY: DeckLeftOutSummary = {
 };
 
 describe("the one disclosure line", () => {
-    it("counts the roles on the page, those ranked lower and those hidden", () => {
-        assert.equal(formatRankedLine(SUMMARY), "Showing 236 of 368 · 122 ranked lower · 55 hidden");
+    it("counts the roles evaluated, those ranked lower and those hidden", () => {
+        assert.equal(formatRankedLine(SUMMARY), "368 evaluated · 122 ranked lower · 55 hidden");
     });
     it("leaves out a part that is zero", () => {
-        assert.equal(formatRankedLine({ considered: 120, found: 300, listed: 100, byReason: {}, rankedLower: { stretch: 20 } }), "Showing 120 of 300 · 20 ranked lower");
-        assert.equal(formatRankedLine({ considered: 100, listed: 90, byReason: { old: 10 } }), "Showing 90 of 100 · 10 hidden");
+        assert.equal(formatRankedLine({ considered: 120, found: 300, listed: 100, byReason: {}, rankedLower: { stretch: 20 } }), "300 evaluated · 20 ranked lower");
+        assert.equal(formatRankedLine({ considered: 100, listed: 90, byReason: { old: 10 } }), "100 evaluated · 10 hidden");
         assert.equal(formatRankedLine({ considered: 100, found: 250, listed: 100, byReason: {} }), "Showing 100 of 250");
     });
     it("says nothing when the page holds everything the search found", () => {
@@ -188,7 +188,7 @@ describe("RankedListDisclosureView", () => {
     it("is one collapsed line by default", () => {
         const html = render(false);
         assert.match(html, /aria-expanded="false"/);
-        assert.match(html, /Showing 236 of 368 · 122 ranked lower · 55 hidden/);
+        assert.match(html, /368 evaluated · 122 ranked lower · 55 hidden/);
         assert.doesNotMatch(html, /data-testid="ranked-disclosure-panel"|Include|Postings in footer/);
     });
     it("opens to a row per non-zero bucket, an action beside each, and the languages last", () => {
