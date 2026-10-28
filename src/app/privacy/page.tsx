@@ -244,7 +244,7 @@ export default function PrivacyPage() {
           results more relevant the more you use Velai, and, looked at in aggregate across everyone, to understand
           which kinds of job postings people actually apply to so we can improve search for everyone. Job search is
           free. Anything that has our servers or AI handle your résumé costs {PRO_MONTHLY_PRICE} for a month, bought in advance with one payment and no
-          renewal; see the <Link href="/pricing">pricing page</Link>. We don&apos;t sell any of this to
+          renewal, or paid month to month if you choose that and cancel any time; see the <Link href="/pricing">pricing page</Link>. We don&apos;t sell any of this to
           advertisers. Velai never sells or licenses your data to anyone, even aggregated.
         </p>
 
