@@ -4,8 +4,9 @@ import { PricingClient } from "./pricing-client";
 import { PRICING_DESCRIPTION } from "./offer";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getServerUser } from "@/lib/auth/server-user";
-import { getAccessUntil } from "@/lib/billing/access";
-import { isBillingConfigured } from "@/lib/billing/config";
+import { paidSummary } from "@/lib/billing/access";
+import { isAutoRenewConfigured, isBillingConfigured } from "@/lib/billing/config";
+import { readProfile } from "@/lib/billing/profile-store";
 
 const TITLE = "Pricing";
 
@@ -23,11 +24,12 @@ export default async function PricingPage() {
   await connection();
   const user = await getServerUser();
   // A failed read must not 500 the page that sells the month: say so, keep buying open.
-  let accessUntil = 0;
+  let paidUntil: number | null = null;
+  let autoRenewing = false;
   let paidStatusUnknown = false;
   if (user) {
     try {
-      accessUntil = await getAccessUntil(user.uid);
+      ({ paidUntil, autoRenewing } = paidSummary(await readProfile(user.uid)));
     } catch {
       paidStatusUnknown = true;
     }
@@ -36,7 +38,9 @@ export default async function PricingPage() {
     <PricingClient
       signedIn={Boolean(user)}
       billingConfigured={isBillingConfigured()}
-      paidUntil={accessUntil > Date.now() ? accessUntil : null}
+      autoRenewConfigured={isAutoRenewConfigured()}
+      autoRenewing={autoRenewing}
+      paidUntil={paidUntil}
       paidStatusUnknown={paidStatusUnknown}
     />
   );

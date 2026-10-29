@@ -25,6 +25,7 @@ import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesS
 import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
 import { LandingNotice } from "@/components/layout/LandingNotice";
 import { FollowedCompaniesSection } from "@/components/settings/FollowedCompaniesSection";
+import { PaymentsSection } from "@/components/settings/PaymentsSection";
 import { PlanCard } from "@/components/settings/PlanCard";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { cn } from "@/lib/utils";
@@ -237,6 +238,10 @@ export function SettingsContainer() {
                                     {resetMessage.text}
                                 </p>
                             )}
+                        </SettingsCard>
+
+                        <SettingsCard>
+                            <PaymentsSection />
                         </SettingsCard>
 
                         <SettingsCard>

@@ -72,9 +72,11 @@ export default function TermsPage() {
         </p>
         <p>
           You buy {MIN_MONTHS} to {MAX_MONTHS} months at a time with a single payment, made through our payment provider. Each month adds
-          30 days of access to the account it was bought for. It never renews on its own and there is no trial. You
-          may request a full refund within {REFUND_DAYS} days of paying, for any reason, by contacting us from the email
-          address you paid with. Payment processing is handled by our payment provider under its own terms; we do
+          30 days of access to the account it was bought for. It never renews on its own and there is no trial. Where
+          month-to-month billing is offered, you may choose it instead: we charge {PRO_MONTHLY_PRICE} at the start of each
+          month until you cancel, you can cancel any time from account settings, and the month you have paid for stays
+          active until it ends. You may request a full refund within {REFUND_DAYS} days of any payment, for any reason, by
+          contacting us from the email address you paid with. Payment processing is handled by our payment provider under its own terms; we do
           not see or store your card details. When paid access ends, the free features keep working, and a résumé
           saved to your account is kept for a limited time before it is deleted, as described in the{" "}
           <Link href="/privacy">Privacy Policy</Link>.

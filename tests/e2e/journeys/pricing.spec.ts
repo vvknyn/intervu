@@ -63,3 +63,24 @@ test("pricing offers no data sale or licence", { tag: ["@J-PRICING-04"] }, async
   await expect(page.getByTestId("pricing-page")).not.toContainText(/Data API|licens/i);
   expect(diagnostics.serverErrors).toEqual([]);
 });
+
+test("when month to month is open the card offers Pay once / Month to month, and choosing it sells $6 a month with no month picker", { tag: ["@J-PRICING-09"] }, async ({ page, diagnostics }) => {
+  await page.goto("/pricing");
+  await expect(page.getByTestId("pricing-card")).toBeVisible();
+
+  const toggle = page.getByTestId("pricing-mode-monthly");
+  if ((await toggle.count()) === 0) {
+    // Payments, or the monthly price, are not set on this server: no half-offer is shown.
+    await expect(page.getByTestId("pricing-monthly-note")).toHaveCount(0);
+  } else {
+    await expect(page.getByTestId("pricing-monthly-note")).toContainText("Or pay month to month: $6 each month until you cancel");
+    await expect(page.getByTestId("pricing-months")).toBeVisible();
+    await toggle.click();
+    await expect(page.getByTestId("pricing-months")).toHaveCount(0);
+    await expect(page.getByTestId("pricing-total")).toContainText("$6 every month until you cancel");
+    await page.getByTestId("pricing-mode-prepaid").click();
+    await expect(page.getByTestId("pricing-months")).toBeVisible();
+    await expect(page.getByTestId("pricing-total")).toContainText("Total: $6 for 1 month");
+  }
+  expect(diagnostics.serverErrors).toEqual([]);
+});
