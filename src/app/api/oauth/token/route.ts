@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getAgentStore } from "@/lib/agent/store";
+import { getAgentStore, type AgentStore } from "@/lib/agent/store";
 import { exchangeCode, refreshAccess } from "@/lib/agent/oauth";
 import { AGENT } from "@/lib/agent/config";
+import { extractBasicClientId } from "@/lib/agent/http";
 import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 
@@ -44,6 +45,11 @@ function tokenJson(body: object, status = 200): Response {
  * egress IP to reach, so the default per-credential budget would starve them.
  */
 export async function POST(request: Request) {
+    return handleTokenRequest(request, getAgentStore());
+}
+
+/** `POST` with the store passed in, so a test can run the whole exchange against `memoryStore()`. */
+export async function handleTokenRequest(request: Request, store: AgentStore): Promise<Response> {
     const rate = checkRateLimit(`token:${resolveClientIpFromHeaders(request.headers)}`, undefined, AGENT.PUBLIC_RATE_LIMIT, "oauth_token");
     if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
 
@@ -54,8 +60,13 @@ export async function POST(request: Request) {
         return tokenJson({ error: "invalid_request" }, 400);
     }
 
-    const { grant_type, client_id } = body;
-    const store = getAgentStore();
+    // A client that registered asking for `client_secret_basic` names itself in
+    // the Authorization header and leaves `client_id` out of the body. The body
+    // wins when both are present.
+    const basicClientId = extractBasicClientId(request);
+    const { grant_type } = body;
+    const client_id = body.client_id || basicClientId;
+    const clientAuth = body.client_id ? "body" : "basic";
 
     if (grant_type === "authorization_code") {
         const { code, redirect_uri, code_verifier } = body;
@@ -67,6 +78,7 @@ export async function POST(request: Request) {
             console.error(`[oauth/token] exchangeCode rejected client_id=${client_id}: ${result.error}`);
             return tokenJson({ error: "invalid_grant" }, 400);
         }
+        console.log(`[oauth/token] ok grant=authorization_code client=${client_id.slice(0, 8)} auth=${clientAuth}`);
         return tokenJson(result);
     }
 
@@ -80,6 +92,7 @@ export async function POST(request: Request) {
             console.error(`[oauth/token] refreshAccess rejected client_id=${client_id}: ${result.error}`);
             return tokenJson({ error: "invalid_grant" }, 400);
         }
+        console.log(`[oauth/token] ok grant=refresh_token client=${client_id.slice(0, 8)} auth=${clientAuth}`);
         return tokenJson(result);
     }
 

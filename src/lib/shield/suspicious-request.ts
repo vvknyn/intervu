@@ -40,6 +40,19 @@ export function isThirdPartyCallbackPath(pathname: string): boolean {
   return isAtOrBeneath(pathname, "/api/webhooks");
 }
 
+/**
+ * The agent surface: `/api/mcp` and the two OAuth endpoints under
+ * `/api/oauth`. Hosted connectors (claude.ai, ChatGPT, Gemini) call these from
+ * the provider's own servers, so the User-Agent — or its absence — is the
+ * provider's choice, same as the webhook senders above. Nothing is lost by
+ * leaving them out: `/api/mcp` answers 401 without a valid bearer, and
+ * `/api/oauth/register` and `/api/oauth/token` are rate-limited per caller IP
+ * before any work (src/app/api/oauth/*).
+ */
+export function isAgentServerPath(pathname: string): boolean {
+  return isAtOrBeneath(pathname, "/api/mcp") || isAtOrBeneath(pathname, "/api/oauth");
+}
+
 export interface SuspiciousRequestInput {
   pathname: string;
   method: string;
@@ -49,6 +62,7 @@ export interface SuspiciousRequestInput {
 export function shouldBlockSuspiciousRequest(input: SuspiciousRequestInput): boolean {
   if (!isApiShapedPath(input.pathname)) return false;
   if (isThirdPartyCallbackPath(input.pathname)) return false;
+  if (isAgentServerPath(input.pathname)) return false;
   if (input.method === "GET" || input.method === "HEAD") return false;
   return (input.userAgent ?? "").trim().length === 0;
 }
