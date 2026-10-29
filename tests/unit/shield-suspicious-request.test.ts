@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isApiShapedPath, isThirdPartyCallbackPath, shouldBlockSuspiciousRequest } from "../../src/lib/shield/suspicious-request";
+import { isAgentServerPath, isApiShapedPath, isThirdPartyCallbackPath, shouldBlockSuspiciousRequest } from "../../src/lib/shield/suspicious-request";
 
 test("isApiShapedPath: matches /api and any nested /api/... path", () => {
   assert.equal(isApiShapedPath("/api"), true);
@@ -97,4 +97,32 @@ test("isThirdPartyCallbackPath: only /api/webhooks and paths beneath it", () => 
   assert.equal(isThirdPartyCallbackPath("/api/webhooksomething"), false);
   assert.equal(isThirdPartyCallbackPath("/api/auth/session"), false);
   assert.equal(isThirdPartyCallbackPath("/webhooks/resend"), false);
+});
+
+// --- The agent surface (a hosted connector's servers call /api/oauth/* and
+// /api/mcp; the User-Agent is theirs to choose, same as a webhook sender).
+
+test("shouldBlockSuspiciousRequest: never blocks the OAuth endpoints or /api/mcp for a connector that sends no User-Agent", () => {
+  for (const pathname of ["/api/oauth/register", "/api/oauth/token", "/api/mcp"]) {
+    for (const method of ["POST", "DELETE"]) {
+      assert.equal(
+        shouldBlockSuspiciousRequest({ pathname, method, userAgent: null }),
+        false,
+        `${method} ${pathname} must be exempt`,
+      );
+    }
+  }
+});
+
+test("isAgentServerPath: /api/mcp and /api/oauth and paths beneath them, at the segment boundary only", () => {
+  assert.equal(isAgentServerPath("/api/mcp"), true);
+  assert.equal(isAgentServerPath("/api/oauth/token"), true);
+  assert.equal(isAgentServerPath("/api/mcpx"), false);
+  assert.equal(isAgentServerPath("/api/oauthish/token"), false);
+  assert.equal(isAgentServerPath("/api/auth/session"), false);
+});
+
+test("shouldBlockSuspiciousRequest: the agent carve-out does not open the rest of /api/", () => {
+  assert.equal(shouldBlockSuspiciousRequest({ pathname: "/api/mcpx", method: "POST", userAgent: null }), true);
+  assert.equal(shouldBlockSuspiciousRequest({ pathname: "/api/jobs/search", method: "POST", userAgent: "" }), true);
 });

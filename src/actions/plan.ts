@@ -14,8 +14,8 @@ export async function fetchPlanAction(): Promise<{ plan?: PlanSummary; error?: s
     const user = await getServerUser();
     if (!user) return { error: "no-session" };
     try {
-        const [accessUntil, { grants }] = await Promise.all([getAccessUntil(user.uid), readProfileBilling(user.uid)]);
-        return { plan: planSummary({ accessUntil, grants, now: Date.now() }) };
+        const [accessUntil, { grants, autoRenew }] = await Promise.all([getAccessUntil(user.uid), readProfileBilling(user.uid)]);
+        return { plan: planSummary({ accessUntil, grants, now: Date.now(), autoRenew }) };
     } catch {
         return { error: "Couldn't load your plan" };
     }

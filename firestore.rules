@@ -9,9 +9,9 @@ service cloud.firestore {
     match /profiles/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null && request.auth.uid == userId
-        && !request.resource.data.keys().hasAny(['stripe_customer_id', 'access_until', 'grants', 'billing_updated_at', 'retention_warned_for', 'retention_warned_at', 'retention_first_seen_at', 'paid_until', 'granted_until', 'stripe_subscription_id', 'stripe_subscription_status', 'stripe_current_period_end', 'billing_entitled', 'billing_event_created', 'stripe_last_payment_failed_at']);
+        && !request.resource.data.keys().hasAny(['stripe_customer_id', 'access_until', 'auto_renew', 'grants', 'billing_updated_at', 'retention_warned_for', 'retention_warned_at', 'retention_first_seen_at', 'paid_until', 'granted_until', 'stripe_subscription_id', 'stripe_subscription_status', 'stripe_current_period_end', 'billing_entitled', 'billing_event_created', 'stripe_last_payment_failed_at']);
       allow update: if request.auth != null && request.auth.uid == userId
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['stripe_customer_id', 'access_until', 'grants', 'billing_updated_at', 'retention_warned_for', 'retention_warned_at', 'retention_first_seen_at', 'paid_until', 'granted_until', 'stripe_subscription_id', 'stripe_subscription_status', 'stripe_current_period_end', 'billing_entitled', 'billing_event_created', 'stripe_last_payment_failed_at']);
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['stripe_customer_id', 'access_until', 'auto_renew', 'grants', 'billing_updated_at', 'retention_warned_for', 'retention_warned_at', 'retention_first_seen_at', 'paid_until', 'granted_until', 'stripe_subscription_id', 'stripe_subscription_status', 'stripe_current_period_end', 'billing_entitled', 'billing_event_created', 'stripe_last_payment_failed_at']);
       // No client delete: it would erase the paid-time record; account erase uses the Admin SDK.
     }
 

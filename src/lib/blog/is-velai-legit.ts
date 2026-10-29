@@ -65,7 +65,7 @@ The founder writes on this blog under the pen name ${BLOG_AUTHOR.name}, with a d
 
 Searching and matching are free, with no card and no trial clock. Search is ordinary search with no AI behind it, so a search costs us very little to run. That is what lets Velai stay free.
 
-The parts that cost real money to run are paid, and there is one price, on the [pricing page](/pricing): ${PRO_MONTHLY_PRICE} a month, bought 1 to 12 months at a time. You pay once, it never renews on its own, and it is refundable on request, for any reason, within 14 days. A paid month is what lets us save your résumé on your account and run AI on it; without one, your résumé stays on your device.
+The parts that cost real money to run are paid, and there is one price, on the [pricing page](/pricing): ${PRO_MONTHLY_PRICE} a month, bought 1 to 12 months at a time. You pay once and it never renews on its own, unless you choose to pay month to month, which you can cancel any time. Either way a payment is refundable on request, for any reason, within 14 days. A paid month is what lets us save your résumé on your account and run AI on it; without one, your résumé stays on your device.
 
 There are no ads, and nothing about you is sold.
 

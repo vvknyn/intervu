@@ -118,3 +118,41 @@ describe("pricing offer helpers", () => {
     assert.match(PRICING_DESCRIPTION, /14-day refund/);
   });
 });
+
+describe("/pricing month to month", () => {
+  it("is not offered until its price is set: no toggle, no note, the prepaid picker as before", () => {
+    const html = render({ signedIn: true, billingConfigured: true, paidUntil: null });
+    assert.doesNotMatch(html, /pricing-mode-monthly|pricing-monthly-note|How to pay/);
+    assert.match(html, /data-testid="pricing-months"/);
+  });
+
+  it("once its price is set, the card says so and offers Pay once / Month to month, prepaid first", () => {
+    const html = render({ signedIn: true, billingConfigured: true, autoRenewConfigured: true, paidUntil: null });
+    assert.match(html, /data-testid="pricing-monthly-note"[^>]*>Or pay month to month: \$6 each month until you cancel/);
+    assert.match(html, /role="radiogroup"[^>]*aria-label="How to pay"|aria-label="How to pay"[^>]*role="radiogroup"/);
+    assert.match(html, /data-testid="pricing-mode-prepaid"[^>]*>(?:<svg.*?<\/svg>)?Pay once/);
+    assert.match(html, /data-testid="pricing-mode-monthly"[^>]*>(?:<svg.*?<\/svg>)?Month to month/);
+    assert.equal([...html.matchAll(/<option /g)].length, 12, "the prepaid picker is what shows first");
+    assert.match(html, /no auto-renew/, "the prepaid promise still reads true beside the monthly option");
+  });
+
+  it("the month-to-month note and toggle need billing: with payments not open, only 'Payments open soon'", () => {
+    const html = render({ signedIn: true, billingConfigured: false, autoRenewConfigured: true, paidUntil: null });
+    assert.match(html, /Payments open soon/);
+    assert.doesNotMatch(html, /pricing-mode-monthly|pricing-buy/);
+  });
+
+  it("while month to month is live: the next payment date and a Settings link replace the monthly choice and 'Paid until'", () => {
+    const html = render({ signedIn: true, billingConfigured: true, autoRenewConfigured: true, autoRenewing: true, paidUntil: PAID_UNTIL });
+    assert.match(html, /data-testid="pricing-auto-renewing"[^>]*>Month to month is on\. Next payment /);
+    assert.ok(html.includes(formatPaidUntil(PAID_UNTIL)));
+    assert.match(html, /href="\/settings\?tab=account"/);
+    assert.doesNotMatch(html, /pricing-mode-monthly|pricing-paid-until/);
+  });
+
+  it("month to month live but only the renewal slack left: says it is on, with no date", () => {
+    const html = render({ signedIn: true, billingConfigured: true, autoRenewConfigured: true, autoRenewing: true, paidUntil: null });
+    assert.match(html, /Month to month is on\./);
+    assert.doesNotMatch(html, /Next payment/);
+  });
+});

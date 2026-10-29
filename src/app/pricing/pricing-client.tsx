@@ -21,11 +21,16 @@ import {
   totalPrice,
 } from "./offer";
 import { Disclosure, DisclosureSummary } from "@/components/ui/disclosure";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type PricingClientProps = {
   signedIn: boolean;
   /** False when the server has no Stripe key or price: the card says so and renders no button. */
   billingConfigured: boolean;
+  /** True when a recurring monthly price is set too: the card then offers month to month beside prepaid months. */
+  autoRenewConfigured?: boolean;
+  /** True while the account's month-to-month subscription is live: it is managed in Settings, not bought again. */
+  autoRenewing?: boolean;
   /** Epoch ms the account's access runs to, or null when it has none now. */
   paidUntil: number | null;
   /** True when the paid-time read failed: the card says so; buying stays open. */
@@ -62,8 +67,19 @@ function FeatureList({ items }: { items: string[] }) {
   );
 }
 
-export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStatusUnknown = false }: PricingClientProps) {
+type PayMode = "prepaid" | "monthly";
+
+export function PricingClient({
+  signedIn,
+  billingConfigured,
+  autoRenewConfigured = false,
+  autoRenewing = false,
+  paidUntil,
+  paidStatusUnknown = false,
+}: PricingClientProps) {
   const [months, setMonths] = useState(1);
+  const [mode, setMode] = useState<PayMode>("prepaid");
+  const monthly = mode === "monthly" && autoRenewConfigured && !autoRenewing;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,12 +90,12 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
   async function buy() {
     setBusy(true);
     setError(null);
-    captureEvent("upgrade_clicked", { signed_in: signedIn, months });
+    captureEvent("upgrade_clicked", monthly ? { signed_in: signedIn, months: 1, auto_renew: true } : { signed_in: signedIn, months });
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ months }),
+        body: JSON.stringify(monthly ? { autoRenew: true } : { months }),
       });
       // load-result-allow: an unreadable reply falls to CHECKOUT_FALLBACK_ERROR on the page and Buy comes back; nothing renders as empty
       const body = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
@@ -111,6 +127,11 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
         <p className="mt-1 text-sm text-muted-foreground">
           Buy 1 to 12 months at a time. One payment, no auto-renew, no trial, and a {REFUND_DAYS}-day refund.
         </p>
+        {autoRenewConfigured ? (
+          <p data-testid="pricing-monthly-note" className="mt-1 text-sm text-muted-foreground">
+            Or pay month to month: {PRO_MONTHLY_PRICE} each month until you cancel, with the same refund.
+          </p>
+        ) : null}
 
         <p className="mt-5 text-sm font-semibold text-foreground">Always free</p>
         <FeatureList items={FREE_FEATURES} />
@@ -118,7 +139,12 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
         <p className="mt-5 text-sm font-semibold text-foreground">Each month adds</p>
         <FeatureList items={PAID_FEATURES.map(upperFirst)} />
 
-        {paidUntil !== null ? (
+        {autoRenewing ? (
+          <p data-testid="pricing-auto-renewing" className="mt-5 text-sm font-semibold text-foreground">
+            Month to month is on{paidUntil !== null ? `. Next payment ${formatPaidUntil(paidUntil)}` : ""}.{" "}
+            <Link href="/settings?tab=account" className="font-normal underline">Manage it in Settings</Link>
+          </p>
+        ) : paidUntil !== null ? (
           <p data-testid="pricing-paid-until" className="mt-5 text-sm font-semibold text-foreground">
             Paid until {formatPaidUntil(paidUntil)}
           </p>
@@ -132,28 +158,48 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
         <div className="mt-5 border-t border-border pt-4">
           {billingConfigured ? (
             <>
-              <label htmlFor="pricing-months" className="text-sm font-semibold text-foreground">
-                How many months
-              </label>
-              <select
-                id="pricing-months"
-                data-testid="pricing-months"
-                value={months}
-                onChange={(e) => setMonths(Number(e.target.value))}
-                className={cn("mt-1.5 ctl-lg w-full rounded-ctl border border-border bg-card px-3 text-base outline-none", CONTROL_FOCUS_VISIBLE)}
-              >
-                {MONTH_CHOICES.map((m) => (
-                  <option key={m} value={m}>
-                    {monthsLabel(m)}
-                  </option>
-                ))}
-              </select>
+              {autoRenewConfigured && !autoRenewing ? (
+                <ToggleGroup
+                  role="radiogroup"
+                  aria-label="How to pay"
+                  className="mb-4 flex flex-wrap gap-2"
+                  value={mode}
+                  onValueChange={(v) => v && setMode(v as PayMode)}
+                >
+                  <ToggleGroupItem value="prepaid" data-testid="pricing-mode-prepaid">Pay once</ToggleGroupItem>
+                  <ToggleGroupItem value="monthly" data-testid="pricing-mode-monthly">Month to month</ToggleGroupItem>
+                </ToggleGroup>
+              ) : null}
+              {monthly ? null : (
+                <>
+                  <label htmlFor="pricing-months" className="text-sm font-semibold text-foreground">
+                    How many months
+                  </label>
+                  <select
+                    id="pricing-months"
+                    data-testid="pricing-months"
+                    value={months}
+                    onChange={(e) => setMonths(Number(e.target.value))}
+                    className={cn("mt-1.5 ctl-lg w-full rounded-ctl border border-border bg-card px-3 text-base outline-none", CONTROL_FOCUS_VISIBLE)}
+                  >
+                    {MONTH_CHOICES.map((m) => (
+                      <option key={m} value={m}>
+                        {monthsLabel(m)}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
               <p data-testid="pricing-total" className="mt-2 text-sm text-muted-foreground">
-                Total: {totalPrice(months)} for {monthsLabel(months)}
+                {monthly
+                  ? `${PRO_MONTHLY_PRICE} every month until you cancel. Cancel any time in Settings; the month you've paid for stays active.`
+                  : `Total: ${totalPrice(months)} for ${monthsLabel(months)}`}
               </p>
               {signedIn ? (
                 <Button data-testid="pricing-buy" className="mt-3 w-full" disabled={busy} onClick={() => void buy()}>
-                  {paidUntil !== null ? "Add" : "Buy"} {monthsLabel(months)} for {totalPrice(months)}
+                  {monthly
+                    ? `Pay ${PRO_MONTHLY_PRICE} a month`
+                    : `${paidUntil !== null ? "Add" : "Buy"} ${monthsLabel(months)} for ${totalPrice(months)}`}
                 </Button>
               ) : (
                 <Button asChild className="mt-3 w-full">

@@ -721,7 +721,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONNECT-07 | Deep-link a client with ?client= and land on that tab | anon | /connect?client=cursor | signed-out | no | uncovered | — |
 | J-CONNECT-08 | Deep-link ?client=openclaw and fall back to the Claude tab | anon | /connect?client=openclaw | signed-out | no | uncovered | — |
 | J-CONNECT-09 | Click "Open <client>" and reach the verified vendor site in a new tab | anon | /connect?client=claude | signed-out | no | uncovered | — (legacy: connect.spec.ts › "<label>" tab: Open link points at the verified vendor URL, opens in a new tab without leaking window.opener) |
-| J-CONNECT-10 | Read the Gemini-specific requirement note | anon | /connect?client=gemini | signed-out | no | uncovered | — |
+| J-CONNECT-10 | Read the Gemini-specific note: a personal Google account with Keep Activity on, the client ID and secret boxes left empty, and "sign in and try again" when Gemini says "Account linking is required" (Gemini could not link velai.app, 2026-10-29) | anon | /connect?client=gemini | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-11 | Choose Claude or ChatGPT tab and have the choice remembered for job handoffs | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-12 | Open "Raw JSON config" and copy the mcpServers snippet | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-13 | Open "Sample prompts" and copy one prompt | anon | /connect | signed-out | no | uncovered | — |
@@ -770,6 +770,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-OAUTH-20 | The consent card's "This will let it, as you:" list and its limits match the MCP tool list (search; read and replace the résumé; read and update the tracker; read and change preferences; never submit an application) | signed-in | /oauth/authorize?client_id=…&… | signed-in | no | uncovered | — |
 | J-OAUTH-21 | Discover the protected-resource metadata from the 401's `resource_metadata` URL | agent | GET /api/mcp, then the WWW-Authenticate `resource_metadata` URL (/.well-known/oauth-protected-resource) | signed-out | no | covered | connect.spec.ts |
 | J-OAUTH-22 | A résumé-less user who signs in with a password from the OAuth "Sign in to continue" card returns to /oauth/authorize with its params and can Allow, not the résumé upload (signup: J-OAUTH-19) | anon | /oauth/authorize?client_id=…&redirect_uri=…&code_challenge=…&code_challenge_method=S256&response_type=code | signed-out | no | uncovered | — |
+| J-OAUTH-23 | The token endpoint reads a client id sent as `Authorization: Basic` (a connector that registered for `client_secret_basic`): for a code that does not exist it answers invalid_grant, and with no client id at all invalid_request (Gemini could not link velai.app, 2026-10-29) | agent | POST /api/oauth/token | signed-out | no | covered | connect.spec.ts |
 
 ## CONTENT
 
@@ -886,6 +887,8 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-PRICING-06 | Signed out, press "Sign in to buy", sign in, and land back on /pricing | anon | /pricing | signed-out | no | uncovered | — |
 | J-PRICING-07 | Signed in, pick a number of months, see the total, press Buy and land on Stripe's hosted checkout | signed-in | /pricing | signed-in | yes | uncovered | — |
 | J-PRICING-08 | Signed in with paid access, see "Paid until <date>" on the card | signed-in | /pricing | signed-in | no | uncovered | — |
+| J-PRICING-09 | When month to month is open, the card offers "Pay once" / "Month to month"; choosing monthly drops the month picker and sells $6 every month until cancelled; where it is not open, no half-offer shows | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-10 | Signed in, choose Month to month, press "Pay $6 a month" and land on Stripe's hosted checkout | signed-in | /pricing | signed-in | yes | uncovered | — |
 
 ## BILLING
 
@@ -896,6 +899,8 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-BILLING-03 | Signed in on Settings, see a Plan card above the tabs: Free with "See the paid month", or "Full access through <date>" (marked a gift when no payment extended it) with "Add months"; a failed read says so and never shows Free (runs on a local server only: needs the dev-only sign-in hook) | signed-in | /settings | signed-in | no | covered | plan-visibility.spec.ts |
 | J-BILLING-04 | Signed in with full access ending within 7 days, see the ending notice on any page except /pricing; dismissing it keeps it away for that end date (runs on a local server only) | signed-in | /jobs | signed-in | no | covered | plan-visibility.spec.ts |
 | J-BILLING-05 | Signed in, open the account menu and choose "Plan & pricing" to land on /pricing | signed-in | /jobs, account menu | signed-in | no | uncovered | — |
+| J-BILLING-06 | Signed in on Settings › Account, see Payments: every payment newest first with what it bought, the amount, any refund and a receipt link, or "No payments yet."; a failed read says it could not load (with Retry) and never "No payments yet." (runs on a local server only: needs the dev-only sign-in hook) | signed-in | /settings?tab=account | signed-in | no | covered | plan-visibility.spec.ts |
+| J-BILLING-07 | With month to month on, the Plan card reads "Full access, month to month — next payment <date>" with "Manage payments", and Payments says when the next payment is, that it is cancelled and runs to a date, or that the last charge failed; "Manage billing" opens Stripe's billing page and a refusal is shown (runs on a local server only) | signed-in | /settings?tab=account | signed-in | no | covered | plan-visibility.spec.ts |
 
 ## ERR
 

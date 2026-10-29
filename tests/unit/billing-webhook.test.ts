@@ -45,8 +45,20 @@ describe("stripe webhook", () => {
         const event = { type: "charge.refunded", data: { object: { customer: "cus_1", metadata: { velai_uid: "uid_meta" } } } };
         assert.deepEqual((await run(event)).calls, [["uid_meta", "cus_1"]]);
     });
-    it("acknowledges but ignores every other event type, including subscription ones", async () => {
-        for (const type of ["customer.subscription.updated", "invoice.payment_failed", "checkout.session.async_payment_failed"]) {
+    it("dispatches the month-to-month events: a paid renewal and a subscription that changed or ended", async () => {
+        for (const type of ["invoice.paid", "customer.subscription.updated", "customer.subscription.deleted"]) {
+            const { result, calls } = await run({ type, data: { object: { customer: "cus_1", metadata: { velai_uid: "uid_meta" } } } });
+            assert.equal(result.status, 200);
+            assert.deepEqual(calls, [["uid_meta", "cus_1"]], type);
+        }
+    });
+    it("an invoice names its account through the subscription's metadata when the customer is not on file", async () => {
+        const object = { customer: "cus_1", metadata: {}, parent: { type: "subscription_details", subscription_details: { metadata: { velai_uid: "uid_sub" } } } };
+        assert.deepEqual((await run({ type: "invoice.paid", data: { object } })).calls, [["uid_sub", "cus_1"]]);
+        assert.deepEqual((await run({ type: "invoice.paid", data: { object } }, { known: "uid_known" })).calls, [["uid_known", "cus_1"]]);
+    });
+    it("acknowledges but ignores every other event type, including a failed renewal (the subscription update that follows it recomputes)", async () => {
+        for (const type of ["invoice.payment_failed", "invoice.created", "checkout.session.async_payment_failed"]) {
             const { result, calls } = await run(session(type));
             assert.equal(result.status, 200);
             assert.equal(calls.length, 0);

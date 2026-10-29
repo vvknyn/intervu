@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { getServerUser } from "@/lib/auth/server-user";
+import { paidThrough } from "@/lib/billing/access";
 import { decideReturn } from "@/lib/billing/return";
 import { getStripe } from "@/lib/billing/stripe-client";
 import { readIdField } from "@/lib/billing/events";
@@ -24,7 +25,13 @@ async function resolveMessage(sessionId: string | undefined): Promise<string> {
         const customerId = readIdField(session.customer);
         if (!customerId) return "Your payment went through but is still being linked to your account. Refresh in a minute.";
         const until = await recomputeAccess(user.uid, customerId);
-        return `Paid until ${new Date(until).toLocaleDateString("en-US", { dateStyle: "long", timeZone: "UTC" })}.`;
+        const date = (ms: number) => new Date(ms).toLocaleDateString("en-US", { dateStyle: "long", timeZone: "UTC" });
+        if (session.mode === "subscription") {
+            return until > 0
+                ? `Month to month is on. Your next payment is ${date(paidThrough(until, true))}. Cancel any time under Settings, Account.`
+                : "Your payment went through but is still being linked to your account. Refresh in a minute.";
+        }
+        return `Paid until ${date(until)}.`;
     } catch {
         return "We could not confirm that payment yet. If you were charged, your access will appear shortly.";
     }

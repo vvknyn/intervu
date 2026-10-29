@@ -89,3 +89,78 @@ test("the ending notice shows within 7 days of the end, stays off /pricing, and 
   await expect(page.getByTestId("topbar")).toBeVisible();
   await expect(notice).toHaveCount(0);
 });
+
+const row = (paidMs: number, label: string, amount: number, refunded: number, receiptUrl: string | null) => ({ paidMs, label, amount, refunded, currency: "usd", receiptUrl });
+const PAYMENTS = [
+  row(Date.UTC(2031, 0, 10), "Month to month", 600, 0, "https://pay.stripe.com/receipts/m2"),
+  row(Date.UTC(2030, 11, 10), "3 months", 1800, 600, null),
+  row(Date.UTC(2030, 5, 1), "1 month", 600, 600, "https://pay.stripe.com/receipts/a"),
+];
+const billing = (over: Record<string, unknown> = {}) => ({ payments: PAYMENTS, subscription: null, canManage: true, ...over });
+const FREE = { status: "free" };
+
+test("Settings › Account lists every payment, with refunds and receipts, or says there are none, or says it could not load", { tag: ["@J-BILLING-06"] }, async ({ page, baseURL }) => {
+  test.skip(!isLocal(baseURL), "needs the dev-only __INTERVU_E2E_AUTH__ hook, which production builds ignore");
+
+  await signInWithPlan(page, { plan: FREE, billing: billing() });
+  await page.goto("/mock/settings?tab=account");
+  const card = page.getByTestId("payments-card");
+  const rows = card.getByTestId("payments-row");
+  await expect(rows).toHaveCount(3, { timeout: 30_000 });
+  await expect(rows.nth(0)).toContainText("Month to month");
+  await expect(rows.nth(0)).toContainText("Jan 10, 2031");
+  await expect(rows.nth(0)).toContainText("$6.00");
+  await expect(rows.nth(0).getByRole("link", { name: "Receipt" })).toHaveAttribute("href", "https://pay.stripe.com/receipts/m2");
+  await expect(rows.nth(1)).toContainText("3 months");
+  await expect(rows.nth(1)).toContainText("$18.00");
+  await expect(rows.nth(1)).toContainText("$6.00 refunded");
+  await expect(rows.nth(1).getByRole("link", { name: "Receipt" })).toHaveCount(0);
+  await expect(rows.nth(2)).toContainText("Refunded");
+  await expect(card.getByTestId("payments-empty")).toHaveCount(0);
+  await expect(card.getByTestId("payments-manage")).toBeVisible();
+
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await signInWithPlan(page, { plan: FREE, billing: billing({ payments: [], canManage: false }) });
+  await page.goto("/mock/settings?tab=account");
+  await expect(page.getByTestId("payments-empty")).toHaveText("No payments yet.", { timeout: 30_000 });
+  await expect(page.getByTestId("payments-manage")).toHaveCount(0);
+
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await signInWithPlan(page, { plan: FREE, error: "Couldn't load your payments" });
+  await page.goto("/mock/settings?tab=account");
+  await expect(page.getByTestId("payments-error")).toContainText("can't load your payments", { timeout: 30_000 });
+  await expect(page.getByTestId("payments-error-retry")).toBeVisible();
+  await expect(page.getByTestId("payments-empty")).toHaveCount(0);
+});
+
+test("with month to month on, the plan and Payments say when the next payment is, when it ends, or that a charge failed, and Manage billing opens Stripe", { tag: ["@J-BILLING-07"] }, async ({ page, baseURL }) => {
+  test.skip(!isLocal(baseURL), "needs the dev-only __INTERVU_E2E_AUTH__ hook, which production builds ignore");
+  const until = Date.UTC(2031, 1, 10);
+  const full = { status: "full", until, gift: false, endsSoon: false, autoRenew: true };
+  const cases: { subscription: { state: string; periodEndMs: number }; says: RegExp }[] = [
+    { subscription: { state: "renewing", periodEndMs: until }, says: /Month to month is on\. Next payment of \$6 on Feb 10, 2031\. Cancel any time\./ },
+    { subscription: { state: "ending", periodEndMs: until }, says: /Month to month is cancelled\. Your access runs to Feb 10, 2031 and you won't be charged again\./ },
+    { subscription: { state: "past_due", periodEndMs: until }, says: /last month-to-month payment didn't go through\. Update your card/ },
+  ];
+  for (const c of cases) {
+    await signInWithPlan(page, { plan: full, billing: billing({ subscription: c.subscription }) });
+    await page.goto("/mock/settings?tab=account");
+    await expect(page.getByTestId("payments-subscription")).toHaveText(c.says, { timeout: 30_000 });
+    const plan = page.getByTestId("plan-card");
+    await expect(plan).toContainText("Full access, month to month — next payment Feb 10, 2031");
+    await expect(plan).not.toContainText(/Add months/);
+    await expect(plan.getByRole("link", { name: "Manage payments" })).toHaveAttribute("href", "/settings?tab=account");
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  }
+
+  // Manage billing goes to wherever the portal route says; a refusal is shown, never a dead click.
+  await signInWithPlan(page, { plan: full, billing: billing({ subscription: { state: "renewing", periodEndMs: until } }) });
+  await page.route("**/api/billing/portal", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "The billing page isn't available right now. Try again later." }) }));
+  await page.goto("/mock/settings?tab=account");
+  await page.getByTestId("payments-manage").click({ timeout: 30_000 });
+  await expect(page.getByTestId("payments-portal-error")).toContainText("isn't available right now");
+  await page.unroute("**/api/billing/portal");
+  await page.route("**/api/billing/portal", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ url: `${baseURL}/about` }) }));
+  await page.getByTestId("payments-manage").click();
+  await expect(page).toHaveURL(/\/about$/);
+});
