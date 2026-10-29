@@ -231,8 +231,8 @@ export interface EventPayloads {
 
   /** /pricing mounted. */
   pricing_viewed: { signed_in: boolean };
-  /** The Buy button on /pricing was pressed for `months` months (1-12). No amounts: the price is a page constant. */
-  upgrade_clicked: { signed_in: boolean; months: number };
+  /** The Buy button on /pricing was pressed for `months` months (1-12), or, with `auto_renew`, to pay month to month. No amounts: the price is a page constant. */
+  upgrade_clicked: { signed_in: boolean; months: number; auto_renew?: boolean };
 
   /** A search saved to the account or this browser (the weekly email reads the account's). */
   saved_search_created: {

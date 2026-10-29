@@ -4,8 +4,18 @@ import { readFileSync } from "node:fs";
 import type Stripe from "stripe";
 import { MAX_MONTHS, MIN_MONTHS, MONTH_PRICE_USD } from "../../src/app/pricing/offer";
 import { SERVER_ONLY_PROFILE_FIELDS } from "../../src/lib/billing/profile-store";
-import { buildCheckoutParams, parseMonths, startCheckout, type StartCheckoutDeps } from "../../src/lib/billing/checkout";
-import { isBillingConfigured } from "../../src/lib/billing/config";
+import {
+    buildCheckoutParams,
+    buildSubscriptionCheckoutParams,
+    parseMonths,
+    startCheckout,
+    startPortal,
+    startSubscriptionCheckout,
+    subscriptionPriceMatchesOffer,
+    type StartCheckoutDeps,
+    type StartSubscriptionDeps,
+} from "../../src/lib/billing/checkout";
+import { isAutoRenewConfigured, isBillingConfigured, readSubscriptionPriceId } from "../../src/lib/billing/config";
 import { decideReturn } from "../../src/lib/billing/return";
 import { parseGrantArgs } from "../../scripts/grant-access-days";
 
@@ -139,5 +149,128 @@ describe("grant script", () => {
         for (const bad of [[], ["--days", "30"], ["--all-accounts"], ok.slice(0, 3), ["--days", "0", "--all-accounts", "--grant-id", "g"], ["--days", "367", "--all-accounts", "--grant-id", "g"], [...ok.slice(0, 4), "bad id!"]]) {
             assert.ok("error" in (parseGrantArgs(bad) as object));
         }
+    });
+});
+
+describe("buildSubscriptionCheckoutParams", () => {
+    const p = buildSubscriptionCheckoutParams({ uid: "uid_1", priceId: "price_m", origin: "https://velai.app", customerId: "cus_1" });
+    it("is a subscription of one monthly price, tagged with the uid on the session and the subscription, naming the customer", () => {
+        assert.equal(p.mode, "subscription");
+        assert.deepEqual(p.line_items, [{ price: "price_m", quantity: 1 }]);
+        assert.equal(p.customer, "cus_1");
+        assert.equal("customer_creation" in p, false);
+        assert.equal(p.client_reference_id, "uid_1");
+        assert.equal(p.metadata?.velai_uid, "uid_1");
+        assert.equal(p.subscription_data?.metadata?.velai_uid, "uid_1");
+        assert.equal(p.success_url, "https://velai.app/billing/return?session_id={CHECKOUT_SESSION_ID}");
+        assert.equal(p.cancel_url, "https://velai.app/pricing");
+    });
+    it("lets the buyer change nothing: no adjustable quantity, no trial", () => {
+        assert.equal(JSON.stringify(p.line_items).includes("adjustable_quantity"), false);
+        assert.equal(p.subscription_data?.trial_period_days, undefined);
+    });
+});
+
+describe("subscriptionPriceMatchesOffer", () => {
+    const ok = { unit_amount: MONTH_PRICE_USD * 100, currency: "usd", recurring: { interval: "month", interval_count: 1 } };
+    it("needs the offer's amount and currency, billed every one month", () => {
+        assert.equal(subscriptionPriceMatchesOffer(ok), true);
+        for (const bad of [
+            { ...ok, unit_amount: ok.unit_amount + 1 },
+            { ...ok, currency: "eur" },
+            { ...ok, recurring: null },
+            { ...ok, recurring: { interval: "year", interval_count: 1 } },
+            { ...ok, recurring: { interval: "month", interval_count: 3 } },
+        ]) assert.equal(subscriptionPriceMatchesOffer(bad), false);
+    });
+});
+
+function fakeSubDeps(over: { price?: Partial<{ unit_amount: number | null; currency: string; recurring: { interval: string; interval_count: number } | null }>; stored?: string | null; existing?: string[]; url?: string | null } = {}) {
+    const seen = { sessions: [] as Stripe.Checkout.SessionCreateParams[], created: 0, stored: [] as string[], logs: [] as string[], listed: [] as string[] };
+    const deps: StartSubscriptionDeps = {
+        stripe: {
+            prices: { retrieve: async () => ({ unit_amount: MONTH_PRICE_USD * 100, currency: "usd", recurring: { interval: "month", interval_count: 1 }, ...over.price }) },
+            customers: { create: async () => (seen.created++, { id: "cus_new" }) },
+            subscriptions: { list: async (p) => (seen.listed.push(p.customer), { data: (over.existing ?? []).map((status) => ({ status })) }) },
+            checkout: { sessions: { create: async (params) => (seen.sessions.push(params), { url: over.url === undefined ? "https://stripe/sub" : over.url }) } },
+        },
+        readCustomerId: async () => (over.stored === undefined ? null : over.stored),
+        storeCustomerId: async (_u, id) => void seen.stored.push(id),
+        log: (l) => seen.logs.push(l),
+    };
+    return { deps, seen };
+}
+const startSub = (deps: StartSubscriptionDeps) => startSubscriptionCheckout(deps, { uid: "uid_1", priceId: "price_m", origin: "https://velai.app" });
+
+describe("startSubscriptionCheckout", () => {
+    it("creates and stores the one customer first, checks for a live subscription on it, then opens a subscription session naming it", async () => {
+        const { deps, seen } = fakeSubDeps();
+        assert.deepEqual(await startSub(deps), { status: 200, body: { url: "https://stripe/sub" } });
+        assert.equal(seen.created, 1);
+        assert.deepEqual(seen.stored, ["cus_new"]);
+        assert.deepEqual(seen.listed, ["cus_new"]);
+        assert.equal(seen.sessions[0].mode, "subscription");
+        assert.equal(seen.sessions[0].customer, "cus_new");
+    });
+    it("a price that is not the offer (amount, currency or interval) is 503 with a log and no session", async () => {
+        for (const price of [{ unit_amount: MONTH_PRICE_USD * 100 + 1 }, { currency: "eur" }, { recurring: null }, { recurring: { interval: "year", interval_count: 1 } }]) {
+            const { deps, seen } = fakeSubDeps({ price });
+            const r = await startSub(deps);
+            assert.equal(r.status, 503);
+            assert.equal(seen.logs.length, 1);
+            assert.equal(seen.sessions.length + seen.created, 0);
+        }
+    });
+    it("an account with a live subscription (even one cancelling, or past due) is 409 and is sent to manage it, never charged twice", async () => {
+        for (const status of ["active", "trialing", "past_due", "unpaid", "paused", "incomplete"]) {
+            const { deps, seen } = fakeSubDeps({ stored: "cus_old", existing: ["canceled", status] });
+            const r = await startSub(deps);
+            assert.equal(r.status, 409, status);
+            assert.match((r.body as { error: string }).error, /Manage it in Settings/);
+            assert.equal(seen.sessions.length, 0);
+        }
+    });
+    it("old cancelled subscriptions do not block a new one", async () => {
+        const { deps, seen } = fakeSubDeps({ stored: "cus_old", existing: ["canceled", "incomplete_expired"] });
+        assert.equal((await startSub(deps)).status, 200);
+        assert.equal(seen.sessions[0].customer, "cus_old");
+    });
+    it("a session with no url is 503", async () => {
+        assert.equal((await startSub(fakeSubDeps({ url: null }).deps)).status, 503);
+    });
+});
+
+describe("startPortal", () => {
+    const deps = (stored: string | null) => {
+        const seen: { customer: string; return_url: string }[] = [];
+        return {
+            seen,
+            deps: {
+                stripe: { billingPortal: { sessions: { create: async (p: { customer: string; return_url: string }) => (seen.push(p), { url: "https://billing.stripe.com/p/x" }) } } },
+                readCustomerId: async () => stored,
+            },
+        };
+    };
+    it("opens the customer's portal and returns to Settings › Account", async () => {
+        const { deps: d, seen } = deps("cus_1");
+        assert.deepEqual(await startPortal(d, { uid: "uid_1", origin: "https://velai.app" }), { status: 200, body: { url: "https://billing.stripe.com/p/x" } });
+        assert.deepEqual(seen, [{ customer: "cus_1", return_url: "https://velai.app/settings?tab=account" }]);
+    });
+    it("an account that never paid has nothing to manage: 404, and Stripe is not called", async () => {
+        const { deps: d, seen } = deps(null);
+        assert.equal((await startPortal(d, { uid: "uid_1", origin: "https://velai.app" })).status, 404);
+        assert.equal(seen.length, 0);
+    });
+});
+
+describe("isAutoRenewConfigured", () => {
+    const base = { STRIPE_SECRET_KEY: "k", STRIPE_WEBHOOK_SECRET: "w", STRIPE_PRICE_ID: "p" };
+    it("month to month needs billing and its own price; unset, it is off", () => {
+        assert.equal(isAutoRenewConfigured(base), false);
+        assert.equal(isAutoRenewConfigured({ ...base, STRIPE_SUBSCRIPTION_PRICE_ID: " " }), false);
+        assert.equal(isAutoRenewConfigured({ ...base, STRIPE_SUBSCRIPTION_PRICE_ID: "price_m" }), true);
+        assert.equal(isAutoRenewConfigured({ STRIPE_SUBSCRIPTION_PRICE_ID: "price_m" }), false);
+        assert.equal(readSubscriptionPriceId({ STRIPE_SUBSCRIPTION_PRICE_ID: " price_m " }), "price_m");
+        assert.throws(() => readSubscriptionPriceId({}), /STRIPE_SUBSCRIPTION_PRICE_ID/);
     });
 });

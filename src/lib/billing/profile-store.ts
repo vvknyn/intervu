@@ -3,6 +3,7 @@
  *   stripe_customer_id: string          set once by checkout
  *   grants: {id, at, days}[]            dated free-access entries, appended by addGrant
  *   access_until: number (epoch ms)     the ONE access field, written only by recompute
+ *   auto_renew: boolean                 a live month-to-month subscription, written only by recompute
  */
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -18,6 +19,7 @@ const profiles = () => db().collection("profiles");
 export const SERVER_ONLY_PROFILE_FIELDS: readonly string[] = [
     "stripe_customer_id",
     "access_until",
+    "auto_renew",
     "grants",
     "billing_updated_at",
     "retention_warned_for",
@@ -48,6 +50,7 @@ export async function findUidByStripeCustomerId(customerId: string): Promise<str
 export interface ProfileBilling {
     stripeCustomerId: string | null;
     grants: Grant[];
+    autoRenew: boolean;
 }
 
 const isGrant = (g: unknown): g is Grant =>
@@ -57,6 +60,7 @@ export function shapeProfileBilling(data: Record<string, unknown> | undefined): 
     return {
         stripeCustomerId: typeof data?.stripe_customer_id === "string" && data.stripe_customer_id ? data.stripe_customer_id : null,
         grants: Array.isArray(data?.grants) ? data.grants.filter(isGrant) : [],
+        autoRenew: data?.auto_renew === true,
     };
 }
 
@@ -73,10 +77,16 @@ export async function writeStripeCustomerId(uid: string, customerId: string): Pr
     await profiles().doc(uid).set({ stripe_customer_id: customerId }, { merge: true });
 }
 
-export async function writeAccessUntil(uid: string, accessUntil: number, customerId: string | null): Promise<void> {
+export async function writeAccessUntil(
+    uid: string,
+    accessUntil: number,
+    customerId: string | null,
+    autoRenew: boolean = false,
+): Promise<void> {
     await profiles().doc(uid).set(
         {
             access_until: accessUntil,
+            auto_renew: autoRenew,
             ...(customerId ? { stripe_customer_id: customerId } : {}),
             billing_updated_at: new Date().toISOString(),
         },

@@ -16,6 +16,10 @@ export const RECOMPUTE_EVENT_TYPES: ReadonlySet<string> = new Set([
     "checkout.session.async_payment_succeeded",
     "charge.refunded",
     "charge.dispute.closed",
+    // Month-to-month: a renewal paid, and a subscription cancelled, un-cancelled, past due or ended.
+    "invoice.paid",
+    "customer.subscription.updated",
+    "customer.subscription.deleted",
 ]);
 
 export function readIdField(value: unknown): string | null {
@@ -36,9 +40,12 @@ export interface RecomputeTarget {
 
 export function recomputeTargetFromObject(type: string, object: Record<string, unknown>): RecomputeTarget {
     const metadata = (object.metadata ?? {}) as Record<string, unknown>;
+    // An invoice carries its subscription's metadata (where checkout stamped the uid) under parent.
+    const parent = object.parent as { subscription_details?: { metadata?: Record<string, unknown> } } | null | undefined;
+    const subscriptionMetadata = parent?.subscription_details?.metadata ?? {};
     const candidates = type.startsWith("checkout.session.")
         ? [object.client_reference_id, metadata[VELAI_UID_METADATA_KEY]]
-        : [metadata[VELAI_UID_METADATA_KEY]];
+        : [metadata[VELAI_UID_METADATA_KEY], subscriptionMetadata[VELAI_UID_METADATA_KEY]];
     return {
         customerId: readIdField(object.customer),
         chargeId: type.startsWith("charge.dispute.") ? readIdField(object.charge) : null,

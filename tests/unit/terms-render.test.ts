@@ -13,6 +13,8 @@ describe("/terms", () => {
     assert.match(html, /1 to 12 months/);
     assert.match(html, /never renews on its own/);
     assert.match(html, /refund within 14 days/);
+    assert.match(html, /month-to-month billing is offered, you may choose it instead: we charge \$6 at the start of each month until you cancel/);
+    assert.match(html, /cancel any time from account settings/);
     assert.doesNotMatch(html, /founding/i);
     assert.doesNotMatch(html, /Data API|licens/i);
   });

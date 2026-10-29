@@ -6,7 +6,7 @@ import { RECOMPUTE_EVENT_TYPES } from "../../src/lib/billing/events";
 describe("docs/billing.md", () => {
     const doc = readFileSync("docs/billing.md", "utf8");
     const line = doc.split("\n").find((l) => l.includes("Webhook endpoint")) ?? "";
-    const listed = [...line.matchAll(/`((?:checkout|charge)\.[a-z_.]+)`/g)].map((m) => m[1]);
+    const listed = [...line.matchAll(/`((?:checkout|charge|invoice|customer)\.[a-z_.]+)`/g)].map((m) => m[1]);
     it("lists exactly the webhook events the handler acts on", () => {
         assert.deepEqual([...listed].sort(), [...RECOMPUTE_EVENT_TYPES].sort());
     });

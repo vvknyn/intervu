@@ -887,6 +887,8 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-PRICING-06 | Signed out, press "Sign in to buy", sign in, and land back on /pricing | anon | /pricing | signed-out | no | uncovered | — |
 | J-PRICING-07 | Signed in, pick a number of months, see the total, press Buy and land on Stripe's hosted checkout | signed-in | /pricing | signed-in | yes | uncovered | — |
 | J-PRICING-08 | Signed in with paid access, see "Paid until <date>" on the card | signed-in | /pricing | signed-in | no | uncovered | — |
+| J-PRICING-09 | When month to month is open, the card offers "Pay once" / "Month to month"; choosing monthly drops the month picker and sells $6 every month until cancelled; where it is not open, no half-offer shows | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-10 | Signed in, choose Month to month, press "Pay $6 a month" and land on Stripe's hosted checkout | signed-in | /pricing | signed-in | yes | uncovered | — |
 
 ## BILLING
 
@@ -897,6 +899,8 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-BILLING-03 | Signed in on Settings, see a Plan card above the tabs: Free with "See the paid month", or "Full access through <date>" (marked a gift when no payment extended it) with "Add months"; a failed read says so and never shows Free (runs on a local server only: needs the dev-only sign-in hook) | signed-in | /settings | signed-in | no | covered | plan-visibility.spec.ts |
 | J-BILLING-04 | Signed in with full access ending within 7 days, see the ending notice on any page except /pricing; dismissing it keeps it away for that end date (runs on a local server only) | signed-in | /jobs | signed-in | no | covered | plan-visibility.spec.ts |
 | J-BILLING-05 | Signed in, open the account menu and choose "Plan & pricing" to land on /pricing | signed-in | /jobs, account menu | signed-in | no | uncovered | — |
+| J-BILLING-06 | Signed in on Settings › Account, see Payments: every payment newest first with what it bought, the amount, any refund and a receipt link, or "No payments yet."; a failed read says it could not load (with Retry) and never "No payments yet." (runs on a local server only: needs the dev-only sign-in hook) | signed-in | /settings?tab=account | signed-in | no | covered | plan-visibility.spec.ts |
+| J-BILLING-07 | With month to month on, the Plan card reads "Full access, month to month — next payment <date>" with "Manage payments", and Payments says when the next payment is, that it is cancelled and runs to a date, or that the last charge failed; "Manage billing" opens Stripe's billing page and a refusal is shown (runs on a local server only) | signed-in | /settings?tab=account | signed-in | no | covered | plan-visibility.spec.ts |
 
 ## ERR
 
