@@ -105,6 +105,30 @@ test("An MCP call with no token gets a 401 that points at the server's metadata"
   expect(res.headers()["www-authenticate"]).toMatch(/^Bearer resource_metadata="https?:\/\/[^"]+\/\.well-known\/oauth-protected-resource"$/);
 });
 
+test("/connect's Gemini tab names the personal Google account, the empty client boxes and what to do on \"Account linking is required\"", { tag: ["@J-CONNECT-10"] }, async ({ page }) => {
+  await page.goto("/connect?client=gemini");
+  const note = page.getByText(/^Note: /);
+  await expect(note).toContainText("personal Google account");
+  await expect(note).toContainText("Keep Activity on");
+  await expect(note).toContainText("Leave the client ID and secret boxes");
+  await expect(note).toContainText("Account linking is required");
+});
+
+test("The token endpoint reads a client that names itself in an HTTP Basic header", { tag: ["@J-OAUTH-23"] }, async ({ request }) => {
+  // A code that does not exist: the endpoint answers invalid_grant once it has a client_id, invalid_request without one.
+  const form = "grant_type=authorization_code&code=journey-no-such-code&redirect_uri=https%3A%2F%2Fexample.com%2Fcb&code_verifier=" + "v".repeat(64);
+  const post = (headers: Record<string, string>) =>
+    request.post("/api/oauth/token", { headers: { "content-type": "application/x-www-form-urlencoded", ...headers }, data: form });
+
+  const basic = await post({ authorization: `Basic ${Buffer.from("journey-client:").toString("base64")}` });
+  expect(basic.status()).toBe(400);
+  expect((await basic.json()).error).toBe("invalid_grant");
+
+  const bare = await post({});
+  expect(bare.status()).toBe(400);
+  expect((await bare.json()).error).toBe("invalid_request");
+});
+
 test("The 401's resource_metadata names /api/mcp and its authorization server", { tag: ["@J-OAUTH-21"] }, async ({ request }) => {
   const challenge = (await request.get("/api/mcp")).headers()["www-authenticate"] ?? "";
   const metadataUrl = new URL(challenge.match(/resource_metadata="([^"]+)"/)?.[1] ?? "");

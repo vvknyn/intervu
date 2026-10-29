@@ -63,9 +63,9 @@ const CLIENT_INSTRUCTIONS: Record<string, ClientInstruction> = {
     steps: [
       "Open Gemini on the web and click Settings & Help → Connected Apps",
       "Click 'Add Custom App'",
-      "Paste the MCP Endpoint URL below and confirm",
+      "Paste the MCP Endpoint URL below, choose Next, and sign in to velai when Gemini asks",
     ],
-    note: "Requires a personal Google account with Keep Activity enabled.",
+    note: "Needs a personal Google account (not a work or school one) with Keep Activity on. Leave the client ID and secret boxes under Additional settings empty. Sign in to velai in this browser first; if Gemini says \"Account linking is required\", sign in and try again.",
   },
 };
 

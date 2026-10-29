@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const rate = checkRateLimit(`dcr:${resolveClientIpFromHeaders(request.headers)}`, undefined, AGENT.PUBLIC_RATE_LIMIT, "oauth_register");
     if (!rate.ok) return rateLimitedResponse(rate.retryAfterSec);
 
-    let body: { client_name?: unknown; redirect_uris?: unknown };
+    let body: { client_name?: unknown; redirect_uris?: unknown; token_endpoint_auth_method?: unknown };
     try {
         body = await request.json();
     } catch {
@@ -55,6 +55,13 @@ export async function POST(request: Request) {
         console.error(`[oauth/register] registerClient rejected: ${result.error}`);
         return NextResponse.json({ error: "invalid_redirect_uri" }, { status: 400 });
     }
+
+    // Which client registered and how it asked to authenticate — the one line
+    // that shows a hosted connector's handshake reached this far (the secret
+    // never exists: every client here is public, whatever method it asked for).
+    const hosts = [...new Set(result.client.redirectUris.map((uri) => new URL(uri).host))].join(",");
+    const asked = typeof body.token_endpoint_auth_method === "string" ? body.token_endpoint_auth_method.slice(0, 40) : "-";
+    console.log(`[oauth/register] ok client=${result.client.id.slice(0, 8)} name=${JSON.stringify(result.client.name)} hosts=${hosts} asked_auth=${JSON.stringify(asked)}`);
 
     return NextResponse.json(
         {

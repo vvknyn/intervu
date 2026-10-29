@@ -1,7 +1,10 @@
 import { describe, it, beforeEach } from 'node:test'; import assert from 'node:assert/strict';
 import { AGENT } from '../../src/lib/agent/config';
 import { _resetRateLimits } from '../../src/lib/agent/rate-limit';
-import { POST } from '../../src/app/api/oauth/token/route';
+import { POST, handleTokenRequest } from '../../src/app/api/oauth/token/route';
+import { memoryStore } from '../../src/lib/agent/store';
+import { registerClient, createAuthCode } from '../../src/lib/agent/oauth';
+import { createHash } from 'node:crypto';
 
 describe('POST /api/oauth/token — per-IP rate limit (public, unauthenticated endpoint)', () => {
   beforeEach(() => { _resetRateLimits(); });
@@ -79,5 +82,110 @@ describe('POST /api/oauth/token — RFC 6749 §5.1 MUST: Cache-Control: no-store
     const res = await POST(req);
     assert.equal(res.status, 400);
     assert.equal(res.headers.get('Cache-Control'), 'no-store');
+  });
+});
+
+describe('POST /api/oauth/token — a client that authenticates with HTTP Basic (client_secret_basic)', () => {
+  beforeEach(() => { _resetRateLimits(); });
+
+  const VERIFIER = 'v'.repeat(64);
+  const CHALLENGE = createHash('sha256').update(VERIFIER).digest('base64url');
+  const REDIRECT = 'https://oauth-redirect.googleusercontent.com/r/user_bound_custom-mcp-1234-velai_app';
+
+  async function setup() {
+    const store = memoryStore();
+    const reg = await registerClient(store, { client_name: 'Gemini', redirect_uris: [REDIRECT] });
+    if ('error' in reg) throw new Error(reg.error);
+    const code = await createAuthCode(store, { uid: 'u1', clientId: reg.client.id, redirectUri: REDIRECT, codeChallenge: CHALLENGE });
+    return { store, clientId: reg.client.id, code };
+  }
+
+  function tokenReq(fields: Record<string, string>, authorization?: string): Request {
+    return new Request('http://x/api/oauth/token', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-for': '198.51.100.70',
+        'content-type': 'application/x-www-form-urlencoded',
+        ...(authorization ? { authorization } : {}),
+      },
+      body: new URLSearchParams(fields).toString(),
+    });
+  }
+
+  it('exchanges the code when client_id is only in the Basic header (the secret is ignored)', async () => {
+    const { store, clientId, code } = await setup();
+    const res = await handleTokenRequest(
+      tokenReq(
+        { grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: VERIFIER },
+        `Basic ${btoa(`${clientId}:whatever-secret`)}`,
+      ),
+      store,
+    );
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.token_type, 'Bearer');
+    assert.ok(body.access_token && body.refresh_token);
+  });
+
+  it('refreshes with client_id only in the Basic header', async () => {
+    const { store, clientId, code } = await setup();
+    const first = await (await handleTokenRequest(
+      tokenReq({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: VERIFIER, client_id: clientId }),
+      store,
+    )).json();
+    const res = await handleTokenRequest(
+      tokenReq({ grant_type: 'refresh_token', refresh_token: first.refresh_token }, `Basic ${btoa(`${clientId}:`)}`),
+      store,
+    );
+    assert.equal(res.status, 200);
+    assert.ok((await res.json()).access_token);
+  });
+
+  it('still needs a client_id from somewhere: no body field and no Basic header is invalid_request', async () => {
+    const { store, code } = await setup();
+    const res = await handleTokenRequest(
+      tokenReq({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: VERIFIER }),
+      store,
+    );
+    assert.equal(res.status, 400);
+    assert.equal((await res.json()).error, 'invalid_request');
+  });
+
+  it('the body client_id wins over the header, and a Basic id for another client cannot redeem the code', async () => {
+    const { store, clientId, code } = await setup();
+    const other = await registerClient(store, { client_name: 'Other', redirect_uris: ['https://other.example/cb'] });
+    if ('error' in other) throw new Error(other.error);
+    const res = await handleTokenRequest(
+      tokenReq(
+        { grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: VERIFIER },
+        `Basic ${btoa(`${other.client.id}:`)}`,
+      ),
+      store,
+    );
+    assert.equal(res.status, 400);
+    assert.equal((await res.json()).error, 'invalid_grant');
+    // the failed attempt burned the code (exchangeCode claims first), so redo on a fresh one for the body-wins case
+    const fresh = await createAuthCode(store, { uid: 'u1', clientId, redirectUri: REDIRECT, codeChallenge: CHALLENGE });
+    const ok = await handleTokenRequest(
+      tokenReq(
+        { grant_type: 'authorization_code', code: fresh, redirect_uri: REDIRECT, code_verifier: VERIFIER, client_id: clientId },
+        `Basic ${btoa(`${other.client.id}:`)}`,
+      ),
+      store,
+    );
+    assert.equal(ok.status, 200);
+  });
+
+  it('PKCE still gates it: a Basic client with the wrong verifier gets invalid_grant', async () => {
+    const { store, clientId, code } = await setup();
+    const res = await handleTokenRequest(
+      tokenReq(
+        { grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: 'w'.repeat(64) },
+        `Basic ${btoa(`${clientId}:`)}`,
+      ),
+      store,
+    );
+    assert.equal(res.status, 400);
+    assert.equal((await res.json()).error, 'invalid_grant');
   });
 });
