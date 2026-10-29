@@ -729,7 +729,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONNECT-07 | Deep-link a client with ?client= and land on that tab | anon | /connect?client=cursor | signed-out | no | uncovered | — |
 | J-CONNECT-08 | Deep-link ?client=openclaw and fall back to the Claude tab | anon | /connect?client=openclaw | signed-out | no | uncovered | — |
 | J-CONNECT-09 | Click "Open <client>" and reach the verified vendor site in a new tab | anon | /connect?client=claude | signed-out | no | uncovered | — (legacy: connect.spec.ts › "<label>" tab: Open link points at the verified vendor URL, opens in a new tab without leaking window.opener) |
-| J-CONNECT-10 | Read the Gemini-specific requirement note | anon | /connect?client=gemini | signed-out | no | uncovered | — |
+| J-CONNECT-10 | Read the Gemini-specific note: a personal Google account with Keep Activity on, the client ID and secret boxes left empty, and "sign in and try again" when Gemini says "Account linking is required" (Gemini could not link velai.app, 2026-10-29) | anon | /connect?client=gemini | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-11 | Choose Claude or ChatGPT tab and have the choice remembered for job handoffs | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-12 | Open "Raw JSON config" and copy the mcpServers snippet | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-13 | Open "Sample prompts" and copy one prompt | anon | /connect | signed-out | no | uncovered | — |
@@ -778,6 +778,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-OAUTH-20 | The consent card's "This will let it, as you:" list and its limits match the MCP tool list (search; read and replace the résumé; read and update the tracker; read and change preferences; never submit an application) | signed-in | /oauth/authorize?client_id=…&… | signed-in | no | uncovered | — |
 | J-OAUTH-21 | Discover the protected-resource metadata from the 401's `resource_metadata` URL | agent | GET /api/mcp, then the WWW-Authenticate `resource_metadata` URL (/.well-known/oauth-protected-resource) | signed-out | no | covered | connect.spec.ts |
 | J-OAUTH-22 | A résumé-less user who signs in with a password from the OAuth "Sign in to continue" card returns to /oauth/authorize with its params and can Allow, not the résumé upload (signup: J-OAUTH-19) | anon | /oauth/authorize?client_id=…&redirect_uri=…&code_challenge=…&code_challenge_method=S256&response_type=code | signed-out | no | uncovered | — |
+| J-OAUTH-23 | The token endpoint reads a client id sent as `Authorization: Basic` (a connector that registered for `client_secret_basic`): for a code that does not exist it answers invalid_grant, and with no client id at all invalid_request (Gemini could not link velai.app, 2026-10-29) | agent | POST /api/oauth/token | signed-out | no | covered | connect.spec.ts |
 
 ## CONTENT
 
