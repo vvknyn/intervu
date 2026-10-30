@@ -98,9 +98,13 @@ test("the privacy policy says the extension proposes résumé changes, applies o
   await expect(article).toContainText("proposes changes to your résumé for the job inside the extension");
   await expect(article).toContainText("nothing changes until you accept it");
   await expect(article).toContainText("with the changes you accepted for that job");
-  // What it keeps in Chrome's storage: marks, never résumé text, and the résumé itself stays out.
+  // What it keeps in Chrome's storage: marks, never résumé text; the account's résumé stays out.
   await expect(article).toContainText("which ones, as short codes with none of your résumé's text, for up to 60 days");
-  await expect(article).toContainText("It holds the résumé in memory only, never in Chrome's storage");
+  await expect(article).toContainText("It holds that résumé in memory only, never in Chrome's storage");
+  // Without a paid month it uses the résumé velai.app keeps in this browser, and says where that copy lives.
+  await expect(article).toContainText("it uses the résumé velai.app keeps in your browser instead");
+  await expect(article).toContainText("keeps the same copy in Chrome's storage on your computer");
+  await expect(article).toContainText("That copy never leaves your computer");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
@@ -111,7 +115,8 @@ test("the privacy policy says the extension drafts an answer only on a tap, from
   await expect(article).toContainText("It drafts an answer only when you pick");
   await expect(article).toContainText("never for questions that are yours to answer: work authorization, pay, demographics");
   await expect(article).toContainText("without your name, email, phone number or links");
-  await expect(article).toContainText("If sealed AI isn't available or its server can't be verified, nothing is sent");
+  await expect(article).toContainText("Sealed AI is part of a paid month");
+  await expect(article).toContainText("if sealed AI isn't available or its server can't be verified, nothing is sent");
   await expect(article).toContainText("goes into the form only when you pick");
   // The AI-processing section names what goes to the sealed server for a draft too.
   await expect(article).toContainText("when you ask the Chrome extension to draft an answer to an application question, only that question");

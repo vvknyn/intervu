@@ -62,6 +62,25 @@ const similar = [
     { ...base, id: "s3", title: "Registered Nurse, Emergency", company: "Harbourfront Clinic", location: "Toronto, ON, Canada", location_city: "Toronto", location_country: "CA", description: "Emergency nursing.", salary_min: null, salary_max: null, salary_currency: null, salary_period: null, apply_url: "https://harbourfront.example/careers/er", posted_at: ago(40 * DAY), first_seen_at: ago(40 * DAY), ghost_badge: "unscored", ghost_checked_at: null },
 ];
 const signedIn = { signedIn: true, resume: { data: null, text: resumeText, updatedAt: "2026-10-07T15:00:00Z" }, preferences: null };
+/** Signed in without a paid month: /api/extension/me gives no résumé. */
+const unpaid = { signedIn: true, paid: false, resume: null, preferences: null };
+// The résumé velai.app keeps in this browser, structured the way the site stores it (velai.localAi.resume).
+const parser = await build({
+    stdin: { contents: 'export { storedResumeData } from "@/lib/resume/stored-resume-data";', resolveDir: path.resolve(here, "../../src"), loader: "ts" },
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    write: false,
+    alias: { "@": path.resolve(here, "../../src") },
+    logLevel: "warning",
+});
+const { storedResumeData } = await import(`data:text/javascript;base64,${Buffer.from(parser.outputFiles[0].text).toString("base64")}`);
+const SITE_RESUME_KEY = "velai.localAi.resume";
+const siteResume = { data: storedResumeData(undefined, resumeText), updatedAt: "2026-10-20T10:00:00.000Z", sourceLabel: "resume.pdf" };
+/** The extension's copy of it (device-resume.ts), as the service worker keeps it. */
+const deviceResume = { data: siteResume.data, updatedAt: siteResume.updatedAt };
+/** A velai.app page, where velai-bridge.ts runs. */
+const BRIDGE_URL = "https://velai.app/jobs";
 /** A listed job site (job-sites.json), where the card shows on its own. */
 const BOARD_JOB_URL = "https://boards.greenhouse.io/cedarbrook/jobs/4821";
 const BOARD_LIST_URL = "https://boards.greenhouse.io/cedarbrook";
@@ -130,9 +149,31 @@ const PAGES = {
 const STATES = {
     found: { me: signedIn, hits: [velaiCopy, ...similar], expect: ["Strong", "Actively posted", "Lines that use the posting's words now come first.", "0 of 3 accepted", "Accept all", "Your résumé", "Proposed", "Core skills include IV therapy, Medication administration and Epic.", "Download PDF"], order: ["Your fit", "Velai's checks"], pdf: true },
     "not-on-velai": { me: signedIn, hits: similar, expect: ["Not on Velai yet", "The page says apply by", "Similar roles on Velai", "✓ Registered", "✗ ICU"], has: [".rows .row-fit"] },
-    "signed-out": { me: { signedIn: false }, hits: [velaiCopy], expect: ["Sign in to Velai", "Actively posted", "create an account"], order: ["Velai's checks", "Your fit"] },
-    "no-resume": { me: { signedIn: true, resume: { data: null, text: null, updatedAt: null }, preferences: null }, hits: [velaiCopy], expect: ["Add your résumé"], order: ["Velai's checks", "Your fit"] },
+    // No résumé anywhere: add one on velai.app (free, kept in this browser), or sign in to an account that has one.
+    "signed-out": {
+        me: { signedIn: false },
+        hits: [velaiCopy],
+        expect: ["Add your résumé", "Free, and no account needed", "Your résumé is on your Velai account?", "Actively posted"],
+        order: ["Velai's checks", "Your fit"],
+    },
+    "no-resume": { me: { signedIn: true, paid: true, resume: { data: null, text: null, updatedAt: null }, preferences: null }, hits: [velaiCopy], expect: ["Add your résumé"], refuse: ["no account needed"], order: ["Velai's checks", "Your fit"] },
+    // Signed in without a paid month and nothing in this browser yet: the same free offer, never "couldn't load your résumé".
+    unpaid: { me: unpaid, hits: [velaiCopy], expect: ["Add your résumé", "Free, and no account needed"], refuse: ["couldn't load", "Your résumé is on your Velai account?"], order: ["Velai's checks", "Your fit"] },
     "velai-down": { me: 500, hits: 500, expect: ["Velai didn't answer", "Velai's search didn't answer"] },
+    // The résumé velai.app keeps in this browser: fit, proposed changes and the PDF with no account; the tracker needs one.
+    "browser-resume": {
+        me: { signedIn: false },
+        device: true,
+        hits: [velaiCopy, ...similar],
+        expect: ["Strong", "Against the résumé velai.app keeps in this browser", "Your résumé for this role", "Download PDF"],
+        refuse: ["I applied", "Add your résumé"],
+        order: ["Your fit", "Velai's checks"],
+        pdf: true,
+    },
+    "unpaid-browser-resume": { me: unpaid, device: true, hits: [velaiCopy], expect: ["Strong", "Against the résumé velai.app keeps in this browser", "I applied"], order: ["Your fit", "Velai's checks"] },
+    "velai-down-browser-resume": { me: 500, hits: 500, device: true, expect: ["Your fit", "Against the résumé velai.app keeps in this browser", "Velai's search didn't answer"], refuse: ["your fit can't be shown"] },
+    // A paid month's account résumé comes first; this browser's copy doesn't replace it.
+    "account-over-browser": { me: signedIn, device: true, hits: [velaiCopy], expect: ["Strong", "against your résumé of oct 7"], refuse: ["keeps in this browser"] },
     "board-match": { page: "board", me: signedIn, hits: [...similar, velaiCopy], expect: ["Velai's copy of the role it names", "Strong"] },
     "board-no-match": { page: "board", me: signedIn, hits: similar, expect: ["doesn't publish its job details", "Read this page as the job"], click: "Read this page as the job", expectAfter: ["as you asked", "Your résumé for this role"] },
     "not-a-job": { page: "blog", me: signedIn, hits: [], expect: ["Read this page as the job"], refuse: ["Your fit"] },
@@ -158,6 +199,8 @@ const failures = [];
 try {
     const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker", { timeout: 10_000 }));
     const extensionId = new URL(worker.url()).host;
+    /** Sets (or, with null, removes) the extension's copy of the browser résumé, as the service worker keeps it. */
+    const setDevice = (value) => worker.evaluate((v) => (v ? chrome.storage.local.set({ velaiDeviceResume: v }) : chrome.storage.local.remove("velaiDeviceResume")), value);
     let state = STATES.found;
     for (const page of Object.values(PAGES)) await context.route(page.url, (r) => r.fulfill({ contentType: "text/html", body: page.html }));
     const answer = (route, body) => (typeof body === "number" ? route.fulfill({ status: body, body: "" }) : route.fulfill({ contentType: "application/json", body: JSON.stringify(body) }));
@@ -178,6 +221,7 @@ try {
     await context.route(/^https:\/\/velai\.app\/(login|yours|resume)/, (r) =>
         r.fulfill({ contentType: "text/html", body: `<!doctype html><title>Velai</title><h1>${new URL(r.request().url()).pathname}</h1>` }),
     );
+    await context.route(BRIDGE_URL, (r) => r.fulfill({ contentType: "text/html", body: "<!doctype html><title>Velai</title><h1>Jobs</h1>" }));
     await context.route(BOARD_JOB_URL, (r) => r.fulfill({ contentType: "text/html", body: jobHtml }));
     await context.route(BOARD_CODED_URL, (r) => r.fulfill({ contentType: "text/html", body: codedHtml }));
     await context.route(BOARD_LIST_URL, (r) => r.fulfill({ contentType: "text/html", body: PAGES.blog.html }));
@@ -187,22 +231,35 @@ try {
     await context.route(SPLIT_JOB_URL, (r) => r.fulfill({ contentType: "text/html", body: splitJobHtml }));
     await context.route(SPLIT_APPLY_URL, (r) => r.fulfill({ contentType: "text/html", body: applyHtml }));
 
-    // First install opens the welcome page, which offers sign-in right there.
+    // First install opens the welcome page, which offers to add a résumé (free, kept in this browser) or sign in right there.
     state = { me: { signedIn: false } };
-    const welcome = context.pages().find((p) => p.url().endsWith("/welcome.html")) ?? (await context.waitForEvent("page", { timeout: 5_000 }).catch(() => null));
+    let welcome = context.pages().find((p) => p.url().endsWith("/welcome.html")) ?? (await context.waitForEvent("page", { timeout: 5_000 }).catch(() => null));
     if (!welcome?.url().endsWith("/welcome.html")) {
-        console.log("FAIL welcome — no welcome page on install");
-        failures.push("welcome");
-    } else {
+        // Chrome can open it before this script is listening; the page's content is still checked below.
+        console.log("     (welcome page opened on install wasn't seen; opening it by hand)");
+        welcome = await context.newPage();
+        await welcome.goto(`chrome-extension://${extensionId}/welcome.html`);
+    }
+    {
         await welcome.setViewportSize({ width: 1280, height: 800 });
         await welcome.reload();
         await welcome.waitForFunction(() => document.body.innerText.includes("Sign in to Velai"), null, { timeout: 10_000 }).catch(() => {});
-        const text = await welcome.evaluate(() => document.body.innerText);
-        // The card's no-account value comes before the ask to sign in.
-        const ok = text.includes("Sign in to Velai") && text.includes("How it works") && text.indexOf("needs no account") >= 0 && text.indexOf("needs no account") < text.indexOf("Sign in to Velai");
-        console.log(`${ok ? "ok  " : "FAIL"} welcome`);
-        if (!ok) failures.push("welcome");
+        let text = await welcome.evaluate(() => document.body.innerText);
+        // No account or payment needed, said before the ask to add a résumé, which comes before signing in.
+        const at = (t) => text.indexOf(t);
+        const problems = [];
+        for (const t of ["None of that needs an account or a payment", "Add your résumé", "Sign in to Velai", "How it works", "Free, and no account needed"]) if (at(t) < 0) problems.push(`missing "${t}"`);
+        if (!(at("None of that needs an account") < at("Add your résumé") && at("Add your résumé") < at("Sign in to Velai"))) problems.push("order");
         await welcome.screenshot({ path: path.join(out, "welcome.png") });
+        // With the résumé velai.app keeps in this browser, it says Velai has it.
+        await setDevice(deviceResume);
+        await welcome.reload();
+        await welcome.waitForFunction(() => document.body.innerText.includes("Velai has your résumé in this browser"), null, { timeout: 10_000 }).catch(() => problems.push("doesn't say it has the browser's résumé"));
+        text = await welcome.evaluate(() => document.body.innerText);
+        if (text.includes("Add your résumé")) problems.push("still asks for a résumé");
+        await setDevice(null);
+        console.log(`${problems.length ? "FAIL" : "ok  "} welcome${problems.length ? ` — ${problems.join(" | ")}` : ""}`);
+        if (problems.length) failures.push("welcome");
         await welcome.close();
     }
 
@@ -221,6 +278,7 @@ try {
 
     for (const [name, s] of Object.entries(STATES)) {
         state = s;
+        await setDevice(s.device ? deviceResume : null);
         const read = reads[s.page ?? "job"];
         const handOff = s.search
             ? { kind: "search", q: s.search, site: new URL(JOB_URL).hostname, at: Date.now() }
@@ -271,6 +329,7 @@ try {
         if (!ok) failures.push(name);
         await panel.close();
     }
+    await setDevice(null);
 
     // ── The on-page card ──────────────────────────────────────────────────
     /** The card's text and button boxes, read through Chrome's DevTools (the card is in a closed shadow root). */
@@ -493,15 +552,17 @@ try {
     const accountChanged = () => worker.evaluate(() => chrome.storage.local.set({ velaiAccountChangedAt: Date.now() }));
     await accountChanged();
     await page.goto(BOARD_JOB_URL);
-    card = await waitForCard(page, ["Sign in to see your fit"]);
+    card = await waitForCard(page, ["Add your résumé to see your fit"]);
     {
         const problems = [];
-        // Leads with the posting's facts; the button is the only ask to sign in.
-        if (!(card && card.text.indexOf("Actively posted") >= 0 && card.text.indexOf("Actively posted") < card.text.indexOf("Sign in to see your fit"))) problems.push("facts don't come before the sign-in button");
+        // Leads with the posting's facts; then the free ask (add a résumé), then signing in.
+        const at = (t) => card?.text.indexOf(t) ?? -1;
+        if (!(at("Actively posted") >= 0 && at("Actively posted") < at("Add your résumé to see your fit"))) problems.push("facts don't come before the résumé button");
+        if (!card?.buttons.some((b) => b.text === "Sign in")) problems.push("no Sign in button");
         if (card?.text.includes("I applied")) problems.push("offers I applied while signed out");
         if (card?.buttons.some((b) => b.text === "Save")) problems.push("offers Save while signed out");
         await page.screenshot({ path: path.join(out, "card-signed-out.png") });
-        const [popup] = await Promise.all([context.waitForEvent("page", { timeout: 10_000 }), clickCard(page, "Sign in to see your fit")]);
+        const [popup] = await Promise.all([context.waitForEvent("page", { timeout: 10_000 }), clickCard(page, "Sign in")]);
         await popup.waitForLoadState().catch(() => {});
         // What Chrome opened, as the extension sees it (a window an extension opens can load before Playwright routes it).
         const opened = await worker.evaluate(async () => {
@@ -528,8 +589,8 @@ try {
         await panel.setViewportSize({ width: 400, height: 800 });
         await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
         const problems = [];
-        await panel.waitForFunction(() => document.body.innerText.includes("Sign in to Velai"), null, { timeout: 15_000 }).catch(() => problems.push("no sign-in offer"));
-        const [popup] = await Promise.all([context.waitForEvent("page", { timeout: 10_000 }), panel.click('button:has-text("Sign in to Velai")')]);
+        await panel.waitForFunction(() => document.body.innerText.includes("Your résumé is on your Velai account?"), null, { timeout: 15_000 }).catch(() => problems.push("no sign-in offer"));
+        const [popup] = await Promise.all([context.waitForEvent("page", { timeout: 10_000 }), panel.click('button.inline:has-text("Sign in")')]);
         await popup.waitForLoadState().catch(() => {});
         state = STATES.found;
         const closed = popup.waitForEvent("close", { timeout: 10_000 }).then(() => true, () => false);
@@ -565,6 +626,55 @@ try {
         }
         report("panel Save puts the job in the tracker as Saved", problems);
         await panel.close();
+    }
+
+    // No account: the résumé velai.app keeps in this browser reaches the extension from a velai.app page (velai-bridge.ts),
+    // the card scores the job with it, and it leaves when velai.app's copy does. Only velai.app's pages can set it.
+    {
+        const problems = [];
+        state = { ...STATES.found, me: { signedIn: false } };
+        await setDevice(null);
+        const stored = () => worker.evaluate(() => chrome.storage.local.get("velaiDeviceResume").then((s) => s.velaiDeviceResume ?? null));
+        const until = async (want, ms = 8_000) => {
+            const end = Date.now() + ms;
+            let value = await stored();
+            while (Date.now() < end && Boolean(value) !== want) {
+                await page.waitForTimeout(250);
+                value = await stored();
+            }
+            return value;
+        };
+        // Another sender (here, the extension's own panel page) can't set it.
+        const panel = await context.newPage();
+        await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+        const refused = await panel.evaluate((raw) => chrome.runtime.sendMessage({ type: "deviceResume", raw }), JSON.stringify(siteResume));
+        if (refused !== false || (await stored())) problems.push("a page other than velai.app set the browser résumé");
+        await panel.close();
+
+        const site = await context.newPage();
+        await site.goto(BRIDGE_URL);
+        await site.evaluate(([key, value]) => localStorage.setItem(key, value), [SITE_RESUME_KEY, JSON.stringify(siteResume)]);
+        const copy = await until(true);
+        if (!copy) problems.push("velai.app's résumé never reached the extension");
+        else {
+            // Chrome's storage hands objects back with their keys sorted, so compare key order aside.
+            const canonical = (v) => JSON.stringify(v, (_k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
+            if (canonical(copy.data) !== canonical(siteResume.data) || copy.updatedAt !== siteResume.updatedAt) problems.push("the copy differs from velai.app's");
+            if ("sourceLabel" in copy) problems.push("kept more than the résumé and its date");
+        }
+        await accountChanged();
+        await page.goto(BOARD_JOB_URL);
+        card = await waitForCard(page, ["Strong"]);
+        if (!card?.text.includes("Strong")) problems.push(`card didn't score with it: ${card?.text.slice(0, 200)}`);
+        if (card?.text.includes("I applied") || card?.buttons.some((b) => b.text === "Save")) problems.push("offers the tracker without an account");
+        await page.screenshot({ path: path.join(out, "card-browser-resume.png") });
+        // Removed on velai.app: removed here, and the card asks for a résumé again.
+        await site.evaluate((key) => localStorage.removeItem(key), SITE_RESUME_KEY);
+        if (await until(false)) problems.push("the copy stayed after velai.app removed its résumé");
+        card = await waitForCard(page, ["Add your résumé to see your fit"]);
+        if (!card?.text.includes("Add your résumé to see your fit")) problems.push("card didn't re-check after the résumé was removed");
+        await site.close();
+        report("velai.app's browser résumé reaches the extension, scores the card, and leaves with velai.app's", problems);
     }
 
     // An application form under the job: filled from the résumé on a click, never sent; the thank-you page tracks it.
@@ -642,7 +752,8 @@ try {
         await open().catch(() => problems.push("no changes listed"));
         if (!problems.length) {
             const text = await panel.evaluate(() => document.body.innerText);
-            for (const t of ["Velai proposes these 3 changes", "Nothing changes until you accept it", "Summary", "Skills", "Registered Nurse, Emergency Department · St. Michael's Hospital"]) if (!text.includes(t)) problems.push(`missing "${t}"`);
+            // The experience section is headed by the role as the résumé parser reads it (role · employer).
+            for (const t of ["Velai proposes these 3 changes", "Nothing changes until you accept it", "Summary", "Skills", "Registered Nurse ·"]) if (!text.includes(t)) problems.push(`missing "${t}"`);
             // Each change shows the person's own text, the proposal and the reason.
             const first = await panel.evaluate(() => [...document.querySelector(".change").children].map((c) => `${c.className}: ${c.textContent}`));
             const wants = ["tag: Your résumé", "text text-before: Registered nurse with 6 years", "tag: Proposed", "Core skills include IV therapy", "why: Names skills from your résumé that the posting asks for."];
@@ -656,7 +767,7 @@ try {
 
             // Accept the summary and the skills, reject the line order.
             await panel.click('button[aria-label="Accept Summary: summary"]');
-            await panel.click('button[aria-label^="Reject Registered Nurse, Emergency Department"]');
+            await panel.click('.change[data-kind="order"] button.choice-reject');
             await panel.click('button[aria-label="Accept Skills: skills order"]');
             if ((await states()).join() !== "summary:accepted,order:rejected,skills:accepted") problems.push(`states after deciding: ${await states()}`);
             if (!(await count()).startsWith("2 of 3 accepted")) problems.push(`count says: ${await count()}`);
@@ -797,7 +908,8 @@ try {
         const passThroughSeen = [];
         await context.route("https://velai.app/api/sealed-ai/status", (r) => {
             sealedStatusSeen.push(r.request().url());
-            return answer(r, { enabled: true, model: "llama3-3-70b" });
+            // velai.app answers enabled only for a signed-in account with a paid month.
+            return answer(r, state.sealedOff ? { enabled: false } : { enabled: true, model: "llama3-3-70b" });
         });
         await context.route("https://velai.app/api/sealed-ai/v1/**", (r) => {
             passThroughSeen.push(r.request().url());
@@ -965,12 +1077,41 @@ try {
             report("form questions: Copy leaves the form alone", problems);
         }
 
-        // 8. Signed out: no questions, nothing to draft from.
+        // 8. Signed out with no résumé anywhere: no questions, nothing to draft from.
         state = { me: { signedIn: false } };
+        await setDevice(null);
         await accountChanged();
         await page.goto(QUESTIONS_URL);
-        card = await waitForCard(page, ["Sign in to see your fit"]);
-        report("form questions: signed out, no question list", card?.text.includes("Questions on this form") ? ["the list showed"] : []);
+        card = await waitForCard(page, ["Add your résumé to see your fit"]);
+        report("form questions: no résumé, no question list", card?.text.includes("Questions on this form") ? ["the list showed"] : []);
+
+        // 9. No account, with the résumé velai.app keeps in this browser: the questions are listed and drafted from its lines,
+        // the sealed AI is never asked (it is part of a paid month), and the card says so with where to get it.
+        {
+            const problems = [];
+            state = { me: { signedIn: false }, sealedOff: true };
+            // The real status check from here (the stub stands in for a paid month's sealed AI).
+            await worker.evaluate(() => {
+                delete globalThis.__velaiSealedAi;
+            });
+            await setDevice(deviceResume);
+            await accountChanged();
+            const before = await sealedCalls();
+            card = await openQuestions();
+            if (!card?.text.includes("Questions on this form")) problems.push("no question list");
+            else {
+                await clickCard(page, "Draft an answer", 1);
+                card = await waitForCard(page, ["Draft from your résumé"], 20_000);
+                if (!card?.text.includes("These lines as your résumé has them (no AI).")) problems.push("didn't say the draft is the lines");
+                if (!card?.text.includes("With a paid month, Velai's sealed AI writes the answer from these lines.")) problems.push("didn't say what a paid month adds");
+                if (!card?.text.includes("See the plan")) problems.push("no link to the plan");
+                if (!/IV therapy/i.test(card?.text.split("Draft from your résumé.")[1] ?? "")) problems.push("the draft lacks the IV therapy line");
+                if ((await sealedCalls()) !== before) problems.push("asked the sealed AI without a paid month");
+                await page.screenshot({ path: path.join(out, "card-draft-free.png") });
+            }
+            report("form questions: no account, drafts from the browser's résumé lines and says what a paid month adds", problems);
+        }
+        await setDevice(null);
         state = STATES.found;
         await accountChanged();
         await worker.evaluate(() => {

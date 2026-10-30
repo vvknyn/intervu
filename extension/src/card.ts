@@ -6,6 +6,10 @@
  * worker does the work (velai.app calls, scoring); this only reads the page
  * and draws the card. Pages that aren't jobs get nothing.
  *
+ * The résumé is the account's with a paid month, else the one velai.app
+ * keeps in this browser (device-resume.ts), so the fit, filling and
+ * résumé-line drafts need no account; only the tracker does.
+ *
  * On an application form, the card fills it from the person's résumé on
  * their click (form-fill.ts) and never submits it. Once the site then says
  * the application went through, the job goes into their tracker as Applied.
@@ -115,6 +119,7 @@ button.link { border: 0; background: none; padding: 0; color: rgb(163 163 163); 
 textarea.draft { display: block; width: 100%; min-height: 110px; box-sizing: border-box; resize: vertical; padding: 8px; border-radius: 8px;
   border: 1px solid rgb(64 64 64); background: rgb(10 11 15); color: rgb(245 245 245); font: inherit; font-size: 13px; }
 .draft-src { margin: 4px 0 0; font-size: 12px; color: rgb(163 163 163); }
+.draft-src a { color: inherit; text-decoration: underline; }
 @media (prefers-contrast: more) {
   .card, .term, button.secondary, .qs { border-color: rgb(120 120 120); }
   .draft-src { color: rgb(225 225 225); }
@@ -160,7 +165,7 @@ function mark(): SVGSVGElement {
     return svg;
 }
 
-/** Why there's no fit label, where no button already says it: signed out and no résumé get "Sign in to see your fit" and "Add your résumé" under the posting's facts instead. */
+/** Why there's no fit label, where no button already says it: no résumé (signed in or out) gets "Add your résumé to see your fit" under the posting's facts instead. */
 const ACCOUNT_NOTE: Partial<Record<NonNullable<CardSummary["account"]>, string>> = {
     "no-overlap": "Your résumé and this role don't share enough to score.",
     unavailable: "Velai didn't answer, so your fit isn't shown.",
@@ -284,6 +289,15 @@ function draftBlock(question: FormQuestion, answer: Extract<DraftAnswer, { ok: t
     const status = el("p", "note");
     status.setAttribute("aria-live", "polite");
     const how = answer.by === "sealed" ? "Written by Velai's sealed AI from these lines only." : "These lines as your résumé has them (no AI).";
+    // Without a paid month the draft is the lines themselves; say what a paid month adds, once, with where to get it.
+    const paid = answer.by === "lines" && answer.paidPlanUrl ? el("p", "draft-src") : null;
+    if (paid && answer.paidPlanUrl) {
+        const plan = el("a", undefined, "See the plan");
+        plan.href = answer.paidPlanUrl;
+        plan.target = "_blank";
+        plan.rel = "noopener";
+        paid.append("With a paid month, Velai's sealed AI writes the answer from these lines. ", plan);
+    }
     const insert = button("Insert in the form", "primary", () => {
         const text = box.value.trim();
         if (!text) return;
@@ -315,6 +329,7 @@ function draftBlock(question: FormQuestion, answer: Extract<DraftAnswer, { ok: t
         el("p", "draft-mark", "Draft from your résumé. Check every claim before you use it."),
         box,
         el("p", "draft-src", `From your résumé: ${placesOf(answer.lines)}. ${how}`),
+        ...(paid ? [paid] : []),
         actions,
         status,
     );
@@ -408,10 +423,10 @@ function render(summary: CardSummary, read: PageRead): void {
     const fillStatus = el("p", "note");
     fillStatus.setAttribute("aria-live", "polite");
     const openPanel = () => void send({ type: "openPanel", read });
-    if (summary.account === "signed-out") {
-        actions.append(button("Sign in to see your fit", "primary", () => void send({ type: "signIn" })));
-    } else if (summary.account === "no-resume") {
+    // No résumé: adding one on velai.app is free and keeps it in this browser; signing in is for an account that has one.
+    if (summary.account === "signed-out" || summary.account === "no-resume") {
         actions.append(button("Add your résumé to see your fit", "primary", () => void send({ type: "openVelai", path: "/resume" })));
+        if (summary.account === "signed-out") actions.append(button("Sign in", "secondary", () => void send({ type: "signIn" })));
     } else if (form) {
         actions.append(fillButton(summary, read, fillStatus));
     } else {

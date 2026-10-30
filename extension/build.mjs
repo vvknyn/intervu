@@ -25,7 +25,11 @@ const manifest = JSON.parse(readFileSync(path.join(here, "manifest.json"), "utf8
 // The card shows on its own only on the job sites in job-sites.json (the one
 // list job-sites.ts reads too); other sites only once the person turns it on.
 const jobSites = JSON.parse(readFileSync(path.join(here, "job-sites.json"), "utf8"));
-manifest.content_scripts = [{ matches: jobSites.matches, js: ["card.js"], run_at: "document_idle" }];
+manifest.content_scripts = [
+    { matches: jobSites.matches, js: ["card.js"], run_at: "document_idle" },
+    // velai.app only (already in host_permissions): hands the résumé velai.app keeps in this browser to the extension (velai-bridge.ts).
+    { matches: ["https://velai.app/*"], js: ["velai-bridge.js"], run_at: "document_idle" },
+];
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(unpacked, { recursive: true });
@@ -36,6 +40,7 @@ await build({
         sidepanel: path.join(here, "src/sidepanel.ts"),
         card: path.join(here, "src/card.ts"),
         welcome: path.join(here, "src/welcome.ts"),
+        "velai-bridge": path.join(here, "src/velai-bridge.ts"),
     },
     outdir: unpacked,
     bundle: true,

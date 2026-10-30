@@ -86,6 +86,8 @@ declare namespace chrome {
     }
     namespace runtime {
         interface MessageSender {
+            /** The extension the message came from (this one, for its own pages and content scripts). */
+            id?: string;
             tab?: tabs.Tab;
             url?: string;
         }
