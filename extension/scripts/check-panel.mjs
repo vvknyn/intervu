@@ -752,8 +752,10 @@ try {
         await open().catch(() => problems.push("no changes listed"));
         if (!problems.length) {
             const text = await panel.evaluate(() => document.body.innerText);
-            // The experience section is headed by the role as the résumé parser reads it (role · employer).
-            for (const t of ["Velai proposes these 3 changes", "Nothing changes until you accept it", "Summary", "Skills", "Registered Nurse ·"]) if (!text.includes(t)) problems.push(`missing "${t}"`);
+            for (const t of ["Velai proposes these 3 changes", "Nothing changes until you accept it", "Summary", "Skills"]) if (!text.includes(t)) problems.push(`missing "${t}"`);
+            // The experience section is headed "role · employer" as the résumé parser splits the fixture's
+            // "Registered Nurse, Emergency Department — St. Michael's Hospital"; parsers have split it differently, so only the shape is checked.
+            if (!/Registered Nurse[^\n]* · \S/.test(text)) problems.push(`no "Registered Nurse … · employer" heading`);
             // Each change shows the person's own text, the proposal and the reason.
             const first = await panel.evaluate(() => [...document.querySelector(".change").children].map((c) => `${c.className}: ${c.textContent}`));
             const wants = ["tag: Your résumé", "text text-before: Registered nurse with 6 years", "tag: Proposed", "Core skills include IV therapy", "why: Names skills from your résumé that the posting asks for."];
