@@ -2,7 +2,7 @@ import { PRIVACY_HEADLINE, PRIVACY_PROMISES } from "../../../src/lib/legal/priva
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/34/37/39,
+ * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/34/37/39/41,
  * and J-JOBS-115, the front door's privacy promises that link here).
  * Read-only. What "Delete account" erases is a promise people act on, so the
  * page has to say what the server action really removes
@@ -54,7 +54,7 @@ test("the privacy policy opens with Velai's résumé promises and a Your résum�
   await expect(article).toContainText("The file itself is never uploaded to us");
   await expect(article).toContainText("it is encrypted with AES-256 before it is stored");
   await expect(article).toContainText("Those searches are not logged.");
-  await expect(article).toContainText("There is no session replay and no automatic click capture");
+  await expect(article).toContainText("Recordings of a visit hide every word and field, there is no automatic click capture");
   await expect(article).toContainText("No AI model on our servers reads it.");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
@@ -115,6 +115,20 @@ test("the privacy policy says the extension drafts an answer only on a tap, from
   await expect(article).toContainText("goes into the form only when you pick");
   // The AI-processing section names what goes to the sealed server for a draft too.
   await expect(article).toContainText("when you ask the Chrome extension to draft an answer to an application question, only that question");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the privacy policy says visits are recorded with every word and field hidden, kept 30 days apart from your account, with no console or request contents", { tag: ["@J-CONTENT-41"] }, async ({ page, diagnostics }) => {
+  await page.goto("/privacy");
+  const article = page.locator("article").first();
+  await expect(article).toContainText("We record visits for session replay, with every word and field hidden");
+  await expect(article).toContainText("replaces every letter and number on the page, and everything you type, with a star");
+  await expect(article).toContainText("never your résumé, a search, your name or your email address");
+  await expect(article).toContainText("console messages and the contents of network requests are not recorded");
+  await expect(article).toContainText("There is no automatic click capture");
+  await expect(article).toContainText("Session recordings are not linked to your account, so deleting it does not remove them");
+  await expect(article).not.toContainText("There is no session replay");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

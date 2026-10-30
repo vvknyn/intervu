@@ -145,8 +145,8 @@ export default function PrivacyPage() {
           emails you (see <a href="#email">Email</a>).
         </p>
         <p>
-          Our analytics never record your résumé. There is no session replay and no automatic click capture, and
-          page addresses lose the role titles that ranking by fit puts in them (see <a href="#cookies-analytics">Cookies &amp; analytics</a>).
+          Our analytics never record your résumé. Recordings of a visit hide every word and field, there is no
+          automatic click capture, and page addresses lose the role titles that ranking by fit puts in them (see <a href="#cookies-analytics">Cookies &amp; analytics</a>).
         </p>
         <p>
           You can delete your résumé from <Link href="/settings">account settings</Link> at any time. That also
@@ -398,8 +398,8 @@ export default function PrivacyPage() {
           We use PostHog for anonymous product analytics — page views and a short list of named actions, such as
           opening a job or running a search — so we can see what&apos;s working and fix what isn&apos;t. Velai&apos;s
           events go to the same PostHog project as Subspace (thesubspace.io), the founder&apos;s other product,
-          and are told apart by a product tag. The settings described on this page (no session replay, no
-          automatic click capture, no surveys, no profiles, no IP address) are enforced by Velai&apos;s own code
+          and are told apart by a product tag. The settings described on this page (every word and field hidden
+          in recordings, no automatic click capture, no surveys, no profiles, no IP address) are enforced by Velai&apos;s own code
           and our server, not by a PostHog project setting, so they hold whatever that project&apos;s settings say. PostHog&apos;s US cloud (
           <code className="text-xs text-foreground">us.posthog.com</code>, configured as our analytics UI host) processes the data
           as our processor under their own DPA terms. Browser requests are sent through our own{" "}
@@ -433,8 +433,14 @@ export default function PrivacyPage() {
           résumé, and a value that looks like free text or an address is dropped.
         </p>
         <p>
-          There is no session replay: nothing records your screen or your typing, and there is no
-          automatic click capture. Events are sent only for the named actions described above, and none of them
+          We record visits for session replay, with every word and field hidden. Before anything leaves your
+          browser, it replaces every letter and number on the page, and everything you type, with a star, so a
+          recording shows the shape of the page, how far you scrolled and where the pointer moved and clicked,
+          and never your résumé, a search, your name or your email address. Page and link addresses lose their
+          query string and anything after a #, and console messages and the contents of network requests are not
+          recorded. A recording carries the same random code as the events above, which lasts only for that
+          browser tab, not your account, and the PostHog project keeps it for 30 days. There is no automatic
+          click capture. Events are sent only for the named actions described above, and none of them
           carries the words you typed, your résumé, your name or your email address.
         </p>
         <p>
@@ -505,8 +511,8 @@ export default function PrivacyPage() {
           PostHog data from visits where you were never signed in carries no account id, so it is not linked to
           you and is not removed. Events sent after 23 October 2026 are no longer linked to any account; older events from signed-in visits were, and deleting your account erases them. If
           PostHog can&apos;t be reached when you delete your account, the rest of the
-          deletion still completes and we tell you, and we do not retry the PostHog request. Any session replay recordings made
-          before replay was turned off are kept for 30 days, then expire under PostHog&apos;s rules.
+          deletion still completes and we tell you, and we do not retry the PostHog request. Session recordings are not linked to your account,
+          so deleting it does not remove them; they expire 30 days after they are made, under PostHog&apos;s rules.
           We have not confirmed a fixed retention period for analytics events in PostHog. Deletion does not
           remove contact-form messages or waitlist entries sent from a different email address than the one you
           sign in with. Anonymous search
