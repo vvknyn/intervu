@@ -26,6 +26,8 @@ import { postingKey, type PageRead } from "./page-reader";
 /** What GET velai.app/api/extension/me answers. */
 export interface MeResponse {
     signedIn: boolean;
+    /** Signed in: whether the account has a paid month. Without one `resume` is null and the résumé velai.app keeps in this browser stands in (device-resume.ts). */
+    paid?: boolean;
     resume?: { data: ResumeData | null; text: string | null; updatedAt: string | null } | null;
     preferences?: AgentPreferences | null;
 }

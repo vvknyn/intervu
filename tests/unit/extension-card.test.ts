@@ -129,6 +129,19 @@ describe("cardSummary", () => {
         assert.equal(cardSummary(input({ signedIn: null, resume: null })).account, "unavailable");
     });
 
+    it("scores and fills from the résumé in this browser with no account, and leaves the tracker to the signed-in", () => {
+        // Signed out, or velai.app didn't answer: the résumé velai.app keeps in this browser still scores the job.
+        for (const signedIn of [false, null]) {
+            const card = cardSummary(input({ signedIn, velaiJob: velai() }));
+            assert.ok(card.fit, `fit with signedIn ${signedIn}`);
+            assert.equal(card.account, null);
+            assert.equal(card.canFill, true, "fills from that résumé");
+            assert.equal(card.track, null, "no tracker without an account");
+        }
+        assert.equal(cardSummary(input({ signedIn: false, resume: null })).canFill, false, "nothing to fill from");
+        assert.equal(cardSummary(input({ resume: null })).canFill, false);
+    });
+
     it("offers I applied only signed in with a known employer, on Velai's job when it has it", () => {
         assert.deepEqual(cardSummary(input({ velaiJob: velai() })).track, {
             title: "Registered Nurse - ICU",
