@@ -43,16 +43,26 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     if (!POSTHOG_KEY || typeof window === "undefined") return;
 
     if (!started.current) {
-      posthog.init(POSTHOG_KEY, {
-        api_host: posthogApiHost(window.location.origin, POSTHOG_HOST_OVERRIDE),
-        ...POSTHOG_OPTIONS,
-      });
-      posthog.register({ product: POSTHOG_PRODUCT });
       started.current = true;
-      // events.ts and the other callers reach PostHog only through this.
-      setPostHogClient(posthog);
-      // What the page fired as it mounted, before this loaded (events.ts `captureRoute`).
-      flushHeldEvents();
+      void (async () => {
+        // The replay recorder comes with the app, not from PostHog's CDN:
+        // POSTHOG_OPTIONS blocks every lazily-fetched PostHog bundle
+        // (disable_external_dependency_loading), and posthog-js skips its own
+        // download when the recorder is already on the page. It must be there
+        // BEFORE init: the project's replay setting arrives with init's first
+        // config request, and a recorder that is late is never retried.
+        // A chunk that fails to load costs the recordings, not the events.
+        await import("posthog-js/dist/posthog-recorder").catch(() => undefined);
+        posthog.init(POSTHOG_KEY, {
+          api_host: posthogApiHost(window.location.origin, POSTHOG_HOST_OVERRIDE),
+          ...POSTHOG_OPTIONS,
+        });
+        posthog.register({ product: POSTHOG_PRODUCT });
+        // events.ts and the other callers reach PostHog only through this.
+        setPostHogClient(posthog);
+        // What the page fired as it mounted, before this loaded (events.ts `captureRoute`).
+        flushHeldEvents();
+      })();
     }
 
     // Analytics never learn who is signed in: there is no identify() or
