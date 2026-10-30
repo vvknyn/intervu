@@ -29,7 +29,9 @@ export type ToBackground =
     /** Whether this tab has a filled application waiting for the site to confirm it. Answered with a PendingFill or null. */
     | { type: "pendingFill" }
     /** The site confirmed the application the card filled: add it to the tracker as Applied. Answered with an AppliedAnswer. */
-    | { type: "appliedAfterFill" };
+    | { type: "appliedAfterFill" }
+    /** From velai.app pages only (velai-bridge.ts): the résumé velai.app keeps in this browser, as stored there, or null when it keeps none. */
+    | { type: "deviceResume"; raw: string | null };
 
 export type CardAnswer = CardSummary | null;
 export type TrackAnswer = { ok: true } | { ok: false; error: string };
@@ -49,9 +51,12 @@ export type FillAnswer =
  * `text` is those résumé lines as they are (AI off, unreachable, or its reply
  * not made of the lines). `lines` are the only part of the résumé the draft
  * (and the sealed request) was made from, without name or contact details.
+ * `paidPlanUrl`: set when the sealed AI was off because the account has no
+ * paid month (or nobody is signed in): velai.app's plan page, for the card to
+ * say what a paid month adds.
  */
 export type DraftAnswer =
-    | { ok: true; text: string; by: "sealed" | "lines"; lines: { text: string; where: string }[] }
+    | { ok: true; text: string; by: "sealed" | "lines"; lines: { text: string; where: string }[]; paidPlanUrl?: string }
     | { ok: false; error: string };
 export interface PendingFill {
     title: string;

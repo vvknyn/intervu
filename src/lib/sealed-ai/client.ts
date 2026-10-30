@@ -56,6 +56,11 @@ function stub(): SealedAiStub | null {
 
 let statusPromise: Promise<SealedAiStatus> | null = null;
 
+/** Ask for the status again next time: the account may have changed (signed in or out, a paid month bought or run out). The Chrome extension's service worker, which outlives a page, calls it when the account changes. */
+export function forgetSealedAiStatus(): void {
+    statusPromise = null;
+}
+
 /** Is sealed AI set up on this server (`TINFOIL_API_KEY`), and with which model. Asked once per page. */
 export function sealedAiStatus(): Promise<SealedAiStatus> {
     if (stub()) return Promise.resolve({ enabled: true, model: "test" });

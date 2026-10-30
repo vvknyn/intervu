@@ -20,7 +20,7 @@ export const PAID_FEATURES = [
     "sealed-AI help importing it",
     "sealed-AI tailoring for each job",
     "sealed-AI answers to screening questions",
-    "your résumé in the Chrome extension",
+    "your account's résumé in the Chrome extension on any computer",
     "résumé tools for your AI agent",
     "the daily-picks email",
 ] as const;

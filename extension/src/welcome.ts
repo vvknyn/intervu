@@ -1,10 +1,12 @@
 /**
- * The page a first install opens. It signs the person in to velai.app in a
- * small window right here, so the first job page they open already shows
- * their fit, instead of sending them off to velai.app and back.
+ * The page a first install opens. It adds the person's résumé on velai.app
+ * (free, kept in this browser) or signs them in, in a small window right
+ * here, so the first job page they open already shows their fit, instead of
+ * sending them off to velai.app and back.
  */
 import { fetchMe } from "./velai-api";
-import { resumeFromMe, type MeResponse } from "./report";
+import type { MeResponse } from "./report";
+import { readDeviceResume, resumeInUse } from "./device-resume";
 import { ACCOUNT_CHANGED_KEY, type ToBackground } from "./messages";
 import { ALL_SITES } from "./job-sites";
 
@@ -38,26 +40,36 @@ async function render(): Promise<void> {
     } catch {
         me = null;
     }
-    if (!me) {
+    const inUse = resumeInUse(me, await readDeviceResume());
+    const add = button("Add your résumé", "primary", { type: "openVelai", path: "/resume" });
+    if (inUse) {
         account.replaceChildren(
-            el("p", "notice", "Velai didn't answer just now. You can still sign in."),
-            actions(button("Sign in to Velai", "primary", { type: "signIn" })),
+            el(
+                "p",
+                "lede",
+                inUse.from === "account"
+                    ? "You're signed in, and Velai has your résumé. Open any job page to see how it fits you."
+                    : "Velai has your résumé in this browser. Open any job page to see how it fits you.",
+            ),
         );
-    } else if (!me.signedIn) {
-        account.replaceChildren(
-            el("h2", "card-title", "See how each job fits you"),
-            el("p", "lede", "Sign in and each job page shows how the role fits the résumé on your Velai account."),
-            actions(button("Sign in to Velai", "primary", { type: "signIn" })),
-            el("p", "hint", "Opens a small window, where you can also create an account. It closes on its own when you're done."),
-        );
-    } else if (!resumeFromMe(me)) {
+    } else if (me?.signedIn) {
         account.replaceChildren(
             el("p", "lede", "You're signed in. Add your résumé on Velai and every job page shows how it fits you."),
-            actions(button("Add your résumé", "primary", { type: "openVelai", path: "/resume" })),
+            actions(add),
+            ...(me.paid ? [] : [el("p", "hint", "Free: velai.app reads it in this browser and keeps it here.")]),
         );
     } else {
         account.replaceChildren(
-            el("p", "lede", "You're signed in, and Velai has your résumé. Open any job page to see how it fits you."),
+            el("h2", "card-title", "See how each job fits you"),
+            el("p", "lede", "Add your résumé on Velai and each job page shows how the role fits it. Free, and no account needed: velai.app reads it in this browser and keeps it here."),
+            actions(add, button("Sign in to Velai", "secondary", { type: "signIn" })),
+            el(
+                "p",
+                "hint",
+                me
+                    ? "Both open a small window that closes on its own when you're done. Sign in if your résumé is on your Velai account."
+                    : "Velai didn't answer just now. You can still add your résumé or sign in.",
+            ),
         );
     }
 }

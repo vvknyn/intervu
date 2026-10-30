@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "October 12, 2026";
+const LAST_UPDATED = "October 30, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -304,10 +304,14 @@ export default function PrivacyPage() {
           nothing about pages that aren&apos;t jobs.
         </p>
         <p>
-          If you&apos;re signed in to Velai in that browser, the extension loads the résumé and job preferences saved
-          on your account, then works out your fit and proposes changes to your résumé for the job inside the
-          extension. Each change is shown beside your own text, and nothing changes until you accept it. It holds
-          the résumé in memory only, never in Chrome&apos;s storage, and loads it again after a minute. Your résumé
+          If you&apos;re signed in to Velai in that browser with a paid month, the extension loads the résumé and job
+          preferences saved on your account, then works out your fit and proposes changes to your résumé for the job
+          inside the extension. It holds that résumé in memory only, never in Chrome&apos;s storage, and loads it again
+          after a minute. Without a paid month, or without signing in, it uses the résumé velai.app keeps in your
+          browser instead: on velai.app&apos;s own pages it reads that one stored copy and keeps the same copy in
+          Chrome&apos;s storage on your computer, replaced when you change it on velai.app and removed when you remove
+          it there. That copy never leaves your computer. Either way, each change is shown beside your own text, and
+          nothing changes until you accept it. Your résumé
           with the changes you accepted stays in your browser until you download or copy it. To check the job, the extension sends the role&apos;s
           title and employer to Velai&apos;s search. A search you start with the extension&apos;s button or a text
           selection is logged like any search on the website; the card&apos;s own check when a job page loads is
@@ -321,9 +325,9 @@ export default function PrivacyPage() {
           email, phone, location and links from your Velai résumé into the form&apos;s empty fields that ask for them,
           and attaches your résumé as a PDF with the changes you accepted for that job (none, if you haven&apos;t
           accepted any). That happens in your browser and sends Velai nothing.
-          The site gets those details only when you send the form yourself; the extension never sends it. After it
-          fills a form, it watches that tab for the site&apos;s confirmation that your application was sent, and then
-          adds the job to your tracker as &ldquo;I applied&rdquo; does.
+          The site gets those details only when you send the form yourself; the extension never sends it. If
+          you&apos;re signed in, after it fills a form it watches that tab for the site&apos;s confirmation that your
+          application was sent, and then adds the job to your tracker as &ldquo;I applied&rdquo; does.
         </p>
         <p>
           On an application form the extension also lists the free-text questions it finds, such as
@@ -333,8 +337,9 @@ export default function PrivacyPage() {
           picks the few lines of your résumé that bear on that question, without your name, email, phone number or
           links, and sends those lines, the question and the job&apos;s title and employer to an AI model on Tinfoil&apos;s
           sealed server, which the extension first checks and encrypts the request to, so our servers pass it on
-          without being able to read it. If sealed AI isn&apos;t available or its server can&apos;t be verified, nothing is sent and
-          the draft is those lines as your résumé has them. A draft is marked as a draft from your résumé and goes into the
+          without being able to read it. Sealed AI is part of a paid month. Without one, or if sealed AI isn&apos;t
+          available or its server can&apos;t be verified, nothing is sent and the draft is those lines as your résumé
+          has them. A draft is marked as a draft from your résumé and goes into the
           form only when you pick &ldquo;Insert in the form&rdquo;; the extension keeps no copy of it and never sends
           the form.
         </p>
