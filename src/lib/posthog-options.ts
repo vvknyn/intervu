@@ -1,5 +1,5 @@
-import type { CaptureResult, PostHogConfig } from "posthog-js";
-import { scrubValue } from "@/lib/analytics/scrub-url-queries";
+import type { CapturedNetworkRequest, CaptureResult, PostHogConfig } from "posthog-js";
+import { scrubValue, withoutQueryAndHash } from "@/lib/analytics/scrub-url-queries";
 
 /**
  * What intervu tells PostHog at init.
@@ -36,7 +36,9 @@ export const POSTHOG_PRODUCT = "intervu";
  *    lazily-fetched rrweb recorder — to `us-assets.i.posthog.com` while events
  *    go to `us.i.posthog.com` (`utils/request-router.ts`, the `assets` branch).
  *    Losing either host alone drops recordings while events keep arriving,
- *    which is exactly how "half the replays are missing" presents.
+ *    which is exactly how "half the replays are missing" presents. (The
+ *    recorder is bundled with the app now — PostHogProvider — so only the
+ *    snapshot path, `<api_host>/s/`, still depends on this proxy.)
  *
  * Pointing `api_host` at our own origin makes `region` CUSTOM, and CUSTOM
  * routes BOTH events and assets through this single path — so one proxy rule
@@ -109,6 +111,50 @@ export function stripUrlQueries(event: CaptureResult | null): CaptureResult | nu
   return event;
 }
 
+/**
+ * Attributes whose value is words a person reads (an image's alt text, a
+ * field's placeholder, a button's accessible name). maskTextSelector only
+ * reaches text nodes, so these would otherwise appear in a recording.
+ */
+const REPLAY_TEXT_ATTRIBUTE = /^(alt|title|placeholder|label|value|content|aria-(label|description|placeholder|valuetext|roledescription))$/i;
+
+/** Attributes that hold a link target; a recorded link loses its query string and hash like every other address. */
+const REPLAY_ADDRESS_ATTRIBUTE = /^(href|action|formaction|xlink:href)$/i;
+
+/**
+ * `session_recording.maskAttributeFn`: what a recording keeps of an element's
+ * attributes. Words are starred out the way rrweb stars out text (one `*` per
+ * character, so line lengths and layout hold); link targets lose their query
+ * and hash. Everything else stays — class, style, id and src are what make a
+ * recording look like the page. `maskAllElementAttributes` would hide those
+ * too and leave nothing to watch.
+ */
+export function maskReplayAttribute(name: string, value: string): string {
+  if (REPLAY_TEXT_ATTRIBUTE.test(name)) return "*".repeat(value.length);
+  if (REPLAY_ADDRESS_ATTRIBUTE.test(name)) return withoutQueryAndHash(value);
+  return value;
+}
+
+/**
+ * `session_recording.maskCapturedNetworkRequestFn`. posthog-js runs EVERY
+ * address a recording keeps through this, including the page address of each
+ * navigation (`_maskReplayUrl`), so the query string and hash — the words
+ * searched, a sign-in token — are cut here, since before_send never sees
+ * rrweb's own events. Headers and bodies are dropped too: the client flags
+ * `recordHeaders`/`recordBody` are OR-ed with the PostHog project's, so only
+ * this function keeps a project-side switch from recording them.
+ */
+export function maskReplayRequest(request: CapturedNetworkRequest): CapturedNetworkRequest {
+  return {
+    ...request,
+    name: typeof request.name === "string" ? withoutQueryAndHash(request.name) : request.name,
+    requestHeaders: undefined,
+    requestBody: undefined,
+    responseHeaders: undefined,
+    responseBody: undefined,
+  };
+}
+
 export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // Analytics are anonymous: no person profile is ever created, and nothing
   // calls identify().
@@ -157,14 +203,39 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   disable_product_tours: true,
   disable_web_experiments: true,
   opt_in_site_apps: false,
-  // Blocks the lazy bundles (replay recorder, surveys, logs, dead clicks, web
-  // vitals, exceptions, tours, conversations) from loading at all, so no
-  // remote setting can start them. Velai needs none of them: it only calls
-  // capture() and the pageview/pageleave hooks, which live in the main bundle.
+  // Blocks the lazy bundles (surveys, logs, dead clicks, web vitals,
+  // exceptions, tours, conversations) from loading at all, so no remote
+  // setting can start them. Velai needs none of them: it only calls capture()
+  // and the pageview/pageleave hooks, which live in the main bundle. The
+  // replay recorder is the one thing it does want, and it is NOT fetched
+  // through this loader: PostHogProvider imports `posthog-js/dist/posthog-recorder`
+  // before init, and posthog-js skips loading when that is already present
+  // (session-recording.js startIfEnabledOrStop). Do not unset this flag to
+  // "fix" a missing recorder; that would let every lane above back in.
   disable_external_dependency_loading: true,
 
-  // No session replay, whatever the PostHog project setting says.
-  disable_session_recording: true,
+  // Session replay is ON, blind. Whether it runs is the PostHog project's
+  // "Record user sessions" switch (posthog-js needs both that and this);
+  // WHAT it can see is fixed here and the project cannot loosen it, because
+  // client masking options win over the project's "Privacy and masking" ones
+  // (lazy-loaded-session-recorder.js `_masking`). A recording shows the page's
+  // shapes, scrolling and where the pointer went and clicked — every word,
+  // number and field value is starred out. /privacy says exactly this, and
+  // tests/unit/posthog-options.test.ts holds the two together. Console lines
+  // stay off (enable_recording_console_log above), and so do network headers
+  // and bodies (maskReplayRequest).
+  disable_session_recording: false,
+  session_recording: {
+    // Typed values, including the search box and any résumé field.
+    maskAllInputs: true,
+    // Every text node: job titles, résumé lines, names, emails. "*" is the
+    // selector for "everything"; rrweb replaces each character with "*".
+    maskTextSelector: "*",
+    maskAttributeFn: maskReplayAttribute,
+    maskCapturedNetworkRequestFn: maskReplayRequest,
+    recordHeaders: false,
+    recordBody: false,
+  },
 
   // No exception capture: an error message can embed text the user typed, and
   // before_send only rewrites addresses.

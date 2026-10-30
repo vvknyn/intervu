@@ -79,17 +79,20 @@ describe("privacy article — owner-confirmed analytics & processors", () => {
     assert.match(articleText, /not resume email after you leave/i, "verb resume email unchanged");
   });
 
-  it("PostHog client config uses US UI host and records no replay", () => {
+  it("PostHog client config uses US UI host and records replays with all text hidden", () => {
     assert.equal(POSTHOG_OPTIONS.ui_host, "https://us.posthog.com");
-    assert.equal(POSTHOG_OPTIONS.disable_session_recording, true);
+    assert.equal(POSTHOG_OPTIONS.disable_session_recording, false);
+    assert.equal(POSTHOG_OPTIONS.session_recording?.maskTextSelector, "*");
+    assert.equal(POSTHOG_OPTIONS.session_recording?.maskAllInputs, true);
   });
 
-  it("discloses the PostHog project shared with Subspace, US cloud, no replay, unlinked events, discarded IP, and no data licensing", () => {
+  it("discloses the PostHog project shared with Subspace, US cloud, blind replay, unlinked events, discarded IP, and no data licensing", () => {
     const prose = privacyArticle();
     assert.match(prose, /same PostHog project as Subspace/i);
     assert.match(prose, /IP address is removed by our server before an event is forwarded/i);
     assert.match(prose, /us\.posthog\.com/i);
-    assert.match(prose, /There is no session replay/i);
+    assert.match(prose, /We record visits for session replay, with every word and field hidden/i);
+    assert.doesNotMatch(prose, /There is no session replay/i);
     assert.match(prose, /not linked\s+to your Velai account/i);
     assert.match(prose, /never sells or licenses your data to anyone, even aggregated/i);
     assert.doesNotMatch(prose, /Data API/);
