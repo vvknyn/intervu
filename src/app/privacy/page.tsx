@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "October 12, 2026";
+const LAST_UPDATED = "October 30, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -145,8 +145,8 @@ export default function PrivacyPage() {
           emails you (see <a href="#email">Email</a>).
         </p>
         <p>
-          Our analytics never record your résumé. There is no session replay and no automatic click capture, and
-          page addresses lose the role titles that ranking by fit puts in them (see <a href="#cookies-analytics">Cookies &amp; analytics</a>).
+          Our analytics never record your résumé. Recordings of a visit hide every word and field, there is no
+          automatic click capture, and page addresses lose the role titles that ranking by fit puts in them (see <a href="#cookies-analytics">Cookies &amp; analytics</a>).
         </p>
         <p>
           You can delete your résumé from <Link href="/settings">account settings</Link> at any time. That also
@@ -304,10 +304,14 @@ export default function PrivacyPage() {
           nothing about pages that aren&apos;t jobs.
         </p>
         <p>
-          If you&apos;re signed in to Velai in that browser, the extension loads the résumé and job preferences saved
-          on your account, then works out your fit and proposes changes to your résumé for the job inside the
-          extension. Each change is shown beside your own text, and nothing changes until you accept it. It holds
-          the résumé in memory only, never in Chrome&apos;s storage, and loads it again after a minute. Your résumé
+          If you&apos;re signed in to Velai in that browser with a paid month, the extension loads the résumé and job
+          preferences saved on your account, then works out your fit and proposes changes to your résumé for the job
+          inside the extension. It holds that résumé in memory only, never in Chrome&apos;s storage, and loads it again
+          after a minute. Without a paid month, or without signing in, it uses the résumé velai.app keeps in your
+          browser instead: on velai.app&apos;s own pages it reads that one stored copy and keeps the same copy in
+          Chrome&apos;s storage on your computer, replaced when you change it on velai.app and removed when you remove
+          it there. That copy never leaves your computer. Either way, each change is shown beside your own text, and
+          nothing changes until you accept it. Your résumé
           with the changes you accepted stays in your browser until you download or copy it. To check the job, the extension sends the role&apos;s
           title and employer to Velai&apos;s search. A search you start with the extension&apos;s button or a text
           selection is logged like any search on the website; the card&apos;s own check when a job page loads is
@@ -321,9 +325,9 @@ export default function PrivacyPage() {
           email, phone, location and links from your Velai résumé into the form&apos;s empty fields that ask for them,
           and attaches your résumé as a PDF with the changes you accepted for that job (none, if you haven&apos;t
           accepted any). That happens in your browser and sends Velai nothing.
-          The site gets those details only when you send the form yourself; the extension never sends it. After it
-          fills a form, it watches that tab for the site&apos;s confirmation that your application was sent, and then
-          adds the job to your tracker as &ldquo;I applied&rdquo; does.
+          The site gets those details only when you send the form yourself; the extension never sends it. If
+          you&apos;re signed in, after it fills a form it watches that tab for the site&apos;s confirmation that your
+          application was sent, and then adds the job to your tracker as &ldquo;I applied&rdquo; does.
         </p>
         <p>
           On an application form the extension also lists the free-text questions it finds, such as
@@ -333,8 +337,9 @@ export default function PrivacyPage() {
           picks the few lines of your résumé that bear on that question, without your name, email, phone number or
           links, and sends those lines, the question and the job&apos;s title and employer to an AI model on Tinfoil&apos;s
           sealed server, which the extension first checks and encrypts the request to, so our servers pass it on
-          without being able to read it. If sealed AI isn&apos;t available or its server can&apos;t be verified, nothing is sent and
-          the draft is those lines as your résumé has them. A draft is marked as a draft from your résumé and goes into the
+          without being able to read it. Sealed AI is part of a paid month. Without one, or if sealed AI isn&apos;t
+          available or its server can&apos;t be verified, nothing is sent and the draft is those lines as your résumé
+          has them. A draft is marked as a draft from your résumé and goes into the
           form only when you pick &ldquo;Insert in the form&rdquo;; the extension keeps no copy of it and never sends
           the form.
         </p>
@@ -398,8 +403,8 @@ export default function PrivacyPage() {
           We use PostHog for anonymous product analytics — page views and a short list of named actions, such as
           opening a job or running a search — so we can see what&apos;s working and fix what isn&apos;t. Velai&apos;s
           events go to the same PostHog project as Subspace (thesubspace.io), the founder&apos;s other product,
-          and are told apart by a product tag. The settings described on this page (no session replay, no
-          automatic click capture, no surveys, no profiles, no IP address) are enforced by Velai&apos;s own code
+          and are told apart by a product tag. The settings described on this page (every word and field hidden
+          in recordings, no automatic click capture, no surveys, no profiles, no IP address) are enforced by Velai&apos;s own code
           and our server, not by a PostHog project setting, so they hold whatever that project&apos;s settings say. PostHog&apos;s US cloud (
           <code className="text-xs text-foreground">us.posthog.com</code>, configured as our analytics UI host) processes the data
           as our processor under their own DPA terms. Browser requests are sent through our own{" "}
@@ -433,8 +438,14 @@ export default function PrivacyPage() {
           résumé, and a value that looks like free text or an address is dropped.
         </p>
         <p>
-          There is no session replay: nothing records your screen or your typing, and there is no
-          automatic click capture. Events are sent only for the named actions described above, and none of them
+          We record visits for session replay, with every word and field hidden. Before anything leaves your
+          browser, it replaces every letter and number on the page, and everything you type, with a star, so a
+          recording shows the shape of the page, how far you scrolled and where the pointer moved and clicked,
+          and never your résumé, a search, your name or your email address. Page and link addresses lose their
+          query string and anything after a #, and console messages and the contents of network requests are not
+          recorded. A recording carries the same random code as the events above, which lasts only for that
+          browser tab, not your account, and the PostHog project keeps it for 30 days. There is no automatic
+          click capture. Events are sent only for the named actions described above, and none of them
           carries the words you typed, your résumé, your name or your email address.
         </p>
         <p>
@@ -505,8 +516,8 @@ export default function PrivacyPage() {
           PostHog data from visits where you were never signed in carries no account id, so it is not linked to
           you and is not removed. Events sent after 23 October 2026 are no longer linked to any account; older events from signed-in visits were, and deleting your account erases them. If
           PostHog can&apos;t be reached when you delete your account, the rest of the
-          deletion still completes and we tell you, and we do not retry the PostHog request. Any session replay recordings made
-          before replay was turned off are kept for 30 days, then expire under PostHog&apos;s rules.
+          deletion still completes and we tell you, and we do not retry the PostHog request. Session recordings are not linked to your account,
+          so deleting it does not remove them; they expire 30 days after they are made, under PostHog&apos;s rules.
           We have not confirmed a fixed retention period for analytics events in PostHog. Deletion does not
           remove contact-form messages or waitlist entries sent from a different email address than the one you
           sign in with. Anonymous search

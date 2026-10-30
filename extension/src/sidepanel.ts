@@ -1,24 +1,27 @@
 /**
- * Side panel. On a job page (the toolbar button) it shows, for the person
- * signed in to velai.app in this browser:
- *  1. how the role fits their Velai résumé (the site's fit label and reasons),
+ * Side panel. On a job page (the toolbar button) it shows:
+ *  1. how the role fits the person's résumé (the site's fit label and reasons),
  *  2. Velai's checks on the posting (or what the page itself states when
  *     Velai doesn't have it),
  *  3. the changes Velai proposes to their résumé for the role, each accepted or
  *     rejected by them, and the résumé with the accepted ones to download as a
- *     PDF or copy.
- * Signed out, it still shows the checks and offers sign-in. Selected text or
- * a typed search lists matching roles on Velai instead.
+ *     PDF or copy,
+ *  4. signed in, adding the job to their Velai tracker.
+ * The résumé is the account's with a paid month, else the one velai.app keeps
+ * in this browser (device-resume.ts), so 1 to 3 need no account. With no
+ * résumé it still shows the checks and offers to add one. Selected text or a
+ * typed search lists matching roles on Velai instead.
  *
- * Everything is computed here, in the browser, with velai.app's own code:
- * the résumé comes from the person's account (GET /api/extension/me) and
- * never goes anywhere else; roles come from the public search the site's
- * jobs list uses (POST /api/jobs/search).
+ * Everything is computed here, in the browser, with velai.app's own code: the
+ * résumé comes from the account (GET /api/extension/me) or this browser and
+ * never goes anywhere else; roles come from the public search the site's jobs
+ * list uses (POST /api/jobs/search).
  */
 import { PAGE_QUERY_KEY, queryFromPage } from "./page-query";
 import { jobFromPage, looksLikeJob, validThrough, type PageRead } from "./page-reader";
 import { panelRow, velaiSearchUrl, VELAI_ORIGIN, type PanelRow } from "./rows";
-import { fitReport, pageChecks, resumeFromMe, sameJob, tailoringJob, velaiChecks, type CheckLine, type MeResponse } from "./report";
+import { fitReport, pageChecks, sameJob, tailoringJob, velaiChecks, type CheckLine, type MeResponse } from "./report";
+import { readDeviceResume, resumeInUse, type ResumeInUse } from "./device-resume";
 import { tailoredResumePdf } from "./resume-pdf";
 import { loadChoice, saveChoice } from "./tailor-choices";
 import { acceptedCount, acceptedResume, choiceKey, decisionsFor, NO_CHANGES_TEXT, proposeChanges, reviewSections, type Decision, type ReviewItem } from "./tailor-review";
@@ -125,31 +128,36 @@ function checksNode(lines: CheckLine[]): HTMLElement {
     return list;
 }
 
-function fitNode(me: MeResponse | null, resume: ResumeData | null, job: PublicJob, onRetry: () => void): HTMLElement {
-    if (!me) {
-        return section("Your fit", el("p", "notice", "Velai didn't answer, so your fit can't be shown right now."), button("Try again", "secondary", onRetry));
+/** No résumé to score against yet: add one on velai.app, free and kept in this browser without a paid month; or sign in to an account that has one. */
+function addResumeNode(me: MeResponse | null, onRetry: () => void): HTMLElement {
+    const parts: Node[] = [
+        el("p", "lede", "Add your résumé on Velai to see how this role fits you."),
+        actionsRow(button("Add your résumé", "primary", () => send({ type: "openVelai", path: "/resume" })), button("Check again", "ghost", onRetry)),
+        el(
+            "p",
+            "hint",
+            me?.signedIn && me.paid
+                ? "Opens in a small window. Close it when you're done and this job is checked again."
+                : "Free, and no account needed: velai.app reads it in this browser and keeps it here. Opens in a small window; close it when you're done and this job is checked again.",
+        ),
+    ];
+    if (me && !me.signedIn) {
+        const signIn = el("p", "hint");
+        signIn.append("Your résumé is on your Velai account? ", button("Sign in", "inline", () => send({ type: "signIn" })), ".");
+        parts.push(signIn);
     }
-    if (!me.signedIn) {
-        return section(
-            "Your fit",
-            el("p", "lede", "Sign in to see how this role fits your résumé."),
-            actionsRow(button("Sign in to Velai", "primary", () => send({ type: "signIn" })), button("Check again", "ghost", onRetry)),
-            el("p", "hint", "Opens a small window, where you can also create an account. It closes on its own and this job is checked again."),
-        );
+    return section("Your fit", ...parts);
+}
+
+function fitNode(me: MeResponse | null, inUse: ResumeInUse | null, job: PublicJob, onRetry: () => void): HTMLElement {
+    if (!inUse) {
+        // Velai didn't answer and this browser has no résumé: nothing to score against.
+        if (!me) return section("Your fit", el("p", "notice", "Velai didn't answer, so your fit can't be shown right now."), button("Try again", "secondary", onRetry));
+        return addResumeNode(me, onRetry);
     }
-    if (me.resume === null) {
-        return section("Your fit", el("p", "notice", "Velai couldn't load your résumé just now."), button("Try again", "secondary", onRetry));
-    }
-    if (!resume) {
-        return section(
-            "Your fit",
-            el("p", "lede", "Add your résumé on Velai to see how this role fits you."),
-            actionsRow(button("Add your résumé", "primary", () => send({ type: "openVelai", path: "/resume" })), button("Check again", "ghost", onRetry)),
-            el("p", "hint", "Opens in a small window. Close it when you're done and this job is checked again."),
-        );
-    }
+    const resume = inUse.resume;
     const edit = editResumeNode();
-    const report = fitReport(resume, me.preferences ?? null, job, me.resume?.updatedAt);
+    const report = fitReport(resume, me?.preferences ?? null, job, inUse.updatedAt);
     if (!report) {
         return section("Your fit", el("p", "muted", "Your résumé and this role don't share enough to score, so Velai gives it no fit label."), edit);
     }
@@ -167,6 +175,7 @@ function fitNode(me: MeResponse | null, resume: ResumeData | null, job: PublicJo
         );
         parts.push(chips, el("p", "hint", "Words in the role's title and tags, the terms the fit label counts: ✓ on your résumé, ✗ not on it."));
     }
+    if (inUse.from === "browser") parts.push(el("p", "hint", "Against the résumé velai.app keeps in this browser. It stays on this computer."));
     parts.push(edit);
     return section("Your fit", ...parts);
 }
@@ -417,7 +426,7 @@ function renderIdle(): void {
     setSource(null);
     results.replaceChildren(
         el("p", "lede", "Open a job on any careers site or job board and click the Velai button, or the button on the Velai card."),
-        el("p", "muted", "You'll see how it fits your Velai résumé, whether the posting looks current, and the changes Velai proposes to your résumé for it, for you to accept or reject."),
+        el("p", "muted", "You'll see how it fits your résumé, whether the posting looks current, and the changes Velai proposes to your résumé for it, for you to accept or reject. Free, with the résumé velai.app keeps in this browser."),
     );
 }
 
@@ -455,16 +464,18 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
     setSource(read.posting ? `Read from the job details ${where} publishes.` : `Reading ${where}…`);
     results.replaceChildren(jobHeader(pageJob), el("p", "status", "Checking with Velai…"));
 
-    const [meResult, searchResult] = await Promise.allSettled([fetchMe(), searchVelai(input.value, PANEL_LIMIT)]);
+    const [meResult, searchResult, deviceResult] = await Promise.allSettled([fetchMe(), searchVelai(input.value, PANEL_LIMIT), readDeviceResume()]);
     if (mine !== generation) return;
     const me = meResult.status === "fulfilled" ? meResult.value : null;
+    const device = deviceResult.status === "fulfilled" ? deviceResult.value : null;
     const hits = searchResult.status === "fulfilled" && !searchResult.value.unavailable ? searchResult.value.hits : null;
     // Matching only: the page's stated employer, else what its title pairs the
     // role with. A wrong guess just doesn't match.
     const velaiJob = hits ? sameJob(hits, read.url, { title: pageJob.title, company: pageJob.company ?? (fromTitle.paired || null) }) : null;
     const now = Date.now();
     const retry = () => void renderPage(ctx, textIsTheJob);
-    const resume = me ? resumeFromMe(me) : null;
+    const inUse = resumeInUse(me, device);
+    const resume = inUse?.resume ?? null;
     // Each similar role's fit label, scored the same way as the job on the page.
     const fitOf = resume
         ? (hit: PublicJob) => {
@@ -506,19 +517,19 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
     // Velai's copy when it has the posting, so the fit and checks match the site's.
     const job = velaiJob ?? pageJob;
     const parts: Node[] = [jobHeader(job)];
-    const fit = fitNode(me, resume, job, retry);
+    const fit = fitNode(me, inUse, job, retry);
     const checks = velaiJob
         ? section("Velai's checks", checksNode(velaiChecks(velaiJob, now)), link(panelRow(velaiJob, now).velaiUrl, "Open on Velai", "secondary"))
         : hits === null
           ? section("Velai's checks", el("p", "notice", "Velai's search didn't answer, so this posting couldn't be checked."), button("Try again", "secondary", retry))
           : section("Velai's checks", checksNode(pageChecks(pageJob, validThrough(read), now)));
     // Lead with what Velai can already say: the fit when there's a résumé to
-    // score, else the posting checks, which need no account, above the ask to sign in.
-    parts.push(...(resume ? [fit, checks] : [checks, fit]));
+    // score, else the posting checks, which need no résumé, above the ask to add one.
+    parts.push(...(inUse ? [fit, checks] : [checks, fit]));
 
-    if (resume) {
+    if (inUse) {
         // Proposed against the fullest description of the role (`tailoringJob`), the posting the card's form fill uses too.
-        const tailor = await tailorNode(resume, tailoringJob(read, pageJob, velaiJob), me?.resume?.updatedAt ?? null);
+        const tailor = await tailorNode(inUse.resume, tailoringJob(read, pageJob, velaiJob), inUse.updatedAt);
         if (mine !== generation) return;
         parts.push(tailor);
     }

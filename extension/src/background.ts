@@ -20,7 +20,8 @@
  */
 import { PAGE_QUERY_KEY, hostOf, queryFromPage, queryFromSelection } from "./page-query";
 import { jobFromPage, looksLikeJob, readJobPage, validThrough, type PageRead } from "./page-reader";
-import { resumeFromMe, sameJob, tailoringJob, type MeResponse } from "./report";
+import { sameJob, tailoringJob, type MeResponse } from "./report";
+import { DEVICE_RESUME_KEY, parseSiteResume, readDeviceResume, resumeInUse, sameDeviceResume, type ResumeInUse } from "./device-resume";
 import { cardSummary, type TrackJob } from "./card-summary";
 import { contactValues } from "./form-fill";
 import { tailoredResumePdf, toBase64 } from "./resume-pdf";
@@ -34,7 +35,7 @@ import { VELAI_ORIGIN } from "./rows";
 import type { HandOff } from "./handoff";
 import type { JobSearchResult, PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
-import { sealedAiStatus, sealedChat, useSealedAiOrigin } from "@/lib/sealed-ai/client";
+import { forgetSealedAiStatus, sealedAiStatus, sealedChat, useSealedAiOrigin } from "@/lib/sealed-ai/client";
 import { draftScreeningAnswer } from "@/lib/screening/answer";
 import { classifyQuestion, questionText } from "@/lib/screening/question";
 
@@ -115,8 +116,20 @@ function accountChanged(): void {
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes[ACCOUNT_CHANGED_KEY]) me = null;
+    if (area === "local" && changes[ACCOUNT_CHANGED_KEY]) {
+        me = null;
+        // Sealed AI follows the account's paid month, so its status is asked again too.
+        forgetSealedAiStatus();
+    }
 });
+
+/** velai.app's browser résumé, as velai-bridge.ts read it: keep the same copy here, and re-check the card and panel when it changed. */
+async function keepDeviceResume(raw: string | null): Promise<void> {
+    const next = parseSiteResume(raw);
+    if (sameDeviceResume(await readDeviceResume(), next)) return;
+    await (next ? chrome.storage.local.set({ [DEVICE_RESUME_KEY]: next }) : chrome.storage.local.remove(DEVICE_RESUME_KEY));
+    accountChanged();
+}
 
 // ── What each tab is applying to ───────────────────────────────────────────
 
@@ -183,39 +196,38 @@ async function cardFor(pageRead: PageRead, fresh: boolean, tabId: number | undef
     const pageJob = jobFromPage(read);
     const { q, paired } = lookupFor(read, pageJob);
     if (!q.trim()) return null;
-    const [account, result] = await Promise.all([getMe(fresh), searchOnce(q)]);
+    const [account, result, device] = await Promise.all([getMe(fresh), searchOnce(q), readDeviceResume()]);
     const velaiJob = velaiCopyOf(result, read, pageJob, paired);
     // A page with no structured details still gets a card when Velai has the role or the page reads as a job.
     const isJob = Boolean(read.posting || velaiJob || looksLikeJob(read));
     if (!isJob && !applying) return null;
     if (isJob && tabId != null) await setTabMemory(TAB_JOBS_KEY, tabId, read.url, read);
+    const inUse = resumeInUse(account, device);
     return cardSummary({
         pageJob,
         velaiJob,
         applyBy: validThrough(read),
         signedIn: account ? account.signedIn : null,
-        resume: account?.signedIn ? resumeFromMe(account) : null,
+        resume: inUse?.resume ?? null,
         prefs: account?.preferences ?? null,
-        resumeUpdatedAt: account?.resume?.updatedAt ?? null,
+        resumeUpdatedAt: inUse?.updatedAt ?? null,
         nowMs: Date.now(),
     });
 }
 
 // ── Filling an application form ────────────────────────────────────────────
 
-/** The signed-in account's résumé and the posting an application form is for: what fillData and draftAnswer both start from. */
-async function applyingTo(read: PageRead, tabId: number | undefined): Promise<{ ok: true; account: MeResponse; resume: ResumeData; job: PublicJob } | { ok: false; error: string }> {
-    const account = await getMe(false);
-    if (!account) return { ok: false, error: "Velai didn't answer." };
-    if (!account.signedIn) return { ok: false, error: "Sign in to Velai first." };
-    const resume = resumeFromMe(account);
-    if (!resume) return { ok: false, error: "Add your résumé to Velai first." };
+/** The résumé in use (the account's, or the one velai.app keeps in this browser) and the posting an application form is for: what fillData and draftAnswer both start from. */
+async function applyingTo(read: PageRead, tabId: number | undefined): Promise<{ ok: true; account: MeResponse | null; inUse: ResumeInUse; resume: ResumeData; job: PublicJob } | { ok: false; error: string }> {
+    const [account, device] = await Promise.all([getMe(false), readDeviceResume()]);
+    const inUse = resumeInUse(account, device);
+    if (!inUse) return { ok: false, error: account ? "Add your résumé on Velai first." : "Velai didn't answer." };
     const jobRead = await jobReadFor(read, tabId);
     const pageJob = jobFromPage(jobRead);
     // The same posting the panel proposes changes for, so the same choices apply.
     const { q, paired } = lookupFor(jobRead, pageJob);
     const velaiJob = q.trim() ? velaiCopyOf(await searchOnce(q), jobRead, pageJob, paired) : null;
-    return { ok: true, account, resume, job: tailoringJob(jobRead, pageJob, velaiJob) };
+    return { ok: true, account, inUse, resume: inUse.resume, job: tailoringJob(jobRead, pageJob, velaiJob) };
 }
 
 /**
@@ -227,12 +239,12 @@ async function applyingTo(read: PageRead, tabId: number | undefined): Promise<{ 
 async function fillData(read: PageRead, tabId: number | undefined): Promise<FillAnswer> {
     const applying = await applyingTo(read, tabId);
     if (!applying.ok) return applying;
-    const { account, resume, job } = applying;
+    const { inUse, resume, job } = applying;
     let pdf: { base64: string; filename: string } | null = null;
     let tailored = { accepted: 0, proposed: 0 };
     try {
         const draft = proposeChanges(resume, job);
-        const decisions = decisionsFor(draft, await loadChoice(choiceKey(job)), account.resume?.updatedAt ?? null);
+        const decisions = decisionsFor(draft, await loadChoice(choiceKey(job)), inUse.updatedAt);
         tailored = { accepted: acceptedCount(draft, decisions), proposed: draft.changes.length };
         const made = await tailoredResumePdf(acceptedResume(draft, decisions), job);
         pdf = { base64: toBase64(await made.blob.arrayBuffer()), filename: made.filename };
@@ -272,7 +284,9 @@ async function draftAnswer(read: PageRead, question: string, tabId: number | und
         : undefined;
     const draft = await draftScreeningAnswer({ chat }, { resume: applying.resume, question: asked, job: { title: applying.job.title, company: applying.job.company ?? "" } });
     if (!draft.verdict.draft || !draft.by) return leftToYou(draft.verdict.draft ? "nothing to draft" : draft.verdict.reason);
-    return { ok: true, text: draft.text, by: draft.by, lines: draft.lines.map(({ text, where }) => ({ text, where })) };
+    // Sealed AI is part of a paid month: say so when that, not an outage, is why the draft is the lines themselves.
+    const aiNeedsPaid = !sealed && !(applying.account?.signedIn && applying.account.paid === true);
+    return { ok: true, text: draft.text, by: draft.by, lines: draft.lines.map(({ text, where }) => ({ text, where })), ...(aiNeedsPaid ? { paidPlanUrl: `${VELAI_ORIGIN}/pricing` } : {}) };
 }
 
 /** Tabs whose confirmed application is being tracked right now (the page and its watcher can both see the confirmation). */
@@ -446,6 +460,14 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
                 (r): SaveAnswer => (r.ok ? { ok: true, status: trackerStatusLabel(r.status ?? "interested") } : { ok: false, error: "Velai didn't save it." }),
                 (e: unknown): SaveAnswer => ({ ok: false, error: /HTTP 401/.test(String(e)) ? "Velai says you're signed out." : "Velai didn't answer." }),
             ).then(sendResponse);
+            return true;
+        case "deviceResume":
+            // Only velai.app's own pages speak for velai.app's browser storage.
+            if (sender.id !== chrome.runtime.id || !(sender.url ?? "").startsWith(`${VELAI_ORIGIN}/`)) {
+                sendResponse(false);
+                return false;
+            }
+            void keepDeviceResume(message.raw).then(() => sendResponse(true), () => sendResponse(false));
             return true;
         case "siteEnabled":
             void syncOptionalSites()

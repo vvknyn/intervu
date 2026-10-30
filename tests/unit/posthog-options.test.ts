@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  maskReplayAttribute,
+  maskReplayRequest,
   stripUrlQueries,
   withoutQueryAndHash,
   POSTHOG_OPTIONS,
@@ -28,12 +30,58 @@ test("analytics are anonymous: no person profile is ever created", () => {
   assert.equal(POSTHOG_OPTIONS.person_profiles, "never");
 });
 
-test("no autocapture, no session replay, no heatmaps; pageleave stays on", () => {
+test("no autocapture, no heatmaps; pageleave stays on", () => {
   assert.equal(POSTHOG_OPTIONS.capture_pageleave, true);
   assert.equal(POSTHOG_OPTIONS.autocapture, false);
-  assert.equal(POSTHOG_OPTIONS.disable_session_recording, true);
   assert.equal(POSTHOG_OPTIONS.enable_heatmaps, false);
-  assert.equal(POSTHOG_OPTIONS.session_recording, undefined, "no replay masking config is left behind");
+});
+
+// Session replay is on (posthog-js also needs the PostHog project's "Record user
+// sessions" switch) but BLIND. Client masking options win over the project's, so
+// these values are what /privacy promises; tests/unit/posthog-replay-masking.test.ts
+// proves them on the real recorder.
+test("session replay is on but hides every word and field, and keeps no console lines or request contents", () => {
+  assert.equal(POSTHOG_OPTIONS.disable_session_recording, false);
+  assert.equal(POSTHOG_OPTIONS.session_recording?.maskTextSelector, "*", "every text node starred out");
+  assert.equal(POSTHOG_OPTIONS.session_recording?.maskAllInputs, true);
+  assert.equal(POSTHOG_OPTIONS.session_recording?.maskAllElementAttributes, undefined, "would hide class and style too and leave nothing to watch; maskReplayAttribute does the text ones");
+  assert.equal(POSTHOG_OPTIONS.session_recording?.maskAttributeFn, maskReplayAttribute);
+  assert.equal(POSTHOG_OPTIONS.session_recording?.maskCapturedNetworkRequestFn, maskReplayRequest);
+  assert.equal(POSTHOG_OPTIONS.session_recording?.recordHeaders, false);
+  assert.equal(POSTHOG_OPTIONS.session_recording?.recordBody, false);
+  assert.equal(POSTHOG_OPTIONS.enable_recording_console_log, false);
+  // The recorder is bundled by PostHogProvider; this flag keeps every OTHER lazy bundle out.
+  assert.equal(POSTHOG_OPTIONS.disable_external_dependency_loading, true);
+});
+
+test("the recorder is bundled with the app, so replay does not depend on the lazy loader being open", () => {
+  const provider = readFileSync("src/components/providers/PostHogProvider.tsx", "utf8");
+  const recorder = provider.indexOf('import("posthog-js/dist/posthog-recorder")');
+  const init = provider.indexOf("posthog.init(");
+  assert.ok(recorder > 0, "PostHogProvider imports the recorder");
+  assert.ok(recorder < init, "the recorder is on the page before init asks for the project's replay setting");
+});
+
+test("a recording keeps no words in attributes and no query string or hash in any address", () => {
+  for (const name of ["alt", "title", "placeholder", "aria-label", "value", "label"]) {
+    assert.equal(maskReplayAttribute(name, "Jane Doe"), "********", name);
+  }
+  assert.equal(maskReplayAttribute("href", "/jobs?q=nurse&token=abc#top"), "/jobs");
+  assert.equal(maskReplayAttribute("href", "https://velai.app/co/acme?utm_source=x"), "https://velai.app/co/acme");
+  // What makes the page look like itself stays.
+  for (const name of ["class", "style", "id", "src", "width", "role", "data-state"]) {
+    assert.equal(maskReplayAttribute(name, "box"), "box", name);
+  }
+  const masked = maskReplayRequest({
+    name: "https://velai.app/jobs?q=nurse#x", entryType: "navigation", startTime: 1, duration: 2,
+    requestHeaders: { authorization: "Bearer x" }, requestBody: "q=nurse", responseHeaders: { a: "b" }, responseBody: "{}",
+  } as never);
+  assert.equal(masked.name, "https://velai.app/jobs");
+  assert.equal(masked.requestHeaders, undefined);
+  assert.equal(masked.requestBody, undefined);
+  assert.equal(masked.responseHeaders, undefined);
+  assert.equal(masked.responseBody, undefined);
+  assert.equal(masked.duration, 2, "timing fields survive");
 });
 
 test("events carry the product super-property that separates intervu from subspace", () => {
@@ -93,11 +141,13 @@ test("surveys and exception capture are off: both can carry free text or emails"
   assert.equal(POSTHOG_OPTIONS.capture_exceptions, false);
 });
 
-test("/privacy says there is no session replay and no autocapture", () => {
-  const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
-  assert.match(privacy, /There is no session replay/i);
-  assert.match(privacy, /no automatic click capture/i);
-  assert.doesNotMatch(privacy, /session replay is enabled/i);
+test("/privacy says recordings hide every word and field, and that there is no autocapture", () => {
+  const privacy = readFileSync("src/app/privacy/page.tsx", "utf8").replace(/\s+/g, " ");
+  assert.match(privacy, /We record visits for session replay, with every word and field hidden/);
+  assert.match(privacy, /never your résumé, a search, your name or your email address/);
+  assert.match(privacy, /There is no automatic click capture/);
+  assert.match(privacy, /Session recordings are not linked to your account/);
+  assert.doesNotMatch(privacy, /There is no session replay/i, "the page must not deny the recordings it now makes");
 });
 
 test("every capture lane posthog-js can start from remote config is pinned off", () => {
@@ -111,7 +161,6 @@ test("every capture lane posthog-js can start from remote config is pinned off",
     capture_performance: false,
     capture_exceptions: false,
     disable_surveys: true,
-    disable_session_recording: true,
     disable_conversations: true,
     disable_product_tours: true,
     disable_web_experiments: true,

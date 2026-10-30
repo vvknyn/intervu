@@ -52,18 +52,18 @@ export function fitTerms(resume: ResumeData, job: PublicJob): FitTerms | null {
 export interface CardSummary {
     title: string;
     company: string | null;
-    /** null when signed out, without a résumé, or when the résumé and role don't overlap. */
+    /** null without a résumé, or when the résumé and role don't overlap. */
     fit: Pick<FitReport, "label" | "tone"> | null;
     /** With a fit label: the terms it counts, ✓ on the résumé or ✗ not. */
     terms: FitTerms | null;
-    /** Why there's no fit line, when there isn't one. */
+    /** Why there's no fit line, when there isn't one: no résumé while signed out, no résumé while signed in, no overlap, or velai.app didn't answer. */
     account: "signed-out" | "no-resume" | "no-overlap" | "unavailable" | null;
     lines: CardLine[];
     /** The posting on velai.app, when Velai has it. */
     velaiUrl: string | null;
     /** What "I applied" would save; null when signed out or the employer isn't known. */
     track: TrackJob | null;
-    /** Signed in with a résumé, so an application form on the page can be filled from it. */
+    /** A résumé to fill from (the account's, or the one velai.app keeps in this browser), signed in or not. */
     canFill: boolean;
 }
 
@@ -75,6 +75,7 @@ export interface CardInput {
     applyBy: string | null;
     /** null when velai.app didn't answer. */
     signedIn: boolean | null;
+    /** The résumé in use (device-resume.ts `resumeInUse`): it scores the job whether or not anyone is signed in. */
     resume: ResumeData | null;
     prefs: AgentPreferences | null;
     resumeUpdatedAt?: string | null;
@@ -136,10 +137,8 @@ export function cardSummary(input: CardInput): CardSummary {
     let fit: CardSummary["fit"] = null;
     let terms: FitTerms | null = null;
     let account: CardSummary["account"] = null;
-    if (input.signedIn === null) account = "unavailable";
-    else if (!input.signedIn) account = "signed-out";
-    else if (!input.resume) account = "no-resume";
-    else {
+    // A résumé scores the job with or without an account; the account only adds the tracker.
+    if (input.resume) {
         const report = fitReport(input.resume, input.prefs, job, input.resumeUpdatedAt);
         if (report) {
             fit = { label: report.label, tone: report.tone };
@@ -147,6 +146,9 @@ export function cardSummary(input: CardInput): CardSummary {
         }
         else account = "no-overlap";
     }
+    else if (input.signedIn === null) account = "unavailable";
+    else if (!input.signedIn) account = "signed-out";
+    else account = "no-resume";
 
     const presented = presentJob(job);
     const employer = job.company?.trim() || pageJob.company?.trim() || "";
@@ -163,6 +165,6 @@ export function cardSummary(input: CardInput): CardSummary {
         lines: lines.slice(0, CARD_LINE_LIMIT),
         velaiUrl: velaiJob ? `${VELAI_ORIGIN}${jobPath(velaiJob)}` : null,
         track,
-        canFill: Boolean(input.signedIn && input.resume),
+        canFill: Boolean(input.resume),
     };
 }
