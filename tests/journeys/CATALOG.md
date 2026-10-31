@@ -915,6 +915,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-BILLING-05 | Signed in, open the account menu and choose "Plan & pricing" to land on /pricing | signed-in | /jobs, account menu | signed-in | no | uncovered | — |
 | J-BILLING-06 | Signed in on Settings › Account, see Payments: every payment newest first with what it bought, the amount, any refund and a receipt link, or "No payments yet."; a failed read says it could not load (with Retry) and never "No payments yet." (runs on a local server only: needs the dev-only sign-in hook) | signed-in | /settings?tab=account | signed-in | no | covered | plan-visibility.spec.ts |
 | J-BILLING-07 | With month to month on, the Plan card reads "Full access, month to month — next payment <date>" with "Manage payments", and Payments says when the next payment is, that it is cancelled and runs to a date, or that the last charge failed; "Manage billing" opens Stripe's billing page and a refusal is shown (runs on a local server only) | signed-in | /settings?tab=account | signed-in | no | covered | plan-visibility.spec.ts |
+| J-BILLING-08 | Signed in with a paid month, Settings › Account › Payments lists the payment (not "can't load") while the Stripe key has no Invoices or Subscriptions permission and month to month is off | signed-in | /settings?tab=account | signed-in | no | uncovered | — |
 
 ## ERR
 

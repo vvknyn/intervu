@@ -83,7 +83,7 @@ If you want an all-in-one AI assistant around your job search, JobShifu builds s
 ## What each one costs
 
 - **JobShifu** ([pricing page](https://jobshifu.com/pricing), read October 12, 2026) has a free tier with no card required that includes job matches, application tracking, extension autofill (including Workday), 2 tailored résumés a day, 5 AI screener answers a week, 3 cover letters a month, 1 interview prep a month, and a 7-day trial of the full Shifu assistant. Unlimited **Pro** is **$29.99/month** ($74.99/quarter or $239.99/year), or a one-time **$14.99 Week Pass** for 7 days that never auto-renews.
-- **Velai** ([pricing page](/pricing)) makes search and fit labels free, with no card and no trial clock, because they use no AI and cost very little to run. Saving your résumé to your account, tailoring and the other AI features need a paid month at **${PRO_MONTHLY_PRICE}/month**, bought 1 to 12 months at a time with one payment, no auto-renew and a 14-day refund.
+- **Velai** ([pricing page](/pricing)) makes search and fit labels free, with no card and no trial clock, because they use no AI and cost very little to run. Saving your résumé to your account, tailoring and the other AI features need a paid month at **${PRO_MONTHLY_PRICE}/month**, bought 1 to 12 months at a time with one payment that never renews on its own (or month to month, which you can cancel any time) and a 14-day refund.
 
 ## Which one to pick
 

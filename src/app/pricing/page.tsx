@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { PricingClient } from "./pricing-client";
-import { PRICING_DESCRIPTION } from "./offer";
+import { pricingDescription } from "./offer";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getServerUser } from "@/lib/auth/server-user";
 import { paidSummary } from "@/lib/billing/access";
@@ -10,10 +10,11 @@ import { readProfile } from "@/lib/billing/profile-store";
 
 const TITLE = "Pricing";
 
-export const metadata: Metadata = {
-  description: PRICING_DESCRIPTION,
-  ...canonicalMetadata("/pricing", TITLE, PRICING_DESCRIPTION),
-};
+// The description follows the billing switch, which is server env read per request (the page is dynamic).
+export function generateMetadata(): Metadata {
+  const description = pricingDescription(isAutoRenewConfigured());
+  return { description, ...canonicalMetadata("/pricing", TITLE, description) };
+}
 
 /**
  * /pricing: one card. Server shell so the billing switch (server-only env)

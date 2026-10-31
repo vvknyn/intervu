@@ -6,6 +6,7 @@
 import type Stripe from "stripe";
 import { MAX_MONTHS, MIN_MONTHS, MONTH_PRICE_USD } from "@/app/pricing/offer";
 import { VELAI_UID_METADATA_KEY } from "@/lib/billing/events";
+import { describeStripeError } from "@/lib/billing/stripe-error";
 
 export function parseMonths(raw: unknown): number | null {
     const months = raw === undefined ? MIN_MONTHS : raw;
@@ -101,15 +102,37 @@ async function ensureCustomer(deps: CustomerDeps, uid: string): Promise<string> 
     return created;
 }
 
+const UNAVAILABLE = "Checkout is unavailable right now. Please try again later.";
+
+/**
+ * A failed start (a restricted key missing a permission, a Stripe outage, a store read) is logged with
+ * its cause and answered as unavailable, never an uncaught 500 with nothing in the log.
+ */
+async function orUnavailable(log: (line: string) => void, run: () => Promise<StartCheckoutResult>): Promise<StartCheckoutResult> {
+    try {
+        return await run();
+    } catch (error) {
+        log(`[checkout] failed: ${describeStripeError(error)}`);
+        return { status: 503, body: { error: UNAVAILABLE } };
+    }
+}
+
 /** Reuses or creates the account's ONE Stripe customer first, then opens a session that always names it. */
-export async function startCheckout(
+export function startCheckout(
+    deps: StartCheckoutDeps,
+    input: { uid: string; months: number; priceId: string; origin: string },
+): Promise<StartCheckoutResult> {
+    return orUnavailable(deps.log, () => runCheckout(deps, input));
+}
+
+async function runCheckout(
     deps: StartCheckoutDeps,
     input: { uid: string; months: number; priceId: string; origin: string },
 ): Promise<StartCheckoutResult> {
     const price = await deps.stripe.prices.retrieve(input.priceId);
     if (!priceMatchesOffer(price)) {
         deps.log(`[checkout] price mismatch: stripe=${price.unit_amount}/${price.currency} offer=${MONTH_PRICE_USD * 100}/usd`);
-        return { status: 503, body: { error: "Checkout is unavailable right now. Please try again later." } };
+        return { status: 503, body: { error: UNAVAILABLE } };
     }
 
     const customerId = await ensureCustomer(deps, input.uid);
@@ -150,7 +173,14 @@ export function subscriptionPriceMatchesOffer(price: {
 }
 
 /** Month to month. Refuses a second subscription for an account that already has one live (it manages that one in the portal). */
-export async function startSubscriptionCheckout(
+export function startSubscriptionCheckout(
+    deps: StartSubscriptionDeps,
+    input: { uid: string; priceId: string; origin: string },
+): Promise<StartCheckoutResult> {
+    return orUnavailable(deps.log, () => runSubscriptionCheckout(deps, input));
+}
+
+async function runSubscriptionCheckout(
     deps: StartSubscriptionDeps,
     input: { uid: string; priceId: string; origin: string },
 ): Promise<StartCheckoutResult> {
@@ -159,7 +189,7 @@ export async function startSubscriptionCheckout(
         deps.log(
             `[checkout] subscription price mismatch: stripe=${price.unit_amount}/${price.currency}/${price.recurring?.interval_count}${price.recurring?.interval} offer=${MONTH_PRICE_USD * 100}/usd/1month`,
         );
-        return { status: 503, body: { error: "Checkout is unavailable right now. Please try again later." } };
+        return { status: 503, body: { error: UNAVAILABLE } };
     }
 
     const customerId = await ensureCustomer(deps, input.uid);
