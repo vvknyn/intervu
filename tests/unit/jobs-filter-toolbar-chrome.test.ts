@@ -3,23 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import {
-    facetBarShouldRenderChip,
-    hasStandingFacetSelection,
-} from "../../src/components/jobs/FacetBar";
-import { PRISTINE_FILTER_STATE, type FilterState } from "../../src/components/jobs/FilterPanel";
-
 const CHIP = join(__dirname, "..", "..", "src", "components", "ui", "chip.tsx");
 const FILTER_CHIPS_ROW = join(__dirname, "..", "..", "src", "components", "jobs", "FilterChipsRow.tsx");
-const FACET_BAR = join(__dirname, "..", "..", "src", "components", "jobs", "FacetBar.tsx");
 const PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "JobsContent.tsx");
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const SAVED_SEARCHES = join(__dirname, "..", "..", "src", "components", "jobs", "SavedSearchesPanel.tsx");
 const GLOBALS = join(__dirname, "..", "..", "src", "app", "globals.css");
 
-const CHANGED = [CHIP, FILTER_CHIPS_ROW, FACET_BAR, PAGE, TOPBAR, SAVED_SEARCHES, GLOBALS];
-
-const pristine: FilterState = { ...PRISTINE_FILTER_STATE };
+const CHANGED = [CHIP, FILTER_CHIPS_ROW, PAGE, TOPBAR, SAVED_SEARCHES, GLOBALS];
 
 /**
  * Every `chipVariants({...})` call's `active:` value, verbatim — regardless
@@ -91,37 +82,22 @@ describe("jobs filter toolbar chrome", () => {
         assert.doesNotMatch(src, /active && "border-brand bg-muted text-brand"/);
     });
 
-    it("FacetBar trigger takes its type from the button face, like its toolbar peers", () => {
-        // Was `text-xs` on every toolbar peer; since 2026-09-29 a button's type
-        // comes from its step (`.ctl-button`, tests/unit/control-type.test.ts),
-        // so the peers match by naming none.
-        const src = readFileSync(FACET_BAR, "utf8");
-        const facetChip = src.slice(src.indexOf("function FacetChip"), src.indexOf("function facetActiveValue"));
-        assert.match(facetChip, /\bctl-button\b/);
-        assert.doesNotMatch(facetChip, /\btext-(?:xs|sm|base)\b|\bfont-(?:normal|medium|semibold|bold)\b/);
-    });
-
-    it("FacetBar root is visible below lg (no hidden lg:flex)", () => {
-        const src = readFileSync(FACET_BAR, "utf8");
-        const root = src.slice(src.indexOf('data-testid="facet-bar"'), src.indexOf('data-testid="facet-bar"') + 120);
-        assert.match(root, /flex flex-wrap/);
-        assert.doesNotMatch(root, /hidden lg:flex/);
-    });
-
     it("page.tsx renders distinct active-filter row with required source patterns", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.match(src, /data-testid="active-filter-row"/);
-        assert.match(src, /!headerDockActive && unnamedEntries\.map/);
+        assert.match(src, /!headerDockActive && activeEntries\.map/);
         assert.match(src, /data-testid="active-filter-chip"/);
 
         const activeRow = src.slice(
             src.indexOf('data-testid="active-filter-row"'),
             src.indexOf('data-testid="active-filter-row"') + 700,
         );
-        assert.match(activeRow, /flex-wrap/);
-        assert.match(activeRow, /overflow-x-clip/);
+        // Below @2xl the chip row is its own sideways-scrolling line, so what narrows the list
+        // never sits off-screen to the right of Sort; from @2xl it wraps under the controls.
+        assert.match(activeRow, /@2xl:flex-wrap/);
+        assert.match(activeRow, /@2xl:overflow-x-clip/);
+        assert.match(activeRow, /\boverflow-x-auto/);
         assert.doesNotMatch(activeRow, /flex-nowrap/);
-        assert.doesNotMatch(activeRow, /overflow-x-auto/);
 
         const activeChip = src.slice(
             src.indexOf('data-testid="active-filter-chip"'),
@@ -134,10 +110,10 @@ describe("jobs filter toolbar chrome", () => {
             src.indexOf('data-testid="jobs-toolbar-scroller"'),
             src.indexOf('data-testid="jobs-toolbar-scroller"') + 300,
         );
-        assert.match(toolbarScroller, /flex-wrap/);
-        assert.match(toolbarScroller, /overflow-x-clip/);
-        // narrow column: one scrollable row, shared with the active chips (the wrapper scrolls)
-        assert.match(src.slice(src.indexOf('data-testid="jobs-toolbar-rows"'), src.indexOf('data-testid="jobs-toolbar-rows"') + 300), /\boverflow-x-auto/);
+        assert.match(toolbarScroller, /@2xl:flex-wrap/);
+        assert.match(toolbarScroller, /@2xl:overflow-x-clip/);
+        // narrow column: the controls scroll on their own line; the chips scroll on theirs
+        assert.match(toolbarScroller, /\boverflow-x-auto/);
         assert.doesNotMatch(toolbarScroller, /flex-nowrap/);
     });
 
@@ -150,54 +126,40 @@ describe("jobs filter toolbar chrome", () => {
         );
         const filtersToggleIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
         const fieldIdx = dockedRow.indexOf("topbar-docked-field-directory");
-        const facetsIdx = dockedRow.indexOf("topbar-docked-facets");
         const activeIdx = dockedRow.indexOf("topbar-docked-active-filters");
         const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
         const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
         const spacerIdx = dockedRow.indexOf("min-w-0 flex-1");
-        assert.ok(filtersToggleIdx > -1 && fieldIdx > -1 && facetsIdx > -1 && clearIdx > -1 && saveIdx > -1 && spacerIdx > -1);
+        assert.ok(filtersToggleIdx > -1 && fieldIdx > -1 && activeIdx > -1 && clearIdx > -1 && saveIdx > -1 && spacerIdx > -1);
         assert.ok(filtersToggleIdx < fieldIdx, "docked filters-toggle leads the left cluster");
-        assert.ok(fieldIdx < facetsIdx, "docked field-directory before facets");
-        assert.ok(facetsIdx < clearIdx, "docked facets before clear-filters");
-        if (activeIdx > -1) {
-            assert.ok(facetsIdx < activeIdx && activeIdx < clearIdx, "docked active-filters between facets and clear");
-        }
+        assert.ok(fieldIdx < activeIdx, "docked field-directory before the applied chips");
+        assert.ok(activeIdx < clearIdx, "docked active-filters before clear-filters");
         assert.ok(clearIdx < spacerIdx && spacerIdx < saveIdx, "docked Clear then spacer then Save");
-        assert.ok(
-            filtersToggleIdx < fieldIdx && filtersToggleIdx < facetsIdx,
-            "docked filters-toggle must not sit between field-directory and facets",
-        );
-        assert.ok(
-            filtersToggleIdx < clearIdx,
-            "docked filters-toggle must not sit after Clear",
-        );
+        assert.ok(filtersToggleIdx < clearIdx, "docked filters-toggle must not sit after Clear");
+        assert.doesNotMatch(dockedRow, /topbar-docked-facets/, "no filter has a dropdown chip in the header any more");
 
         const toolbar = page.slice(page.indexOf('data-testid="jobs-toolbar"'), page.indexOf('data-testid="active-filter-row"'));
         const filterChipsRowIdx = toolbar.indexOf("<FilterChipsRow");
         const fieldDirectoryIdx = toolbar.indexOf("fieldDirectoryMenu");
-        const facetBarIdx = toolbar.indexOf("facetBarEl");
-        const inPageClear = toolbar.indexOf("unnamedEntries.length === 0 && clearFiltersEl");
         const filtersToggleIdxUndocked = toolbar.indexOf('data-testid="filters-toggle"');
-        const inPageActions = toolbar.indexOf('data-testid="jobs-toolbar-actions"');
         assert.equal(filterChipsRowIdx, -1, "undocked toolbar must not mount FilterChipsRow");
         assert.ok(filtersToggleIdxUndocked > -1, "undocked filters-toggle present");
         assert.ok(filtersToggleIdxUndocked < fieldDirectoryIdx, "undocked filters-toggle before fieldDirectory");
-        assert.ok(fieldDirectoryIdx > -1 && facetBarIdx > fieldDirectoryIdx, "undocked fieldDirectory before facetBar");
-        assert.ok(
-            filtersToggleIdxUndocked < fieldDirectoryIdx && filtersToggleIdxUndocked < facetBarIdx,
-            "undocked filters-toggle must not sit between field-directory and facets",
-        );
-        assert.ok(inPageClear > -1 && inPageClear < inPageActions, "undocked clear before the actions cluster");
 
         const activeRow = page.slice(
             page.indexOf('data-testid="active-filter-row"'),
-            page.indexOf("{facetsMountSite ==="),
+            page.indexOf('data-testid="active-filter-row"') + 2400,
         );
-        assert.match(activeRow, /unnamedEntries\.map/);
-        assert.match(activeRow, /\{clearFiltersEl\}/);
+        assert.match(activeRow, /activeEntries\.map/);
+        assert.match(activeRow, /\{barClearEl\}/);
         assert.ok(
-            activeRow.indexOf("unnamedEntries.map") < activeRow.indexOf("{clearFiltersEl}"),
-            "when leftover chips have their own row, Clear trails that row",
+            activeRow.indexOf("activeEntries.map") < activeRow.indexOf("{barClearEl}"),
+            "Clear trails the applied chips",
+        );
+        assert.match(
+            page,
+            /const barClearEl = railOnScreen \? null : clearFiltersEl;/,
+            "with the rail on screen Clear lives in the rail header, so the bar carries none",
         );
     });
 
@@ -229,7 +191,7 @@ describe("jobs filter toolbar chrome", () => {
     it("globals.css hides empty docked portal mounts", () => {
         const src = readFileSync(GLOBALS, "utf8");
         assert.match(src, /\[data-testid="topbar-docked-field-directory"\]:empty/);
-        assert.match(src, /\[data-testid="topbar-docked-facets"\]:empty/);
+        assert.doesNotMatch(src, /topbar-docked-facets/);
         assert.match(src, /\[data-testid="topbar-docked-clear-filters"\]:empty/);
         assert.match(src, /\[data-testid="topbar-docked-save-search"\]:empty/);
         assert.match(src, /\[data-testid="topbar-docked-sort"\]:empty/);
@@ -252,48 +214,6 @@ describe("jobs filter toolbar chrome", () => {
         assert.match(toolbar.slice(actionsIdx, actionsIdx + 400), /\{sortEl\}/);
     });
 
-    it("facetBarShouldRenderChip hides inactive standing facets and shows applied ones", () => {
-        assert.equal(facetBarShouldRenderChip("postedBucket", pristine, true), true);
-        assert.equal(facetBarShouldRenderChip("salaryMin", pristine, false), false);
-        assert.equal(facetBarShouldRenderChip("work_type", pristine, true), false);
-        assert.equal(facetBarShouldRenderChip("experience_level", pristine, true), false);
-        assert.equal(hasStandingFacetSelection(pristine, true), true);
-
-        const explicitAny: FilterState = { ...pristine, postedBucket: undefined, postedExplicit: true };
-        assert.equal(facetBarShouldRenderChip("postedBucket", explicitAny, true), false);
-        assert.equal(facetBarShouldRenderChip("postedBucket", pristine, false), false);
-
-        const withPosted7d: FilterState = { ...pristine, postedBucket: "7d", postedExplicit: true };
-        assert.equal(facetBarShouldRenderChip("postedBucket", withPosted7d, true), true);
-
-        const withPosted30dExplicit: FilterState = { ...pristine, postedBucket: "30d", postedExplicit: true };
-        assert.equal(facetBarShouldRenderChip("postedBucket", withPosted30dExplicit, true), true);
-
-        const withSalary: FilterState = { ...pristine, salaryMin: 100_000 };
-        assert.equal(facetBarShouldRenderChip("salaryMin", withSalary, true), true);
-
-        const withWorkType: FilterState = { ...pristine, facets: { work_type: ["remote"] } };
-        assert.equal(facetBarShouldRenderChip("work_type", withWorkType, true), true);
-
-        const withExperience: FilterState = { ...pristine, facets: { experience_level: ["senior"] } };
-        assert.equal(facetBarShouldRenderChip("experience_level", withExperience, true), true);
-    });
-
-    it("FacetBar posted chip visibility uses appliedPostedBucket, not activeFilterEntries", () => {
-        const src = readFileSync(FACET_BAR, "utf8");
-        const fn = src.slice(src.indexOf("export function facetBarShouldRenderChip"), src.indexOf("/** True when at least one"));
-        assert.match(fn, /appliedPostedBucket\(state\)/);
-        assert.doesNotMatch(fn, /activeFilterEntries/);
-    });
-
-    it("FacetBar returns null when no standing facet is applied (except quiet 30d posted default)", () => {
-        const src = readFileSync(FACET_BAR, "utf8");
-        assert.match(src, /hasStandingFacetSelection\(state, postedDateSupported\)\) return null/);
-        assert.match(src, /facetBarShouldRenderChip\("postedBucket"/);
-        assert.match(src, /facetBarShouldRenderChip\("salaryMin"/);
-        assert.equal(hasStandingFacetSelection({ ...pristine, postedBucket: undefined, postedExplicit: true }, true), false);
-    });
-
     it("Filters toggle is active only when expanded, not when filter count is nonzero", () => {
         const page = readFileSync(PAGE, "utf8");
         const topbar = readFileSync(TOPBAR, "utf8");
@@ -301,8 +221,8 @@ describe("jobs filter toolbar chrome", () => {
         const topbarActive = chipVariantsActiveValues(topbar);
 
         assert.ok(
-            pageActive.includes("filtersOpen"),
-            "the undocked Filters toggle should key off filtersOpen alone",
+            pageActive.includes("filtersShown"),
+            "the undocked Filters toggle should key off whether the filters are on screen alone",
         );
         assert.ok(
             topbarActive.includes("docked.filtersExpanded"),

@@ -172,28 +172,11 @@ export function facetKeyLabel(key: FacetKey): string {
     );
 }
 
-/**
- * The active filters a caller has to name for itself, because the FacetBar
- * has no control for them (`facetBarRepresents`, FacetBar.tsx). Splitting on
- * ":" recovers the facet key from an `activeFilterEntries` entry key
- * (`"location_country:Bangalore"`); non-facet entries ("salaryMin",
- * "visaOnly", …) have no colon and compare whole.
- *
- * Pure and generic over the entry shape so the toolbar can pass its own
- * already-hoisted `activeEntries` rather than recomputing, and so this is
- * testable without rendering anything.
- */
-export function entriesNeedingOwnChip<T extends { key: string }>(
-    entries: readonly T[],
-    represented: ReadonlySet<string>,
-): T[] {
-    return entries.filter((e) => !represented.has(e.key.split(":")[0]));
-}
-
-/** Chip text for one such entry. A facet entry names its key ("Location ·
- *  Bangalore") because with no dropdown on the bar nothing else on screen
- *  says WHICH filter the value belongs to; the non-facet entries already
- *  read as complete phrases ("Sponsors visas"), so they're left alone. */
+/** Chip text for one active-filter entry. A facet entry names its key
+ *  ("Location · Bangalore") because the chip row is the only place the value
+ *  appears outside the filter groups, so it has to say WHICH filter it
+ *  belongs to; the non-facet entries already read as complete phrases
+ *  ("Sponsors visas"), so they're left alone. */
 export function chipLabelForEntry(entry: { key: string; label: string }): string {
     const [head, ...rest] = entry.key.split(":");
     return rest.length > 0 ? `${facetKeyLabel(head as FacetKey)} · ${entry.label}` : entry.label;

@@ -3,6 +3,7 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboardi
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 import { isListSearch } from "./list-search";
+import { openGroup, showFilters } from "./filters-panel";
 
 /**
  * Journeys for what a typed search reaches and in what order (2026-09-30):
@@ -149,8 +150,10 @@ test("a typed search with no posted param applies and states the 90-day window",
   await page.goto("/jobs?q=software+engineer");
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("result-line")).toContainText(/^[\d,]+\+? roles? from the last 90 days/, { timeout: 30_000 });
-  // The Posted control names the applied default, not "Any date" and not the old month.
-  await expect(page.getByTestId("facet-chip-posted").first()).toHaveText(/Posted · Past 3 months/);
+  // The Date posted group names the applied default, not "Any date" and not the old month.
+  const posted = await openGroup(await showFilters(page), "posted");
+  await expect(posted).toContainText("Past 3 months");
+  await expect(posted.getByRole("radio", { name: "Past 3 months" })).toBeChecked();
   expect(new URL(page.url()).searchParams.get("posted")).toBeNull();
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
@@ -171,8 +174,8 @@ test("a typed search reaches a role posted 31-90 days ago by default, and Past m
   }
   test.skip(!found, "no role posted 31-90 days ago on page 1 of any sample query");
 
-  await page.getByTestId("facet-chip-posted").first().click();
-  await page.getByRole("radio", { name: "Past month" }).click();
+  const posted = await openGroup(await showFilters(page), "posted");
+  await posted.getByRole("radio", { name: "Past month" }).click();
   await expect(page).toHaveURL(/[?&]posted=30d\b/, { timeout: 30_000 });
   await expect(page.getByTestId("result-line")).toContainText("from the last 30 days", { timeout: 30_000 });
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
@@ -193,7 +196,8 @@ test("a ?posted=30d link still narrows to 30 days and keeps its posted param", {
   await page.goto("/jobs?q=data+analyst&posted=30d");
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   await expect(line).toContainText("from the last 30 days", { timeout: 30_000 });
-  await expect(page.getByTestId("facet-chip-posted").first()).toHaveText(/Posted · Past month/);
+  const posted = await openGroup(await showFilters(page), "posted");
+  await expect(posted.getByRole("radio", { name: "Past month" })).toBeChecked();
   expect(new URL(page.url()).searchParams.get("posted")).toBe("30d");
   const rows = await rowAges(page);
   expect(rows.filter((r) => !withinThirtyDays(r.age)), "every row inside 30 days").toEqual([]);

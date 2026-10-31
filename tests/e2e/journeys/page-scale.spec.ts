@@ -58,15 +58,15 @@ const strandedControls = (page: Page) =>
         return out;
     });
 
-/** Opens `path` as a returning visitor once the board (and its toolbar "?") is up. */
+/** Opens `path` as a returning visitor once the board (and its toolbar) is up. */
 async function openBoard(page: Page, path: string) {
     await returningVisitor(page);
     await page.goto(path);
     await expect(page.getByTestId("topbar-signin")).toBeVisible({ timeout: 15_000 });
     // The board mounts after hydration and can land after the header's
-    // sign-in link; measuring before it did is how a stranded "?" on the
-    // phone toolbar went unseen. The "?" sits in the board's toolbar.
-    await expect(page.getByTestId("jobs-tour-replay").first()).toBeVisible({ timeout: 15_000 });
+    // sign-in link; measuring before it did is how a stranded control on the
+    // phone toolbar went unseen. The Filters button sits in the board's toolbar.
+    await expect(page.locator('[data-testid="filters-toggle"], [data-testid="topbar-docked-filters-toggle"]').first()).toBeVisible({ timeout: 15_000 });
 }
 
 for (const path of ["/", "/jobs", "/jobs?q=engineer"]) {
@@ -77,28 +77,17 @@ for (const path of ["/", "/jobs", "/jobs?q=engineer"]) {
 }
 
 // The mobile project is 390 wide; the common narrower phones are 375 and 360,
-// and 320 is the narrowest still in use. There the toolbar fits only because
-// the posted chip drops its "Posted · " (still read out by screen readers).
+// and 320 is the narrowest still in use.
 for (const width of [375, 360, 320]) {
     for (const path of ["/jobs", "/jobs?q=engineer"]) {
         test(`on a ${width}px phone no wrapping row on ${path} strands its last control`, { tag: ["@J-NAV-41"] }, async ({ page }, testInfo) => {
             test.skip(testInfo.project.name !== "mobile", "a phone width");
             await page.setViewportSize({ width, height: 800 });
             await openBoard(page, path);
-            const posted = page.getByTestId("facet-chip-posted").first();
-            await expect(posted).toBeVisible();
+            await expect(page.getByTestId("filters-toggle")).toBeVisible();
             expect(await strandedControls(page)).toEqual([]);
-            await expect(posted).toHaveAccessibleName(/^Posted · Past 3 months$/);
-            // What's on screen: text whose element is wider than sr-only's 1px.
-            const shown = await posted.evaluate((el) => {
-                const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-                let out = "";
-                for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-                    if ((n.parentElement?.getBoundingClientRect().width ?? 0) > 1) out += n.textContent;
-                }
-                return out.trim();
-            });
-            expect(shown).toBe("Past 3 months");
+            // The page itself never scrolls sideways: whatever is wider than the phone scrolls inside its own row.
+            expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
         });
     }
 }

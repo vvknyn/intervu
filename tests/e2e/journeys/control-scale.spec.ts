@@ -68,7 +68,8 @@ test("/jobs toolbar: every control in the row takes the md step", { tag: ["@J-JO
     const row = page.getByTestId("jobs-toolbar-scroller");
     await expect(row.getByTestId("filters-toggle")).toBeVisible({ timeout: 15_000 });
     const heights = await controlHeights(row);
-    expect(heights.length).toBeGreaterThanOrEqual(2);
+    // At rest on a phone the row holds the Filters button alone (the Posted chip it used to sit beside is a group in the Filters panel now).
+    expect(heights.length).toBeGreaterThanOrEqual(1);
     expect(new Set(heights)).toEqual(new Set([MD]));
 });
 
