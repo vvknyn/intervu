@@ -399,7 +399,7 @@ test.describe("signed-in header", () => {
     });
     test.afterEach(({ page }) => page.unrouteAll({ behavior: "ignoreErrors" }));
 
-    test("the Tracker tab counts open roles only, not rejected or withdrawn ones", { tag: ["@J-TRACKER-59"] }, async ({ page }) => {
+    test("the Tracker heading counts open roles only, not rejected or withdrawn ones", { tag: ["@J-TRACKER-59"] }, async ({ page }) => {
         const now = new Date().toISOString();
         const statuses: Status[] = ["applied", "interviewing", "rejected", "withdrawn", "rejected"];
         // Every argument-less action here answers "User not authenticated"
@@ -437,14 +437,15 @@ test.describe("signed-in header", () => {
                 return route.fulfill({ response: res, body });
             },
         );
-        // The count rides on the header's Tracker tab, which shows from 1024px.
+        // The count rides on the Tracker page heading (it left the nav tab).
         await page.setViewportSize({ width: 1440, height: 900 });
-        await page.goto("/pricing");
+        await page.goto("/yours");
 
         // It used to count every tracked role (5 here), closed ones too. No
         // page-error check: the faked sign-in exists only on the client, so the
         // header always mismatches the server's signed-out HTML here.
-        await expect(page.getByTestId("topbar-tracker-badge")).toHaveText("2", { timeout: 30_000 });
+        await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tracker · 2 jobs", { timeout: 30_000 });
+        await expect(page.getByTestId("topbar-tracker-badge")).toHaveCount(0);
     });
 });
 
