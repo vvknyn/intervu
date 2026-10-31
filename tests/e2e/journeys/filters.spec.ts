@@ -48,7 +48,7 @@ test("A custom minimum salary goes into the URL and a reload keeps it", { tag: [
 const appliedChips = (page: Page) => page.locator('[data-testid="topbar-docked-chip"], [data-testid="active-filter-chip"]');
 
 test(
-  "On a laptop the filters are a rail on the left of the list: pick a work mode, see its chip, Clear all empties both, hiding the rail sticks over a reload",
+  "On a laptop the filters are a rail on the left of the list: pick a work mode, see its chip, Clear all empties both, the rail collapses from its own button and stays collapsed over a reload",
   { tag: ["@J-FILT-27"] },
   async ({ page, diagnostics }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "a laptop width");
@@ -72,8 +72,8 @@ test(
     await expect(appliedChips(page)).toHaveCount(0);
     await expect(page.getByTestId("filters-clear-all")).toBeDisabled();
 
-    // The Filters button hides the rail; the list takes the width and a reload keeps it hidden.
-    await filtersToggle(page).click();
+    // The rail's own Hide button collapses it; the list takes the width and a reload keeps it hidden.
+    await page.getByTestId("filters-rail-hide").click();
     await expect(rail).toHaveCount(0);
     await expect(filtersToggle(page)).toHaveAttribute("aria-expanded", "false");
     await page.reload();
