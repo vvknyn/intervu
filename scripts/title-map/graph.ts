@@ -12,6 +12,8 @@ import type { TitleMap, TitleMapLinkKind, TitleMapRole } from "../../src/lib/job
 
 export interface EscoOccupation {
   uri: string;
+  /** ESCO occupation code ("1223.7"): its ISCO unit group, then its place in it. */
+  code?: string;
   label: string;
   altLabels: string[];
   /** ISCO-08 unit group code, four digits ("1223"). */
@@ -24,8 +26,12 @@ export interface EscoOccupation {
 export interface OnetOccupation {
   code: string;
   title: string;
-  /** Alternate titles and sample of reported titles. */
+  /** Job titles (alternate and short) and sample of reported titles. */
   titles: string[];
+  /** Detailed work activities its tasks map to (O*NET DWA element ids): what the job does. */
+  work?: string[];
+  /** Software and tools it names (Software Skills workplace examples): what the job works in. */
+  tools?: string[];
 }
 
 export interface OnetRelated {
@@ -36,7 +42,8 @@ export interface OnetRelated {
 }
 
 export interface CrosswalkPair {
-  escoUri: string;
+  /** ESCO occupation code ("2512.4") or URI. */
+  esco: string;
   onetCode: string;
 }
 
@@ -49,7 +56,12 @@ export interface PostingLinks {
 }
 
 export const THRESHOLDS = {
-  /** Skill links: keep up to this many per occupation, at or above this IDF-weighted cosine. */
+  /**
+   * Skill links: keep up to this many per occupation, at or above this IDF-weighted cosine. ESCO reads its
+   * essential and optional skills; O*NET reads its detailed work activities (as essential) and its
+   * software and tools (as optional). Dense ratings (importance of 35 skills, 33 knowledge areas) are not
+   * used: nearly every pair of occupations shares them, so they do not tell neighbours apart.
+   */
   skillLinksPerRole: 10,
   skillMinCosine: 0.2,
   /** An optional skill counts half an essential one. */
@@ -111,7 +123,7 @@ type Link = [string, string, number, TitleMapLinkKind];
  * vectors, through an inverted index so only pairs sharing a skill are scored.
  */
 export function skillLinks(
-  occs: EscoOccupation[],
+  occs: Array<{ uri: string; essential: string[]; optional: string[] }>,
   opts: { perRole?: number; minCosine?: number; optionalWeight?: number } = {},
 ): Array<[string, string, number]> {
   const { perRole = THRESHOLDS.skillLinksPerRole, minCosine = THRESHOLDS.skillMinCosine, optionalWeight = THRESHOLDS.optionalSkillWeight } = opts;
@@ -186,7 +198,10 @@ export function assembleTitleMap(input: {
   // O*NET occupations sit in the ISCO unit group most of their crosswalked ESCO occupations sit in; else in their SOC major group.
   const unitOf = new Map(esco.map((o) => [escoId(o.uri), o.iscoUnit] as const));
   const unitVotes = new Map<string, Map<string, number>>();
-  for (const { escoUri, onetCode } of input.crosswalk ?? []) {
+  const uriByCode = new Map(esco.filter((o) => o.code).map((o) => [o.code!, o.uri] as const));
+  for (const { esco: ref, onetCode } of input.crosswalk ?? []) {
+    const escoUri = ref.startsWith("http") ? ref : uriByCode.get(ref);
+    if (!escoUri) continue;
     const unit = unitOf.get(escoId(escoUri));
     if (!unit) continue;
     const votes = unitVotes.get(onetCode) ?? new Map<string, number>();
@@ -201,6 +216,10 @@ export function assembleTitleMap(input: {
     const group = votes.length ? `isco:${votes[0][0]}` : SOC_MAJOR[soc] ? `soc:${soc}` : undefined;
     roles.push({ id: onetId(o.code), label: o.title, ...(group ? { group } : {}), names: names([o.title, ...o.titles]) });
   }
+  const onetProfiles = (input.onet?.occupations ?? [])
+    .filter((o) => (o.work?.length ?? 0) + (o.tools?.length ?? 0) > 0)
+    .map((o) => ({ uri: o.code, essential: o.work ?? [], optional: o.tools ?? [] }));
+  for (const [a, b, c] of skillLinks(onetProfiles)) links.push([onetId(a), onetId(b), c, "s"]);
   for (const r of input.onet?.related ?? []) {
     const w = THRESHOLDS.onetTierWeight[r.tier];
     if (w) links.push([onetId(r.code), onetId(r.related), w, "e"]);

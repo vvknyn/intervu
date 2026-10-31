@@ -15,26 +15,47 @@ export function parseTsv(text: string): Array<Record<string, string>> {
   });
 }
 
-/** O*NET text files: Occupation Data, Alternate Titles, Sample of Reported Titles, Related Occupations. */
-export function parseOnet(files: { occupations: string; alternateTitles: string; reportedTitles: string; related: string }): {
+/** O*NET text files (31.0 names): Occupation Data, Job Titles, Sample of Reported Titles, Related Occupations. */
+export function parseOnet(files: { occupations: string; jobTitles: string; reportedTitles: string; related: string; tasksToDwas?: string; software?: string }): {
   occupations: OnetOccupation[];
   related: OnetRelated[];
 } {
   const titles = new Map<string, string[]>();
   const addTitle = (code: string, title: string) => {
-    if (!code || !title) return;
+    if (!code || !title || /^n\/a$/i.test(title)) return;
     const list = titles.get(code);
     if (list) list.push(title);
     else titles.set(code, [title]);
   };
-  for (const r of parseTsv(files.alternateTitles)) {
-    addTitle(r["O*NET-SOC Code"], r["Alternate Title"]);
+  for (const r of parseTsv(files.jobTitles)) {
+    addTitle(r["O*NET-SOC Code"], r["Job Title"] ?? r["Alternate Title"]);
     addTitle(r["O*NET-SOC Code"], r["Short Title"]);
   }
   for (const r of parseTsv(files.reportedTitles)) addTitle(r["O*NET-SOC Code"], r["Reported Job Title"]);
+  const setsBy = (text: string | undefined, column: string) => {
+    const out = new Map<string, Set<string>>();
+    for (const r of text ? parseTsv(text) : []) {
+      const code = r["O*NET-SOC Code"];
+      const value = (r[column] ?? "").trim().toLowerCase();
+      if (!code || !value) continue;
+      (out.get(code) ?? out.set(code, new Set()).get(code)!).add(value);
+    }
+    return out;
+  };
+  const work = setsBy(files.tasksToDwas, "DWA Element ID");
+  const tools = setsBy(files.software, "Workplace Example");
   const occupations = parseTsv(files.occupations)
     .filter((r) => r["O*NET-SOC Code"] && r["Title"])
-    .map((r) => ({ code: r["O*NET-SOC Code"], title: r["Title"], titles: [...new Set(titles.get(r["O*NET-SOC Code"]) ?? [])] }));
+    .map((r) => {
+      const code = r["O*NET-SOC Code"];
+      return {
+        code,
+        title: r["Title"],
+        titles: [...new Set(titles.get(code) ?? [])],
+        ...(work.has(code) ? { work: [...work.get(code)!].sort() } : {}),
+        ...(tools.has(code) ? { tools: [...tools.get(code)!].sort() } : {}),
+      };
+    });
   const related = parseTsv(files.related)
     .filter((r) => r["O*NET-SOC Code"] && r["Related O*NET-SOC Code"])
     .map((r) => ({ code: r["O*NET-SOC Code"], related: r["Related O*NET-SOC Code"], tier: r["Relatedness Tier"], index: Number(r["Index"]) || 0 }));
@@ -78,20 +99,24 @@ export function parseXlsxSheet(sharedStringsXml: string, sheetXml: string): stri
 }
 
 /**
- * ESCO to O*NET-SOC crosswalk rows. The header row is found by its cells (an ESCO URI column and an
+ * ESCO to O*NET-SOC crosswalk rows. The header row is found by its cells (an ESCO code column and an
  * O*NET-SOC code column), so a reordered or retitled sheet still reads, and a sheet without them throws.
+ * The sheet names ESCO occupations by their ESCO code ("2512.4"), which the ESCO API record carries as `code`.
  */
 export function parseCrosswalk(rows: string[][]): CrosswalkPair[] {
-  const at = rows.findIndex((r) => r.some((c) => /esco/i.test(c) && /uri/i.test(c)) && r.some((c) => /o\*?net/i.test(c) && /code/i.test(c)));
-  if (at < 0) throw new Error("crosswalk: no header row with an ESCO URI column and an O*NET-SOC code column");
-  const header = rows[at];
-  const uriCol = header.findIndex((c) => /esco/i.test(c) && /uri/i.test(c));
-  const codeCol = header.findIndex((c) => /o\*?net/i.test(c) && /code/i.test(c));
+  const isEsco = (c: string) => /esco/i.test(c) && /code|uri/i.test(c);
+  const isOnet = (c: string) => /o\*?net/i.test(c) && /code/i.test(c);
+  const at = rows.findIndex((r) => r.some(isEsco) && r.some(isOnet));
+  if (at < 0) throw new Error("crosswalk: no header row with an ESCO code column and an O*NET-SOC code column");
+  const escoCol = rows[at].findIndex(isEsco);
+  const onetCol = rows[at].findIndex(isOnet);
   const out: CrosswalkPair[] = [];
+  let esco = "";
   for (const r of rows.slice(at + 1)) {
-    const escoUri = (r[uriCol] ?? "").trim();
-    const onetCode = (r[codeCol] ?? "").trim();
-    if (/^https?:\/\/data\.europa\.eu\/esco\/occupation\//.test(escoUri) && /^\d{2}-\d{4}\.\d{2}$/.test(onetCode)) out.push({ escoUri, onetCode });
+    // A merged ESCO cell spans its O*NET rows: an empty ESCO cell continues the row above.
+    esco = (r[escoCol] ?? "").trim() || esco;
+    const onetCode = (r[onetCol] ?? "").trim();
+    if (esco && /^\d{2}-\d{4}\.\d{2}$/.test(onetCode)) out.push({ esco, onetCode });
   }
   return out;
 }
@@ -116,6 +141,7 @@ export function parseEscoOccupation(json: unknown): EscoOccupation | null {
   const group = pick<{ uri?: string; title?: string }>("broaderIscoGroup").find((g) => unit && g.uri?.endsWith(`C${unit}`));
   return {
     uri: o.uri,
+    ...(o.code ? { code: o.code } : {}),
     label,
     altLabels: o.alternativeLabel?.en ?? [],
     ...(unit ? { iscoUnit: unit } : {}),

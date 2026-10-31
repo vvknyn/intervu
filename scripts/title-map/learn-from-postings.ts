@@ -1,17 +1,19 @@
 /**
  * Learns which job titles sit next to each other from what their postings ask for, read from
- * Velai's live index. This is the layer the public classifications lack: they have no Product
- * Owner, Technical Account Manager or Customer Success Manager. A laptop job (the index is
+ * Velai's live index. This is the layer the public classifications lack: neither O*NET nor ESCO
+ * has Product Owner or Technical Account Manager as a title. A laptop job (the index is
  * tailnet-only); READ-ONLY, with the search key.
  *
  *   MEILISEARCH_HOST=... MEILISEARCH_SEARCH_KEY=... npx tsx scripts/title-map/learn-from-postings.ts [title-map.json] [out.json]
  *
- * 1. Titles: one title-only search per word of the public map's role labels (most common first,
- *    MAX_WORDS), keeping each posting's id, title and company. Titles are reduced to a key (rank
- *    words, team and place suffixes taken off) and kept when MIN_POSTINGS postings at MIN_COMPANIES
- *    companies carry them, most common first, up to MAX_TITLES.
- * 2. Terms: for each kept title, up to PER_TITLE postings (at most 3 per company) read through
- *    `jdTermsFromDescription`, the same requirement and duty terms the fit score reads.
+ * 1. Titles: one title-only search per seed (the commonest words and word pairs of the map's role
+ *    names, MAX_SEEDS), asking only for the `title` facet: up to 300 exact titles holding the seed,
+ *    each with its posting count, and no posting rows. Titles are reduced to a key (rank words,
+ *    team and place suffixes taken off), summed, and kept from MIN_POSTINGS up, most common first,
+ *    up to MAX_TITLES.
+ * 2. Terms: for each kept title, up to PER_TITLE postings (at most 3 per company, and only when
+ *    MIN_COMPANIES companies are among them) read through `jdTermsFromDescription`, the same
+ *    requirement and duty terms the fit score reads.
  * 3. Links: a title's vector is the share of its postings using each term times the term's IDF
  *    across titles; cosine through an inverted index; the top LINKS_PER_TITLE at or above MIN_COSINE.
  * Writes titles (key, label, counts) and links only: no posting text, no company names.
@@ -27,9 +29,9 @@ import type { PostingLinks } from "./graph";
 
 const env = (k: string, d: number) => (process.env[k] ? Number(process.env[k]) : d);
 export const PARAMS = {
-  MAX_WORDS: env("MAX_WORDS", 1500),
+  MAX_SEEDS: env("MAX_SEEDS", 3000),
   MIN_POSTINGS: env("MIN_POSTINGS", 15),
-  MIN_COMPANIES: env("MIN_COMPANIES", 5),
+  MIN_COMPANIES: env("MIN_COMPANIES", 3),
   MAX_TITLES: env("MAX_TITLES", 2000),
   PER_TITLE: env("PER_TITLE", 15),
   PER_COMPANY: 3,
@@ -54,16 +56,54 @@ export function titleKey(raw: string): string {
   return words.length >= 1 && words.length <= 6 ? words.join(" ") : "";
 }
 
-/** Words of the role labels, most common first: each one is a title-only search that surfaces the titles holding it. */
-export function seedWords(labels: string[], max: number): string[] {
-  const count = new Map<string, number>();
-  for (const label of labels) {
-    for (const w of new Set(normalizeTitleName(label).split(" "))) {
-      if (w.length < 3 || RANK_WORDS.has(w) || NOISE.has(w) || /^\d+$/.test(w) || ["and", "the", "for", "other", "all"].includes(w)) continue;
-      count.set(w, (count.get(w) ?? 0) + 1);
+const FILLER = new Set(["and", "the", "for", "other", "all", "except", "including", "of", "in", "to", "or"]);
+
+/**
+ * Seeds for the title harvest: the words and adjacent word pairs of the map's role names, most
+ * common first, alternating so pairs ("account manager", "product owner") reach the specific titles
+ * a single common word would bury under the 300-title facet cap.
+ */
+export function seedTerms(names: string[], max: number): string[] {
+  const words = new Map<string, number>();
+  const pairs = new Map<string, number>();
+  for (const name of names) {
+    const ws = normalizeTitleName(name)
+      .split(" ")
+      .filter((w) => w.length >= 2 && !RANK_WORDS.has(w) && !NOISE.has(w) && !/^\d+$/.test(w));
+    for (const w of new Set(ws)) if (w.length >= 3 && !FILLER.has(w)) words.set(w, (words.get(w) ?? 0) + 1);
+    for (let i = 0; i + 1 < ws.length; i++) {
+      if (FILLER.has(ws[i]) || FILLER.has(ws[i + 1])) continue;
+      const pair = `${ws[i]} ${ws[i + 1]}`;
+      pairs.set(pair, (pairs.get(pair) ?? 0) + 1);
     }
   }
-  return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, max).map(([w]) => w);
+  const rank = (m: Map<string, number>) => [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+  const [w, p] = [rank(words), rank(pairs)];
+  const out: string[] = [];
+  for (let i = 0; out.length < max && (i < w.length || i < p.length); i++) {
+    if (i < p.length && out.length < max) out.push(p[i]);
+    if (i < w.length && out.length < max) out.push(w[i]);
+  }
+  return out;
+}
+
+/** Exact titles and their posting counts (from title facets) -> counts per title key, with the commonest plain spelling. */
+export function titleKeys(counts: Map<string, number>): Map<string, { postings: number; label: string }> {
+  const out = new Map<string, { postings: number; label: string; best: number }>();
+  for (const [raw, n] of counts) {
+    const key = titleKey(raw);
+    if (!key) continue;
+    const e = out.get(key) ?? { postings: 0, label: "", best: -1 };
+    e.postings += n;
+    const plain = normalizeTitleName(raw) === key;
+    if (plain && n > e.best) {
+      e.best = n;
+      e.label = raw.trim();
+    }
+    out.set(key, e);
+  }
+  const titleCase = (k: string) => k.replace(/\b\w/g, (c) => c.toUpperCase());
+  return new Map([...out].map(([k, e]) => [k, { postings: e.postings, label: e.label || titleCase(k) }]));
 }
 
 /** Title vectors (term -> share of the title's postings) to the strongest cosine links per title. */
@@ -115,7 +155,12 @@ interface Hit {
   description?: string;
 }
 
-async function search(body: Record<string, unknown>): Promise<Hit[]> {
+interface SearchResult {
+  hits: Hit[];
+  facetDistribution?: Record<string, Record<string, number>>;
+}
+
+async function search(body: Record<string, unknown>): Promise<SearchResult> {
   for (let attempt = 1; attempt <= 4; attempt++) {
     requests++;
     const res = await fetch(`${HOST}/indexes/${INDEX}/search`, {
@@ -126,7 +171,7 @@ async function search(body: Record<string, unknown>): Promise<Hit[]> {
     });
     if (res.ok) {
       await sleep(PARAMS.PAUSE_MS);
-      return ((await res.json()) as { hits: Hit[] }).hits;
+      return (await res.json()) as SearchResult;
     }
     if (res.status < 500 && res.status !== 429) throw new Error(`search: HTTP ${res.status} ${await res.text()}`);
     await sleep(3_000 * attempt);
@@ -145,35 +190,25 @@ async function main() {
   const outPath = resolve(outArg ?? (existsSync("/mnt/project-files") ? "/mnt/project-files/title-map/postings-links.json" : "postings-links.json"));
   const map = JSON.parse(readFileSync(mapPath, "utf8")) as TitleMap;
 
-  // 1. Titles.
-  const words = seedWords(map.roles.map((r) => r.label), PARAMS.MAX_WORDS);
-  const seen = new Set<string>();
-  const byKey = new Map<string, { postings: number; companies: Set<string>; spellings: Map<string, number> }>();
-  for (const [i, word] of words.entries()) {
-    const hits = await search({ q: word, attributesToSearchOn: ["title"], limit: 1000, attributesToRetrieve: ["id", "title", "company"] });
-    for (const h of hits) {
-      if (seen.has(h.id) || !h.title) continue;
-      seen.add(h.id);
-      const key = titleKey(h.title);
-      if (!key) continue;
-      const entry = byKey.get(key) ?? { postings: 0, companies: new Set<string>(), spellings: new Map<string, number>() };
-      entry.postings++;
-      entry.companies.add((h.company ?? "").toLowerCase());
-      const plain = h.title.trim();
-      if (normalizeTitleName(plain) === key) entry.spellings.set(plain, (entry.spellings.get(plain) ?? 0) + 1);
-      byKey.set(key, entry);
-    }
-    if (i % 100 === 0) console.error(`titles: ${i}/${words.length} words, ${seen.size} postings, ${byKey.size} keys`);
+  // 1. Titles: facet counts only.
+  const seeds = seedTerms(map.roles.flatMap((r) => r.names), PARAMS.MAX_SEEDS);
+  const rawCounts = new Map<string, number>();
+  for (const [i, seed] of seeds.entries()) {
+    const { facetDistribution } = await search({ q: seed, attributesToSearchOn: ["title"], matchingStrategy: "all", limit: 0, facets: ["title"] });
+    for (const [raw, n] of Object.entries(facetDistribution?.title ?? {})) rawCounts.set(raw, Math.max(rawCounts.get(raw) ?? 0, n));
+    if (i % 250 === 0) console.error(`titles: ${i}/${seeds.length} seeds, ${rawCounts.size} exact titles`);
   }
+  const byKey = titleKeys(rawCounts);
   const kept = [...byKey]
-    .filter(([, e]) => e.postings >= PARAMS.MIN_POSTINGS && e.companies.size >= PARAMS.MIN_COMPANIES)
+    .filter(([, e]) => e.postings >= PARAMS.MIN_POSTINGS)
     .sort((a, b) => b[1].postings - a[1].postings || a[0].localeCompare(b[0]))
     .slice(0, PARAMS.MAX_TITLES);
 
   // 2. Terms.
   const vectors = new Map<string, Map<string, number>>();
+  const companies = new Map<string, number>();
   for (const [i, [key]] of kept.entries()) {
-    const hits = await search({ q: key, attributesToSearchOn: ["title"], matchingStrategy: "all", limit: 100, attributesToRetrieve: ["id", "title", "company", "description"] });
+    const { hits } = await search({ q: key, attributesToSearchOn: ["title"], matchingStrategy: "all", limit: 100, attributesToRetrieve: ["id", "title", "company", "description"] });
     const perCompany = new Map<string, number>();
     const termCount = new Map<string, number>();
     let read = 0;
@@ -187,35 +222,30 @@ async function main() {
       read++;
       for (const t of new Set([...terms.req, ...terms.duty])) termCount.set(t, (termCount.get(t) ?? 0) + 1);
     }
-    if (read >= 3) {
+    if (read >= 3 && perCompany.size >= PARAMS.MIN_COMPANIES) {
       const v = new Map<string, number>();
       for (const [t, c] of termCount) if (c / read >= PARAMS.MIN_TERM_SHARE) v.set(t, c / read);
-      if (v.size > 0) vectors.set(key, v);
+      if (v.size > 0) {
+        vectors.set(key, v);
+        companies.set(key, perCompany.size);
+      }
     }
     if (i % 100 === 0) console.error(`terms: ${i}/${kept.length} titles`);
   }
 
   // 3. Links.
   const links = postingLinks(vectors, PARAMS.LINKS_PER_TITLE, PARAMS.MIN_COSINE);
-  const titleCase = (k: string) => k.replace(/\b\w/g, (c) => c.toUpperCase());
-  const out: PostingLinks & { params: typeof PARAMS; requests: number; postingsSeen: number } = {
+  const out: PostingLinks & { params: typeof PARAMS; requests: number; exactTitles: number } = {
     generatedAt: new Date().toISOString(),
     params: PARAMS,
     requests,
-    postingsSeen: seen.size,
-    titles: kept
-      .filter(([key]) => vectors.has(key))
-      .map(([key, e]) => ({
-        key,
-        label: [...e.spellings].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? titleCase(key),
-        postings: e.postings,
-        companies: e.companies.size,
-      })),
+    exactTitles: rawCounts.size,
+    titles: kept.filter(([key]) => vectors.has(key)).map(([key, e]) => ({ key, label: e.label, postings: e.postings, companies: companies.get(key) ?? 0 })),
     links,
   };
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(out) + "\n");
-  console.log(JSON.stringify({ out: outPath, requests, postingsSeen: seen.size, keys: byKey.size, kept: kept.length, withTerms: vectors.size, links: links.length }, null, 2));
+  console.log(JSON.stringify({ out: outPath, requests, exactTitles: rawCounts.size, keys: byKey.size, kept: kept.length, withTerms: vectors.size, links: links.length }, null, 2));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -50,8 +50,9 @@ function onetMember(members: string[], file: string): string {
 }
 
 async function main() {
-  const [workDir, outArg, postingsArg] = process.argv.slice(2);
-  if (!workDir) throw new Error("usage: build-title-map.ts <work-dir> [out.json] [postings-links.json]");
+  const skipEsco = process.argv.includes("--skip-esco");
+  const [workDir, outArg, postingsArg] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+  if (!workDir) throw new Error("usage: build-title-map.ts <work-dir> [out.json] [postings-links.json] [--skip-esco]");
   mkdirSync(workDir, { recursive: true });
   const log = (s: string) => console.error(s);
 
@@ -59,17 +60,20 @@ async function main() {
   const members = zipMembers(onetZip);
   const onet = parseOnet({
     occupations: zipText(onetZip, onetMember(members, "Occupation Data.txt")),
-    alternateTitles: zipText(onetZip, onetMember(members, "Alternate Titles.txt")),
+    jobTitles: zipText(onetZip, onetMember(members, "Job Titles.txt")),
     reportedTitles: zipText(onetZip, onetMember(members, "Sample of Reported Titles.txt")),
     related: zipText(onetZip, onetMember(members, "Related Occupations.txt")),
+    tasksToDwas: zipText(onetZip, onetMember(members, "Tasks to DWAs.txt")),
+    software: zipText(onetZip, onetMember(members, "Software Skills.txt")),
   });
 
   const crosswalkXlsx = await download(workDir, CROSSWALK);
   const crosswalk = parseCrosswalk(parseXlsxSheet(zipText(crosswalkXlsx, "xl/sharedStrings.xml"), zipText(crosswalkXlsx, "xl/worksheets/sheet1.xml")));
 
+  // --skip-esco builds from O*NET alone (for when the ESCO API cannot be reached); the sources list then has no ESCO entry.
   const escoCache = join(workDir, ESCO_CACHE.name);
-  const fetched = await fetchEsco(escoCache, { log });
-  const esco = readEscoCache(escoCache);
+  const fetched = skipEsco ? { requests: 0, occupations: 0 } : await fetchEsco(escoCache, { log });
+  const esco = skipEsco ? [] : readEscoCache(escoCache);
 
   const postings: PostingLinks | undefined = postingsArg ? JSON.parse(readFileSync(postingsArg, "utf8")) : undefined;
 
@@ -82,13 +86,13 @@ async function main() {
       license: "CC BY 4.0",
       files: [ONET_ZIP, CROSSWALK].map((f) => ({ name: f.name, url: f.url, sha256: sha256(join(workDir, f.name)) })),
     },
-    {
+    ...(skipEsco ? [] : [{
       id: "esco",
       label: "ESCO classification (European Commission), web-service API",
       version: `API as served ${fetchedOn}`,
       license: "Reuse for any purpose with acknowledgment (Commission Decision 2011/833/EU)",
       files: [{ name: ESCO_CACHE.name, url: ESCO_CACHE.url, sha256: sha256(escoCache) }],
-    },
+    }]),
     ...(postings && postingsArg
       ? [{ id: "postings", label: "Titles and terms learned from Velai's job index", version: postings.generatedAt, license: "Velai", files: [{ name: "postings-links.json", url: "local", sha256: sha256(postingsArg) }] }]
       : []),

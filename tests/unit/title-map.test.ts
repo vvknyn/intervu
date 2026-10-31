@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { combineWeights, neighbourTitles, neighbourTree, ownRoles, roleNeighbours, rolesForTitle } from "../../src/lib/jobs/title-map";
 import { assembleTitleMap, skillLinks, type EscoOccupation } from "../../scripts/title-map/graph";
 import { parseCrosswalk, parseEscoOccupation, parseOnet, parseTsv, parseXlsxSheet } from "../../scripts/title-map/sources";
-import { postingLinks, seedWords, titleKey } from "../../scripts/title-map/learn-from-postings";
+import { postingLinks, seedTerms, titleKey, titleKeys } from "../../scripts/title-map/learn-from-postings";
 
 const occ = (id: string, label: string, essential: string[], optional: string[] = [], unit = "2511"): EscoOccupation => ({
   uri: `http://data.europa.eu/esco/occupation/${id}`,
@@ -23,22 +23,27 @@ describe("O*NET and crosswalk readers", () => {
   it("joins alternate and reported titles to their occupation and keeps related tiers", () => {
     const onet = parseOnet({
       occupations: "O*NET-SOC Code\tTitle\tDescription\n11-2021.00\tMarketing Managers\tPlan\n",
-      alternateTitles: "O*NET-SOC Code\tTitle\tAlternate Title\tShort Title\tSource(s)\n11-2021.00\tMarketing Managers\tBrand Manager\t\t08\n",
-      reportedTitles: "O*NET-SOC Code\tTitle\tReported Job Title\tShown in My Next Move\n11-2021.00\tMarketing Managers\tProduct Manager\tY\n",
-      related: "O*NET-SOC Code\tTitle\tRelated O*NET-SOC Code\tRelated Title\tRelatedness Tier\tIndex\n11-2021.00\tMarketing Managers\t11-2022.00\tSales Managers\tPrimary-Short\t1\n",
+      jobTitles: "O*NET-SOC Code\tJob Title\tShort Title\tSource(s)\n11-2021.00\tBrand Manager\tn/a\t08\n",
+      reportedTitles: "O*NET-SOC Code\tReported Job Title\tShown in My Next Move\n11-2021.00\tProduct Manager\tY\n",
+      related: "O*NET-SOC Code\tRelated O*NET-SOC Code\tRelatedness Tier\tIndex\n11-2021.00\t11-2022.00\tPrimary-Short\t1\n",
     });
     assert.deepEqual(onet.occupations, [{ code: "11-2021.00", title: "Marketing Managers", titles: ["Brand Manager", "Product Manager"] }]);
     assert.deepEqual(onet.related, [{ code: "11-2021.00", related: "11-2022.00", tier: "Primary-Short", index: 1 }]);
   });
 
   it("reads an xlsx sheet and finds the crosswalk columns by their header", () => {
-    const shared = "<sst><si><t>ESCO Occupation URI</t></si><si><t>O*NET-SOC 2019 Code</t></si><si><t>http://data.europa.eu/esco/occupation/abc</t></si><si><t>Note &amp; more</t></si></sst>";
+    const shared =
+      "<sst><si><t>ESCO/ISCO Code</t></si><si><t>O*NET-SOC 2019 Code</t></si><si><t>2512.4</t></si><si><t>Note &amp; more</t></si></sst>";
     const sheet =
       '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>3</v></c></row><row r="2"><c r="B2" t="s"><v>0</v></c><c r="C2" t="s"><v>1</v></c></row>' +
-      '<row r="3"><c r="B3" t="s"><v>2</v></c><c r="C3" t="inlineStr"><is><t>15-1299.09</t></is></c></row></sheetData></worksheet>';
+      '<row r="3"><c r="B3" t="s"><v>2</v></c><c r="C3" t="inlineStr"><is><t>15-1299.09</t></is></c></row>' +
+      '<row r="4"><c r="C4" t="inlineStr"><is><t>15-1252.00</t></is></c></row></sheetData></worksheet>';
     const rows = parseXlsxSheet(shared, sheet);
     assert.equal(rows[0][0], "Note & more");
-    assert.deepEqual(parseCrosswalk(rows), [{ escoUri: "http://data.europa.eu/esco/occupation/abc", onetCode: "15-1299.09" }]);
+    assert.deepEqual(parseCrosswalk(rows), [
+      { esco: "2512.4", onetCode: "15-1299.09" },
+      { esco: "2512.4", onetCode: "15-1252.00" },
+    ]);
     assert.throws(() => parseCrosswalk([["a", "b"]]));
   });
 
@@ -54,6 +59,7 @@ describe("O*NET and crosswalk readers", () => {
     });
     assert.deepEqual(o, {
       uri: "http://data.europa.eu/esco/occupation/a79170ad",
+      code: "1330.3",
       label: "ICT product manager",
       altLabels: ["IT product manager"],
       iscoUnit: "1330",
@@ -102,7 +108,7 @@ describe("title map", () => {
       ],
       related: [{ code: "11-2021.00", related: "11-2022.00", tier: "Primary-Short", index: 1 }],
     },
-    crosswalk: [{ escoUri: "http://data.europa.eu/esco/occupation/chef", onetCode: "35-1011.00" }],
+    crosswalk: [{ esco: "http://data.europa.eu/esco/occupation/chef", onetCode: "35-1011.00" }],
     postings: {
       generatedAt: "2026-10-31",
       titles: [
@@ -179,8 +185,14 @@ describe("posting titles", () => {
     assert.equal(titleKey("Lead"), "");
   });
 
-  it("seeds searches with the commonest label words", () => {
-    assert.deepEqual(seedWords(["Product Manager", "Sales Manager", "Senior Product Owner"], 2), ["manager", "product"]);
+  it("seeds title searches with the commonest word pairs and words of the map's names, alternating", () => {
+    assert.deepEqual(seedTerms(["Product Manager", "Sales Manager", "Senior Product Owner"], 4), ["product manager", "manager", "product owner", "product"]);
+    assert.ok(!seedTerms(["Chefs and Head Cooks"], 10).some((t) => /\band\b/.test(t)));
+  });
+
+  it("sums facet counts per title key and labels it with its commonest plain spelling", () => {
+    const keys = titleKeys(new Map([["Senior Product Owner", 9], ["Product Owner", 6], ["product owner", 2], ["Lead", 3]]));
+    assert.deepEqual([...keys], [["product owner", { postings: 17, label: "Product Owner" }]]);
   });
 
   it("links titles whose postings use the same distinctive terms", () => {

@@ -116,8 +116,13 @@ export function rolesForTitle(map: TitleMap, title: string): TitleMapRole[] {
 export function ownRoles(map: TitleMap, title: string): TitleMapRole[] {
   const key = normalizeTitleName(title);
   const holders = rolesForTitle(map, title);
-  const named = holders.filter((r) => normalizeTitleName(r.label) === key);
+  const named = holders.filter((r) => sameTitle(normalizeTitleName(r.label), key));
   return named.length > 0 ? named : holders;
+}
+
+/** Classifications name occupations in the plural ("Registered Nurses"); a typed title is usually singular. */
+function sameTitle(label: string, key: string): boolean {
+  return label === key || label === `${key}s` || label === `${key}es` || (key.endsWith("y") && label === `${key.slice(0, -1)}ies`);
 }
 
 function roleIndex(map: TitleMap, id: string): number {
