@@ -8,9 +8,9 @@ import { isLocalOrigin, mockSignIn } from "./signed-in";
  * rather than read from the source — the source check (page-scale.test.ts)
  * let a tab pick its own centred 3xl column behind an allow marker.
  *
- * - J-NAV-46: every page's content starts on the header logo's left edge and
+ * - J-NAV-47: every page's content starts on the header logo's left edge and
  *   ends inside the header's right edge, at 390, 768, 1280 and 1440.
- * - J-NAV-47: every page's masthead (eyebrow or title) starts the same
+ * - J-NAV-48: every page's masthead (eyebrow or title) starts the same
  *   `--page-top` (40px) below the header.
  * - J-SETTINGS-37: Settings' title, plan card, tab bar and first card sit in
  *   the same place on every tab.
@@ -140,7 +140,7 @@ async function open(page: Page, path: string) {
 }
 
 for (const path of FRAME_ROUTES) {
-    test(`${path}: the page sits in the header's frame at every width`, { tag: ["@J-NAV-46", "@J-NAV-47"] }, async ({ page, baseURL }, testInfo) => {
+    test(`${path}: the page sits in the header's frame at every width`, { tag: ["@J-NAV-47", "@J-NAV-48"] }, async ({ page, baseURL }, testInfo) => {
         await returningVisitor(page);
         // Signed in where a local dev server can do it, so the signed-in layout is the one measured.
         if (isLocalOrigin(baseURL)) await mockSignIn(page);

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PLAN_AND_PAYMENTS_HREF } from "@/lib/billing/paths";
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -142,7 +143,7 @@ export function PricingClient({
         {autoRenewing ? (
           <p data-testid="pricing-auto-renewing" className="mt-5 text-sm font-semibold text-foreground">
             Month to month is on{paidUntil !== null ? `. Next payment ${formatPaidUntil(paidUntil)}` : ""}.{" "}
-            <Link href="/settings?tab=account" className="font-normal underline">Manage it in Settings</Link>
+            <Link href={PLAN_AND_PAYMENTS_HREF} className="font-normal underline">Manage it in Settings</Link>
           </p>
         ) : paidUntil !== null ? (
           <p data-testid="pricing-paid-until" className="mt-5 text-sm font-semibold text-foreground">
