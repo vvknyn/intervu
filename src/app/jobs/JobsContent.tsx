@@ -11,7 +11,6 @@ import {
     WarningCircle,
     Compass,
     CaretDown,
-    CaretUp,
     X,
     Check,
     Question,
@@ -32,8 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
-import { Sheet, SheetBar, SheetBody, SheetContent, SheetFooter, SheetHandle, SheetTitle } from "@/components/ui/sheet";
-import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
@@ -148,7 +146,6 @@ import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
     appliedPostedBucket,
-    entriesNeedingOwnChip,
     chipLabelForEntry,
     toggleFacetValue,
     changedFilterFacets,
@@ -157,10 +154,10 @@ import {
 } from "@/components/jobs/FilterPanel";
 import { pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
+import { FilterRail, FiltersSheet } from "@/components/jobs/FiltersChrome";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { isKnownDeadApplyUrl, probeApplyUrl } from "@/lib/jobs/apply-url-health";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
-import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
 import { JobsListSplash, JobsListSkeletonRows } from "@/components/jobs/JobsListSplash";
 import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
@@ -272,7 +269,7 @@ import {
     readRequestedSearchAlerts,
     shouldShowSearchAlertCapture,
 } from "@/lib/jobs/search-alert-capture";
-import { resolveFacetsMountSite, showsFiltersToggle } from "@/lib/jobs/serp-density";
+import { filtersOnScreen, resolveFiltersSurface } from "@/lib/jobs/serp-density";
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { useApplyReturnPrompt, ApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
@@ -433,6 +430,9 @@ function StripDot() {
  * losing their place on the return sweep.
  */
 const cappedContentClass = "mx-auto w-full max-w-[1600px]";
+
+/** Set to "1" once the searcher hides the filter rail; the rail is open without it. */
+const FILTERS_RAIL_HIDDEN_KEY = "velai.jobs.filtersRailHidden";
 
 /**
  * The IP-based location default's own honesty affordance — lives IN the
@@ -1902,15 +1902,6 @@ export function JobsContent({
     // React #185 loop `filterState` caused (see that effect's own comment).
     const activeChipsKey = activeEntries.map((e) => `${e.key}=${chipLabelForEntry(e)}`).join("|");
 
-    // The active filters the FacetBar has no control for — see
-    // `FACET_BAR_FACETS`. The toolbar names these itself, because for them
-    // the 2026-08-15 "duplicate information" removal had nothing to be a
-    // duplicate OF: `location_country` is set from the location box and
-    // appears on no chip, so "Clear filters (1)" was the only trace that a
-    // search had been narrowed at all.
-    const unnamedEntries = entriesNeedingOwnChip(activeEntries, facetBarRepresents(postedDateSupported));
-    const dockChipsKey = unnamedEntries.map((e) => `${e.key}=${chipLabelForEntry(e)}`).join("|");
-
     // Same disclosure gate `DefaultLocationChip`/the zero-result entry use
     // (`shouldShowLocationDefaultChip`), collapsed to the ISO2 or `null` so
     // the dock effect below can take it as ONE primitive dependency instead
@@ -2084,7 +2075,6 @@ export function JobsContent({
 
     const { isActive: tourActive } = useTour();
     // One hook per docked slot, gated by `headerDockActive`.
-    const dockedFacetsMount = useDockedSlotMount(headerDockActive, "topbar-docked-facets");
     const dockedFieldDirectoryMount = useDockedSlotMount(headerDockActive, "topbar-docked-field-directory");
     const dockedQueryMount = useDockedSlotMount(headerDockActive, "topbar-docked-query");
     const dockedSortMount = useDockedSlotMount(headerDockActive, "topbar-docked-sort");
@@ -3566,6 +3556,41 @@ export function JobsContent({
      */
     const [filtersOpen, setFiltersOpen] = useState(false);
 
+    // Where the filters are shown (lib/jobs/serp-density.ts): a left rail beside
+    // the list at lg+ whenever a list is on screen, a drawer at lg+ with no list
+    // yet, a bottom sheet below lg. The rail stays up until the searcher hides
+    // it, and that choice is kept on this device.
+    const filtersSurface = resolveFiltersSurface({ isLgUp, resultsShown: showSearchHome && searchIntent });
+    const [railHidden, setRailHidden] = useState(false);
+    useEffect(() => {
+        try {
+            if (window.localStorage.getItem(FILTERS_RAIL_HIDDEN_KEY) === "1") setRailHidden(true);
+        } catch {
+            // Storage blocked: the rail simply opens every visit.
+        }
+    }, []);
+    const filtersShown = filtersOnScreen({ surface: filtersSurface, railHidden, overlayOpen: filtersOpen });
+    const railOnScreen = filtersSurface === "rail" && !railHidden;
+    const toggleFilters = () => {
+        if (filtersSurface !== "rail") {
+            setFiltersOpen((v) => !v);
+            return;
+        }
+        setRailHidden(!railHidden);
+        try {
+            if (railHidden) window.localStorage.removeItem(FILTERS_RAIL_HIDDEN_KEY);
+            else window.localStorage.setItem(FILTERS_RAIL_HIDDEN_KEY, "1");
+        } catch {
+            // Storage blocked: the choice holds for this visit only.
+        }
+    };
+    const toggleFiltersRef = useRef(toggleFilters);
+    toggleFiltersRef.current = toggleFilters;
+    // A sheet left open while the window widens into a rail would reopen on the way back down.
+    useEffect(() => {
+        if (filtersSurface === "rail") setFiltersOpen(false);
+    }, [filtersSurface]);
+
     // `docked.onClearChip` (below) has the same staleness risk `submitSearchRef`
     // above guards `submitSearch` against — `applyFilterState` closes over
     // `buildUrlState`'s many fields, and a clear fired from a stale render's
@@ -3600,8 +3625,9 @@ export function JobsContent({
                 submitSearchRef.current(v);
             },
             placeholder: searchBox.placeholder,
-            // FacetBar-owned filters (salary, posted, work mode, experience)
-            // render as dropdown chips — only the leftovers become dismiss chips.
+            // Every applied filter is a dismiss chip. The filter groups themselves
+            // live in the rail, so a chip is the only place a hidden rail, or a
+            // phone with its sheet closed, still names what narrows the list.
             // The applied-location-default chip is PREPENDED by the same
             // `buildDockedChips` helper the mobile row's disclosure logic
             // shares, so this row never silently narrows results without a
@@ -3609,19 +3635,19 @@ export function JobsContent({
             chips: buildDockedChips(
                 dockedDefaultLocationIso2,
                 dockedDefaultRemoteAnywhere,
-                unnamedEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
+                activeEntries.map((entry) => ({ key: entry.key, label: chipLabelForEntry(entry) })),
             ),
             onClearChip: (key) => {
                 if (key === DEFAULT_LOCATION_CHIP_KEY) {
                     suppressLocationDefault();
                     return;
                 }
-                const entry = unnamedEntries.find((e) => e.key === key);
+                const entry = activeEntries.find((e) => e.key === key);
                 if (entry) applyFilterStateRef.current(entry.clear(filterStateRef.current));
             },
             filterCount: activeCount,
-            filtersExpanded: filtersOpen,
-            onOpenFilters: () => setFiltersOpen((v) => !v),
+            filtersExpanded: filtersShown,
+            onOpenFilters: () => toggleFiltersRef.current(),
             // Live corpus count in the docked toolbar is deferred (2026-08-24) —
             // the row was cluttered; `/trends` still owns the full count story.
         });
@@ -3633,9 +3659,8 @@ export function JobsContent({
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [showSearchHome, headerDockActive, searchBox.value, searchBox.placeholder, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
+    }, [showSearchHome, headerDockActive, searchBox.value, searchBox.placeholder, activeChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersShown, setDocked]);
 
-    const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
         applyFilterStateWithIntent({ ...filterState, facets: toggleFacetValue(filterState.facets, key, value) });
     // Same guard `FilterChipsRow`'s own remote chip uses (`remoteValue ==
@@ -4793,27 +4818,20 @@ export function JobsContent({
             </div>
         ) : null;
 
-    // G5b (Grok UX wave): the filters panel's own content, shared verbatim
-    // between the desktop modal dialog and the mobile Sheet below — one
-    // SerpFilters render, not two copies that could drift on props.
-    /**
-     * The filter controls, written once for all three mount sites (dialog,
-     * bottom sheet, dense rail). Only `layout` differs — see SerpFilters's own
-     * prop doc for why the rail cannot just be a narrower panel.
-     */
-    const renderFiltersPanel = (layout: "panel" | "sheet" | "rail" = "panel") => (
+    // The filter groups, written once: the rail and the sheet/drawer each frame
+    // this one render (components/jobs/FiltersChrome.tsx), so the two can never
+    // drift on props.
+    const filtersPanelEl = (
         <SerpFilters
             distribution={result?.facetDistribution}
             resultTotal={result?.total}
             postedDateSupported={postedDateSupported}
             state={filterState}
-            activeCount={activeCount}
             onToggleFacet={panelToggleFacet}
             onSalaryMin={panelSalaryMin}
             onVisaOnly={panelVisaOnly}
             onPostedBucket={panelPostedBucket}
             onYearsExperience={panelYearsExperience}
-            onClearAll={panelClearAll}
             hideGhosts={hideGhosts}
             onHideGhosts={onHideGhosts}
             ghostHiddenCount={ghostHiddenCount}
@@ -4821,50 +4839,7 @@ export function JobsContent({
             onHideViewed={onHideViewed}
             board={board === "elite" ? "elite" : "all"}
             onBoardChange={(b) => onBoardChange(b === "elite" ? "elite" : null)}
-            layout={layout}
         />
-    );
-
-    const renderFiltersDialog = () => (
-        <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <DialogContent className="gap-0 rounded-panel p-0 sm:max-w-3xl">
-                <div className="shrink-0 border-b border-border px-6 py-4 pr-12">
-                    <DialogHeader className="text-left">
-                        <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-                            Filters
-                            {activeCount > 0 && (
-                                <span className="font-normal text-xs text-muted-foreground tabular-nums">
-                                    ({activeCount} active)
-                                </span>
-                            )}
-                        </DialogTitle>
-                    </DialogHeader>
-                </div>
-                <DialogBody
-                    id="filters-panel"
-                    data-testid="filters-panel"
-                    className="px-6 py-4 text-foreground custom-scrollbar"
-                >
-                    {renderFiltersPanel("sheet")}
-                </DialogBody>
-                <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-6 py-3.5">
-                    <Button
-                        variant="outline"
-                        size="touch"
-                        disabled={activeCount === 0}
-                        onClick={panelClearAll}
-                    >
-                        Clear all
-                    </Button>
-                    <Button
-                        size="touch"
-                        onClick={() => setFiltersOpen(false)}
-                    >
-                        {showResultsLabel(result?.configured && !result.unavailable && !loading ? totalCount : null)}
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
     );
 
     /**
@@ -5059,16 +5034,9 @@ export function JobsContent({
         </button>
     ) : null;
 
-    const facetBarEl = (
-        <FacetBar
-            distribution={result?.facetDistribution}
-            state={filterState}
-            postedDateSupported={postedDateSupported}
-            onToggleFacet={panelToggleFacet}
-            onSalaryMin={panelSalaryMin}
-            onPostedBucket={panelPostedBucket}
-        />
-    );
+    // One Clear all at a time: while the rail is on screen its header carries
+    // it, so the bar's "Clear (n)" would be a second button for the same act.
+    const barClearEl = railOnScreen ? null : clearFiltersEl;
 
     // Where a signed-out gate returns to — this exact SERP, filters and all.
     // usePathname() always starts with "/"; the slice lets the type say so.
@@ -5196,8 +5164,7 @@ export function JobsContent({
     const resumeReadDetailText = hasUsableResume && resume ? resumeReadDetail(resume) : null;
 
     const showJobsToolbarRow = !headerDockActive;
-    const showJobsToolbarSection =
-        showJobsToolbarRow || (!headerDockActive && facetsMountSite !== null);
+    const showJobsToolbarSection = showJobsToolbarRow;
 
     /**
      * The live-count link, same markup regardless of where it renders. Two
@@ -5532,7 +5499,6 @@ export function JobsContent({
                 </section>
                 )}
 
-                {headerDockActive && showSearchHome && facetsMountSite === "inline" && renderFiltersDialog()}
                 {showJobsToolbarSection && showSearchHome && (
                 <section
                     data-testid="jobs-toolbar"
@@ -5564,42 +5530,38 @@ export function JobsContent({
                         with the chip row under it. */}
                     <div
                         data-testid="jobs-toolbar-rows"
-                        className="no-scrollbar scroll-hit flex w-full min-w-0 items-center gap-2 overflow-x-auto @2xl:block @2xl:overflow-x-clip"
+                        className="flex w-full min-w-0 flex-col gap-2 @2xl:block"
                     >
                     {showJobsToolbarRow && (
                     <div
                         data-testid="jobs-toolbar-scroller"
                         className={cn(
-                            "flex shrink-0 items-center gap-2 [&>*]:shrink-0 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:gap-3 @2xl:overflow-x-clip",
+                            "no-scrollbar scroll-hit flex shrink-0 items-center gap-2 overflow-x-auto [&>*]:shrink-0 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:gap-3 @2xl:overflow-x-clip",
                             atRest ? "px-0" : "px-[var(--list-inset)]",
                         )}
                     >
-                        {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
+                        {!headerDockActive && (
                         <button
                             type="button"
                             data-testid="filters-toggle"
-                            aria-expanded={filtersOpen}
-                            aria-haspopup="true"
+                            aria-expanded={filtersShown}
                             aria-controls="filters-panel"
-                            onClick={() => setFiltersOpen((v) => !v)}
+                            onClick={toggleFilters}
                             className={cn(
-                                chipVariants({ active: filtersOpen, interactive: true }),
+                                chipVariants({ active: filtersShown, interactive: true }),
                                 toolbarControlHeight,
                                 "ctl-button box-border shrink-0 px-3.5 inline-flex items-center justify-center gap-2 whitespace-nowrap leading-none transition-colors @2xl:px-3",
                             )}
                         >
-                            <span className="@2xl:hidden">Filters</span>
-                            <span className="hidden @2xl:inline">All filters</span>
+                            Filters
                             {activeCount > 0 && (
                                 <span className={cn("ml-0.5", filterCountBadgeClass)}>
                                     {activeCount}
                                 </span>
                             )}
-                            {filtersOpen ? <CaretUp size={16} weight="bold" aria-hidden /> : <CaretDown size={16} weight="bold" aria-hidden />}
                         </button>
                         )}
                         {!showLandingMarketing && !atRest && !headerDockActive && fieldDirectoryMenu}
-                        {!headerDockActive && facetBarEl}
                         {showToolbarFilters && (
                         <>
                         {shouldShowLocationDefaultChip(result?.defaultedLocation, chosenLocations) && (
@@ -5619,7 +5581,6 @@ export function JobsContent({
                                 <ChipDismiss label="Stop filtering to remote only" onClick={dismissRemotePref} />
                             </span>
                         )}
-                        {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
                         )}
                         {/* ml-auto, not an empty flex-1 spacer: the spacer took a
@@ -5633,15 +5594,18 @@ export function JobsContent({
                         )}
                     </div>
                     )}
-                    {!headerDockActive && unnamedEntries.length > 0 && (
+                    {!headerDockActive && activeEntries.length > 0 && (
                         <div
                             data-testid="active-filter-row"
                             className={cn(
-                                "flex shrink-0 items-center gap-2 pr-[var(--list-inset)] [&>*]:shrink-0",
-                                "@2xl:mt-2 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:overflow-x-clip @2xl:pr-0 @2xl:pt-2",
+                                // Its own sideways-scrolling line below the controls, so what narrows the
+                                // list is on screen without a swipe; from @2xl it wraps under them.
+                                "no-scrollbar scroll-hit flex shrink-0 items-center gap-2 overflow-x-auto pr-[var(--list-inset)] [&>*]:shrink-0",
+                                atRest ? "pl-0" : "pl-[var(--list-inset)]",
+                                "@2xl:mt-2 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:overflow-x-clip @2xl:px-0 @2xl:pt-2",
                             )}
                         >
-                            {!headerDockActive && unnamedEntries.map((entry) => {
+                            {!headerDockActive && activeEntries.map((entry) => {
                                 const label = chipLabelForEntry(entry);
                                 return (
                                 <span
@@ -5658,50 +5622,11 @@ export function JobsContent({
                                 </span>
                                 );
                             })}
-                            {clearFiltersEl}
+                            {barClearEl}
                         </div>
                     )}
                     </div>
 
-                    {facetsMountSite === "inline" && !headerDockActive ? (
-                        renderFiltersDialog()
-                    ) : facetsMountSite === "sheet" ? (
-                        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-                            <SheetContent
-                                side="bottom"
-                                hideCloseButton
-                                className="mx-auto w-full max-w-[720px] gap-0 border-border border-b-0 p-0"
-                            >
-                                <SheetBar title="Filters" />
-                                <SheetBody
-                                    id="filters-panel"
-                                    data-testid="filters-panel"
-                                    className="p-4 text-foreground custom-scrollbar"
-                                >
-                                    {renderFiltersPanel("sheet")}
-                                </SheetBody>
-                                {/* Filters apply live, so "Show N jobs" only closes the sheet;
-                                    N is the live total, never a guess (showResultsLabel). */}
-                                <SheetFooter className="shrink-0 flex-row gap-3 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                                    <Button
-                                        variant="outline"
-                                        size="touch"
-                                        disabled={activeCount === 0}
-                                        onClick={panelClearAll}
-                                    >
-                                        Clear all
-                                    </Button>
-                                    <Button
-                                        size="touch"
-                                        className="flex-1"
-                                        onClick={() => setFiltersOpen(false)}
-                                    >
-                                        {showResultsLabel(result?.configured && !result.unavailable && !loading ? totalCount : null)}
-                                    </Button>
-                                </SheetFooter>
-                            </SheetContent>
-                        </Sheet>
-                    ) : null}
                 </section>
                 )}
 
@@ -5754,9 +5679,8 @@ export function JobsContent({
                 {headerDockActive && showLandingMarketing && dockedFieldDirectoryMount &&
                     createPortal(fieldDirectorySuggestionChips, dockedFieldDirectoryMount)}
                 {headerDockActive && dockedQueryMount && createPortal(dockedQueryEl, dockedQueryMount)}
-                {headerDockActive && dockedFacetsMount && createPortal(facetBarEl, dockedFacetsMount)}
-                {headerDockActive && showToolbarFilters && dockedClearFiltersMount && clearFiltersEl &&
-                    createPortal(clearFiltersEl, dockedClearFiltersMount)}
+                {headerDockActive && showToolbarFilters && dockedClearFiltersMount && barClearEl &&
+                    createPortal(barClearEl, dockedClearFiltersMount)}
                 {headerDockActive && dockedSaveSearchMount && savedSearchMountEl &&
                     createPortal(savedSearchMountEl, dockedSaveSearchMount)}
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
@@ -5798,15 +5722,33 @@ export function JobsContent({
                         : "mt-4",
                     "flex min-h-0 flex-1 flex-col",
                     cappedContentClass,
-                    // Item 5 (2026-08-21): was gated on `!isPristineLanding`,
-                    // hiding the split (and the pane below) for the whole
-                    // pristine landing even at xl+ with a full page of hits
-                    // already listed. Now keyed on the same fact the pane
-                    // itself needs — is there a list to pair a pane with —
-                    // so browsing the default corpus gets the same preview
-                    // layout a search does, just with nothing selected yet.
-                    hits.length > 0 && "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-4"
+                    // The filter rail sits beside the list from lg up: a two-column grid, so the
+                    // controls inside the list are not read as one flex row with the rail.
+                    railOnScreen && "lg:grid lg:grid-cols-[var(--jobs-rail-w)_minmax(0,1fr)] lg:gap-4",
                 )}>
+                    {railOnScreen && (
+                        <FilterRail activeCount={activeCount} onClearAll={panelClearAll}>
+                            {filtersPanelEl}
+                        </FilterRail>
+                    )}
+                    <div
+                        data-testid="jobs-results-split"
+                        className={cn(
+                            "flex min-h-0 min-w-0 flex-1 flex-col",
+                            // Item 5 (2026-08-21): was gated on `!isPristineLanding`,
+                            // hiding the split (and the pane below) for the whole
+                            // pristine landing even at xl+ with a full page of hits
+                            // already listed. Now keyed on the same fact the pane
+                            // itself needs — is there a list to pair a pane with —
+                            // so browsing the default corpus gets the same preview
+                            // layout a search does, just with nothing selected yet.
+                            // Beside the rail the list gets the wider share until 2xl.
+                            hits.length > 0 &&
+                                (railOnScreen
+                                    ? "xl:grid xl:grid-cols-[minmax(0,42%)_minmax(0,58%)] xl:gap-4 2xl:grid-cols-[minmax(0,37%)_minmax(0,63%)]"
+                                    : "xl:grid xl:grid-cols-[minmax(0,37%)_minmax(0,63%)] xl:gap-4"),
+                        )}
+                    >
                     {/* Two-Panel Selector (master-detail) detail pane, xl+
                         only. Placed BEFORE the list column in source order —
                         the pane's JSX is full of buttons (JobDetail's own ×,
@@ -6427,11 +6369,26 @@ export function JobsContent({
                             </>
                         </div>
                     </div>
+                    </div>
                 </div>
                 )}
                 </>
                 )}
             </div>
+
+            {showSearchHome && (
+                <FiltersSheet
+                    open={filtersOpen && filtersSurface !== "rail"}
+                    onOpenChange={setFiltersOpen}
+                    side={filtersSurface === "sheet" ? "bottom" : "left"}
+                    activeCount={activeCount}
+                    onClearAll={panelClearAll}
+                    showLabel={showResultsLabel(result?.configured && !result.unavailable && !loading ? totalCount : null)}
+                    onShow={() => setFiltersOpen(false)}
+                >
+                    {filtersPanelEl}
+                </FiltersSheet>
+            )}
 
             <AuthPopover
                 open={authOpen}

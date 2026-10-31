@@ -100,15 +100,15 @@ describe("dock trigger: presence follows the search, not scroll position", () =>
 });
 
 describe("dock chips: sourced from activeFilterEntries only", () => {
-    it("the dock effect's chip list maps FacetBar leftovers — not duplicates of dropdown chips", () => {
+    it("the dock effect's chip list maps every active filter, the filter column being no dropdown chip's duplicate", () => {
         const src = stripComments(JOBS);
         assert.match(
             src,
             // 6feaf72c (#366) routes them through buildDockedChips, which prepends the location-default chip.
-            /chips:\s*buildDockedChips\([^)]*unnamedEntries\.map\(\(entry\)\s*=>\s*\({\s*key:\s*entry\.key,\s*label:\s*chipLabelForEntry\(entry\)\s*}\)\)/,
-            "header chips must use entriesNeedingOwnChip(activeEntries) so FacetBar-owned filters are not duplicated",
+            /chips:\s*buildDockedChips\([^)]*activeEntries\.map\(\(entry\)\s*=>\s*\({\s*key:\s*entry\.key,\s*label:\s*chipLabelForEntry\(entry\)\s*}\)\)/,
+            "header chips must come from activeEntries, the one collection of what narrows the search",
         );
-        assert.match(src, /entriesNeedingOwnChip\(activeEntries, facetBarRepresents/);
+        assert.doesNotMatch(src, /entriesNeedingOwnChip|facetBarRepresents/, "no filter has a dropdown chip of its own any more");
     });
 
     it("the toolbar's own copy stands down once the header owns the search", () => {
@@ -118,8 +118,8 @@ describe("dock chips: sourced from activeFilterEntries only", () => {
         // active" is the duplicate-affordance regression this whole feature
         // was built to avoid repeating.
         const src = stripComments(JOBS);
-        assert.match(src, /!headerDockActive && unnamedEntries\.map/);
-        assert.match(src, /showsFiltersToggle\(facetsMountSite\) && !headerDockActive/);
+        assert.match(src, /!headerDockActive && activeEntries\.map/);
+        assert.match(src, /!headerDockActive && \(\s*<button\s+type="button"\s+data-testid="filters-toggle"/);
     });
 });
 

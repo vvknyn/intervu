@@ -152,6 +152,8 @@
   --jobs-filter-row-h: calc(2.75rem + 1rem);
   --jobs-bar-content-gap: 8px;
   --jobs-sticky-gap: 24px;
+  /* Width of the /jobs filter column beside the list (lg and up). */
+  --jobs-rail-w: 16rem;
   /* Single source for the /jobs results list's horizontal inset. The results
      header row, the alert-capture line, the beyond-window line, each
      JobCard row, the guest-nudge/banner group above the results (guest-save,
@@ -628,7 +630,6 @@ html:has([data-testid="topbar-docked-filters-toggle"]) {
 
 /* Empty portal mounts must not leave gap holes in the docked instrument row */
 [data-testid="topbar-docked-field-directory"]:empty,
-[data-testid="topbar-docked-facets"]:empty,
 [data-testid="topbar-docked-clear-filters"]:empty,
 [data-testid="topbar-docked-save-search"]:empty,
 [data-testid="topbar-docked-sort"]:empty,
@@ -1562,6 +1563,19 @@ a:has(> .link-pending-mark) {
   .animate-scanline {
     animation: none;
   }
+}
+
+/* The /jobs filter column (lg and up): a fixed-width panel that stays under
+   the header while the list scrolls and scrolls on its own when its groups
+   are taller than the window. Below lg the column is not rendered (the
+   filters are a sheet), so this carries no breakpoint of its own. */
+@utility jobs-filter-rail {
+  position: sticky;
+  top: var(--jobs-sticky-offset);
+  width: var(--jobs-rail-w);
+  max-height: calc(100dvh - var(--jobs-sticky-offset) - var(--jobs-sticky-gap));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* Composes --topbar-h + --jobs-sticky-gap for any surface that sits below

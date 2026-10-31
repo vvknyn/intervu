@@ -163,10 +163,10 @@ describe("jobs page chrome guards", () => {
         assert.match(actionsSrc, /const DEFAULT_BROWSE_LIMIT = 20;/);
     });
 
-    it("FacetBar is not gated behind !showLandingMarketing", () => {
+    it("the filter column is not gated behind !showLandingMarketing", () => {
         const src = readFileSync(PAGE, "utf8");
-        assert.doesNotMatch(src, /!showLandingMarketing\s*&&\s*\(\s*\n?\s*<FacetBar/);
-        assert.doesNotMatch(src, /!showLandingMarketing\s*&&\s*<FacetBar/);
+        assert.doesNotMatch(src, /!showLandingMarketing\s*&&\s*\(\s*\n?\s*<FilterRail/);
+        assert.doesNotMatch(src, /!showLandingMarketing\s*&&\s*<FilterRail/);
     });
 
     it("does not render LandingUspSection on the page", () => {
@@ -247,7 +247,7 @@ describe("jobs page chrome guards", () => {
         assert.match(topbar, /data-testid="topbar-docked-field-directory"/);
         assert.match(page, /topbar-docked-field-directory/);
         assert.match(page, /createPortal\(fieldDirectoryMenu/);
-        assert.match(page, /createPortal\(clearFiltersEl/);
+        assert.match(page, /createPortal\(barClearEl/);
         // The docked save-search mount carries `savedSearchMountEl`, a
         // fragment of the résumé band word (`rankByFitEl`) then the save-
         // search panel (`savedSearchControl`) — not `savedSearchControl`
@@ -263,16 +263,14 @@ describe("jobs page chrome guards", () => {
         );
         const filtersIdx = dockedRow.indexOf("topbar-docked-filters-toggle");
         const fieldIdx = dockedRow.indexOf("topbar-docked-field-directory");
-        const facetsIdx = dockedRow.indexOf("topbar-docked-facets");
         const clearIdx = dockedRow.indexOf("topbar-docked-clear-filters");
         const saveIdx = dockedRow.indexOf("topbar-docked-save-search");
         const chipIdx = dockedRow.indexOf("topbar-docked-chip");
         const sortIdx = dockedRow.indexOf("topbar-docked-sort");
         const spacerIdx = dockedRow.indexOf('min-w-0 flex-1');
         assert.ok(filtersIdx > -1 && filtersIdx < fieldIdx, "Filters toggle leads the left cluster");
-        assert.ok(fieldIdx > -1 && facetsIdx > fieldIdx, "Browse by field mounts before facets");
-        assert.ok(filtersIdx < facetsIdx, "Filters toggle must not sit between field and facets");
-        assert.ok(chipIdx > facetsIdx, "Leftover filter chips mount after facet dropdowns");
+        assert.doesNotMatch(dockedRow, /topbar-docked-facets/, "no filter has a dropdown chip in the header any more");
+        assert.ok(fieldIdx > -1 && chipIdx > fieldIdx, "Applied-filter chips mount after Browse by field");
         assert.ok(clearIdx > chipIdx, "Clear filters mounts at the trailing end of the chip cluster");
         assert.ok(filtersIdx < clearIdx && clearIdx < spacerIdx, "Filters toggle before Clear, Clear before spacer");
         assert.ok(saveIdx > spacerIdx, "Save search is after the flex spacer");
@@ -366,10 +364,11 @@ describe("jobs page chrome guards", () => {
         assert.match(src, /!showJobsToolbarRow && savedSearchControl/);
     });
 
-    it("mounts FacetBar as the in-page applied-chip rail, not FilterChipsRow", () => {
+    it("the toolbar names every applied filter as a chip, and mounts no FacetBar or FilterChipsRow", () => {
         const src = readFileSync(PAGE, "utf8");
-        const toolbar = src.slice(src.indexOf('data-testid="jobs-toolbar"'), src.indexOf('data-testid="active-filter-row"'));
-        assert.match(toolbar, /facetBarEl/);
+        const toolbar = src.slice(src.indexOf('data-testid="jobs-toolbar"'), src.indexOf("data-testid=\"active-filter-row\"") + 2000);
+        assert.match(toolbar, /activeEntries\.map/);
+        assert.doesNotMatch(src, /<FacetBar|facetBarEl/);
         assert.doesNotMatch(toolbar, /<FilterChipsRow/);
     });
 

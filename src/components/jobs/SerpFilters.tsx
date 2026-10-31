@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Disclosure, DisclosureCaret, DisclosureSummary } from "@/components/ui/disclosure";
+import { filterCountBadgeClass } from "@/components/ui/chip";
 import type { FacetDistribution, FacetKey, PanelFacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
 import {
     appliedPostedBucket,
@@ -17,8 +18,12 @@ import {
     TOP_N,
     YEARS_EXPERIENCE_PRESETS,
     distributionTaggedShare,
+    PRISTINE_FILTER_STATE,
     type FilterState,
 } from "@/components/jobs/FilterPanel";
+
+/** An option row: body-size text, and a 44px tap row below lg where the filters are a sheet. */
+const ROW_CLASS = "text-sm max-lg:min-h-11";
 
 export const DATE_POSTED_SHORT_LABELS: Partial<Record<PostedBucket, string>> = {
     "1d": "Past 24h",
@@ -46,6 +51,7 @@ export function facetOptions(
     return cap ? all.slice(0, cap) : all;
 }
 
+/** One checkbox or radio row: its label, and the live count when there is one. */
 export function Affordance({
     active,
     onClick,
@@ -53,7 +59,7 @@ export function Affordance({
     children,
     testId,
     inputType = "checkbox",
-    variant = "row",
+    className,
 }: {
     active: boolean;
     onClick: () => void;
@@ -61,47 +67,15 @@ export function Affordance({
     children: React.ReactNode;
     testId?: string;
     inputType?: "checkbox" | "radio";
-    variant?: "row" | "chip";
+    className?: string;
 }) {
-    if (variant === "chip") {
-        return (
-            <label
-                data-testid={testId}
-                className={cn(
-                    "inline-flex min-h-8 cursor-pointer select-none items-center gap-1.5 rounded-ctl border px-3 py-1 text-xs leading-tight whitespace-nowrap transition-colors",
-                    active
-                        ? "border-brand bg-live-tint-bg font-semibold text-brand"
-                        : "border-border bg-background text-foreground hover:bg-muted",
-                )}
-            >
-                <input
-                    type={inputType}
-                    checked={active}
-                    readOnly
-                    onClick={onClick}
-                    className="sr-only"
-                />
-                <span>{children}</span>
-                {typeof count === "number" && (
-                    <span
-                        className={cn(
-                            "text-xs font-normal tabular-nums",
-                            active ? "text-brand" : "text-muted-foreground",
-                        )}
-                    >
-                        {count.toLocaleString()}
-                    </span>
-                )}
-            </label>
-        );
-    }
-
     return (
         <label
             data-testid={testId}
             className={cn(
                 "flex min-h-8 cursor-pointer items-center gap-2 rounded-ctl px-1.5 text-xs leading-tight text-foreground transition-colors hover:bg-muted",
                 active && inputType === "radio" && "font-semibold text-live",
+                className,
             )}
         >
             <input
@@ -142,8 +116,6 @@ export function parseSalaryMinDraft(draft: string): number | null {
  * filters on a floor. Local draft state so typing doesn't fight the
  * controlled `salaryMin` prop on every keystroke; commits on blur/Enter,
  * and stays in sync when a preset click changes `salaryMin` externally.
- * Exported so both SerpFilters' own Salary group and FacetBar's Salary chip
- * (a presentation of this same filter, not a second one) mount it.
  */
 /** Error copy shows only what the digit keypad (inputMode="numeric") can type;
  *  the parser still accepts "120k" / "$120,000" from a desktop keyboard or paste. */
@@ -174,7 +146,7 @@ export function SalaryCustomMinInput({
         // Wraps the field under its label when the column is narrow (a
         // 320px phone cut the placeholder to "$ e.g."); the field takes the
         // control corner like every other input (2026-10-02).
-        <label className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-foreground">
+        <label className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1.5 text-xs text-foreground">
             <span className="shrink-0 text-muted-foreground">Custom minimum</span>
             <span className="flex min-w-0 items-center gap-1 rounded-ctl border border-border px-1.5 py-1">
                 <span className="text-muted-foreground">$</span>
@@ -209,44 +181,67 @@ export function SalaryCustomMinInput({
     );
 }
 
-function Group({
+/**
+ * One collapsible group of the filter column. Native `<details>` (the
+ * app's one disclosure, ui/disclosure.tsx): the browser owns the keyboard.
+ *
+ * Open from the first paint when the group is one the searcher reaches for
+ * first (`primary`) or already carries a choice (`engaged`), so a link that
+ * arrives with filters set never hides them behind a closed header. A group
+ * that gains its first choice while closed opens by itself; closing one by
+ * hand is never undone. The header names what the group holds right now — a
+ * count for a multi-select, the chosen value for a single choice — so a column
+ * folded to its headers still says what is applied.
+ */
+function FilterSection({
+    id,
     label,
-    count,
-    caption,
-    headerRight,
-    variant = "stack",
+    count = 0,
+    summary,
+    chosen = false,
+    primary = false,
+    note,
     children,
 }: {
+    id: string;
     label: string;
-    /** Quiet count of active selections in this group — shown next to the
-     *  heading so a collapsed/scrolled panel still signals which groups
-     *  carry selections (Task #48, Part B item 3). Omit or pass 0 for
-     *  groups where "count" isn't a meaningful concept (single-select
-     *  radios already name their one active choice inline). */
+    /** Selections in a multi-select group. 0 draws no badge. */
     count?: number;
-    caption?: string;
-    headerRight?: React.ReactNode;
-    variant?: "stack" | "chips";
+    /** The value of a single-choice group, shown beside the label. */
+    summary?: string;
+    /** A single-choice group holds something other than its default. */
+    chosen?: boolean;
+    primary?: boolean;
+    /** A muted footnote under the options (the sparse-data honesty caption). */
+    note?: string;
     children: React.ReactNode;
 }) {
+    const engaged = count > 0 || chosen;
+    // Open by default for the primary groups and for any group holding a selection;
+    // once the searcher opens or closes it themselves, that choice stands.
+    const [picked, setPicked] = useState<boolean | null>(null);
+    const open = picked ?? (primary || engaged);
     return (
-        <div className="flex flex-col">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h4 className="flex items-baseline gap-1.5 whitespace-nowrap text-xs font-semibold text-foreground">
-                    {label}
-                    {typeof count === "number" && count > 0 && (
-                        <span className="font-normal normal-case tabular-nums text-live">({count})</span>
-                    )}
-                    {caption && (
-                        <span className="font-normal text-muted-foreground">· {caption}</span>
-                    )}
-                </h4>
-                {headerRight}
-            </div>
-            <div className={variant === "chips" ? "flex flex-wrap gap-1.5" : "flex flex-col gap-0.5"}>
+        <Disclosure
+            open={open}
+            onToggle={(e) => setPicked(e.currentTarget.open)}
+            data-testid={`filter-section-${id}`}
+            className="border-b border-border last:border-b-0"
+        >
+            <DisclosureSummary
+                marker={false}
+                className="ctl-md ctl-button ctl-grow flex w-full items-center gap-2 py-1 text-foreground"
+            >
+                <span className="min-w-0 flex-1 text-left">{label}</span>
+                {count > 0 && <span className={filterCountBadgeClass}>{count}</span>}
+                {summary && <span className="shrink-0 text-xs font-normal text-muted-foreground">{summary}</span>}
+                <DisclosureCaret className="shrink-0 text-muted-foreground" />
+            </DisclosureSummary>
+            <div className="flex flex-col gap-0.5 pb-3 pt-1">
                 {children}
+                {note && <p className="px-1.5 pt-1 text-xs text-muted-foreground">{note}</p>}
             </div>
-        </div>
+        </Disclosure>
     );
 }
 
@@ -256,7 +251,9 @@ const SEARCH_PILLS_PLACEHOLDER: Partial<Record<PanelFacetKey, string>> = {
     must_have_skills: "Search must-have skills to add…",
 };
 
-function SearchPillsFacetGroup({
+/** A facet with too many values to list: a search box, what is selected, and the
+ *  values that match — added with one tap, searched by typing. */
+function SearchPillsFacetSection({
     label,
     facetKey,
     distribution,
@@ -264,7 +261,6 @@ function SearchPillsFacetGroup({
     state,
     onToggleFacet,
     cap = TOP_N,
-    caption,
 }: {
     label: string;
     facetKey: PanelFacetKey;
@@ -273,7 +269,6 @@ function SearchPillsFacetGroup({
     state: FilterState;
     onToggleFacet: (key: FacetKey, value: string) => void;
     cap?: number;
-    caption?: string;
 }) {
     const selected = state.facets[facetKey] ?? [];
     const [searchQuery, setSearchQuery] = useState("");
@@ -284,7 +279,7 @@ function SearchPillsFacetGroup({
         [distribution, selected, facetKey],
     );
 
-    if (!facetGroupVisible(distribution?.[facetKey], resultTotal, allOptions)) return null;
+    if (selected.length === 0 && !facetGroupVisible(distribution?.[facetKey], resultTotal, allOptions)) return null;
 
     const countMap = new Map(allOptions);
     const trimmedQuery = searchQuery.trim().toLowerCase();
@@ -302,9 +297,8 @@ function SearchPillsFacetGroup({
     const hiddenCount = Math.max(0, matchingUnselected.length - visibleSuggestions.length);
 
     return (
-        <Group label={label} count={selected.length} caption={caption}>
-            <div className="flex flex-col gap-2.5">
-                {/* Search input to find and add pills */}
+        <FilterSection id={facetKey} label={label} count={selected.length}>
+            <div className="flex flex-col gap-2.5 px-1.5">
                 <div className="flex min-h-8 items-center gap-2 rounded-ctl border border-border bg-background px-2.5 py-1 focus-within:border-foreground">
                     <MagnifyingGlass size={16} className="shrink-0 text-muted-foreground" aria-hidden />
                     <input
@@ -321,7 +315,7 @@ function SearchPillsFacetGroup({
                         }}
                         placeholder={SEARCH_PILLS_PLACEHOLDER[facetKey] ?? `Search ${label.toLowerCase()}…`}
                         aria-label={`Search ${label}`}
-                        className="min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
+                        className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
                     />
                     {searchQuery && (
                         <button
@@ -335,7 +329,6 @@ function SearchPillsFacetGroup({
                     )}
                 </div>
 
-                {/* Active selected pills */}
                 {selected.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                         {selected.map((value) => {
@@ -354,9 +347,7 @@ function SearchPillsFacetGroup({
                                     />
                                     <span>{facetValueLabel(facetKey, value)}</span>
                                     {n > 0 && (
-                                        <span className="text-xs font-normal text-brand tabular-nums">
-                                            {n.toLocaleString()}
-                                        </span>
+                                        <span className="text-xs font-normal text-brand tabular-nums">{n.toLocaleString()}</span>
                                     )}
                                     <X size={16} className="shrink-0 text-brand" aria-hidden />
                                 </label>
@@ -365,7 +356,6 @@ function SearchPillsFacetGroup({
                     </div>
                 )}
 
-                {/* Suggestion / matching pills to add */}
                 {visibleSuggestions.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-1.5">
                         {visibleSuggestions.map(([value, n]) => (
@@ -386,9 +376,7 @@ function SearchPillsFacetGroup({
                                 <Plus size={16} className="shrink-0 text-muted-foreground" aria-hidden />
                                 <span>{facetValueLabel(facetKey, value)}</span>
                                 {n > 0 && (
-                                    <span className="text-xs text-muted-foreground tabular-nums">
-                                        {n.toLocaleString()}
-                                    </span>
+                                    <span className="text-xs text-muted-foreground tabular-nums">{n.toLocaleString()}</span>
                                 )}
                             </label>
                         ))}
@@ -406,79 +394,83 @@ function SearchPillsFacetGroup({
                     <p className="text-xs text-muted-foreground">No matching options in current results.</p>
                 ) : null}
             </div>
-        </Group>
+        </FilterSection>
     );
 }
 
-function FacetGroup({
+/** A facet the searcher can pick several values of: one checkbox row per value, with its live count. */
+function FacetSection({
     label,
     facetKey,
+    primary,
     distribution,
     resultTotal,
     state,
     onToggleFacet,
     cap,
-    caption,
-    variant = "stack",
+    note,
 }: {
     label: string;
     /** Typed off PANEL_FACET_KEYS (jobs/types.ts) — the same set MCP's
      *  search_jobs `facets` input accepts — so a generic picker for a key
      *  outside it is a typecheck error, not a silent drift between surfaces. */
     facetKey: PanelFacetKey;
+    primary?: boolean;
     distribution: FacetDistribution | undefined;
     resultTotal: number;
     state: FilterState;
     onToggleFacet: (key: FacetKey, value: string) => void;
     cap?: number;
-    caption?: string;
-    variant?: "stack" | "chips" | "search-pills";
+    /** Built from the facet's tagged share once the group is known to show. */
+    note?: (share: number | null) => string | undefined;
 }) {
-    if (variant === "search-pills") {
-        return (
-            <SearchPillsFacetGroup
-                label={label}
-                facetKey={facetKey}
-                distribution={distribution}
-                resultTotal={resultTotal}
-                state={state}
-                onToggleFacet={onToggleFacet}
-                cap={cap}
-                caption={caption}
-            />
-        );
-    }
     const selected = state.facets[facetKey] ?? [];
     const options = facetOptions(distribution, selected, facetKey, cap, STATIC_FACET_LADDERS[facetKey]);
-    if (!facetGroupVisible(distribution?.[facetKey], resultTotal, options)) return null;
+    // A group holding a selection stays, whatever the current results say about it:
+    // a rail that dropped "Work mode" on a zero-result list would hide the very
+    // filter that emptied it.
+    if (selected.length === 0 && !facetGroupVisible(distribution?.[facetKey], resultTotal, options)) return null;
+    const share = distributionTaggedShare(distribution?.[facetKey], resultTotal);
     return (
-        <Group label={label} count={selected.length} caption={caption} variant={variant}>
+        <FilterSection id={facetKey} label={label} count={selected.length} primary={primary} note={note?.(share)}>
             {options.map(([value, n]) => (
                 <Affordance
                     key={value}
-                    variant={variant === "chips" ? "chip" : "row"}
                     active={selected.includes(value)}
                     count={n > 0 ? n : undefined}
                     onClick={() => onToggleFacet(facetKey, value)}
+                    className={ROW_CLASS}
                 >
                     {facetValueLabel(facetKey, value)}
                 </Affordance>
             ))}
-        </Group>
+        </FilterSection>
     );
 }
 
+const taggedNote = (share: number | null) => (share != null ? `~${Math.round(share * 100)}% tagged` : undefined);
+
+/** "$100k+" for a floor on or off the preset ladder, so a hand-edited URL still names its value. */
+function salaryFloorLabel(salaryMin: number): string {
+    return SALARY_PRESETS.find((s) => s.value === salaryMin)?.label ?? `$${Math.round(salaryMin / 1000)}k+`;
+}
+
+/**
+ * The filter groups, as one column of collapsible sections. The same list
+ * serves the left rail on a laptop and the sheet on a phone (the caller wraps
+ * it); nothing here knows which. Every control is a thin wrapper over the
+ * callbacks `JobsContent` owns, so this component holds no filter state of its
+ * own beyond which sections are folded.
+ */
 export function SerpFilters({
     distribution,
     resultTotal,
     state,
-    activeCount,
     onToggleFacet,
     onSalaryMin,
     onVisaOnly,
     onPostedBucket,
     onYearsExperience,
-    onClearAll,
     hideGhosts,
     onHideGhosts,
     ghostHiddenCount,
@@ -487,18 +479,15 @@ export function SerpFilters({
     postedDateSupported,
     board,
     onBoardChange,
-    layout = "panel",
 }: {
     distribution: FacetDistribution | undefined;
     resultTotal?: number;
     state: FilterState;
-    activeCount: number;
     onToggleFacet: (key: FacetKey, value: string) => void;
     onSalaryMin: (v: number) => void;
     onVisaOnly: (v: boolean) => void;
     onPostedBucket: (v: PostedBucket | undefined) => void;
     onYearsExperience: (v: YearsExperienceBucket | undefined) => void;
-    onClearAll: () => void;
     hideGhosts: boolean;
     onHideGhosts: (v: boolean) => void;
     ghostHiddenCount: number | null;
@@ -507,274 +496,120 @@ export function SerpFilters({
     postedDateSupported: boolean;
     board?: "all" | "elite";
     onBoardChange?: (b: "all" | "elite") => void;
-    /**
-     * How much horizontal room the caller is giving us.
-     *
-     * `panel` (default) is the desktop modal dialog; `sheet` is the mobile bottom sheet.
-     * Both share a sticky modal footer with "Clear all" + "Show N roles".
-     * `rail` is a narrow 232px column where groups stack vertically.
-     */
-    layout?: "panel" | "sheet" | "rail";
 }) {
-    const ghostHideLabel =
+    const total = resultTotal ?? 0;
+    const posted = appliedPostedBucket(state);
+    const visaShare = distributionTaggedShare(distribution?.visa_sponsorship, total);
+    const years = state.yearsExperience;
+    const listingsCount = (hideGhosts ? 0 : 1) + (hideViewed ? 1 : 0) + (board === "elite" ? 1 : 0);
+    const ghostLabel =
         hideGhosts && ghostHiddenCount != null && ghostHiddenCount > 0
             ? `Hide possibly stale (−${ghostHiddenCount.toLocaleString()})`
             : "Hide possibly stale";
-    const workShare = distributionTaggedShare(distribution?.work_type, resultTotal ?? 0);
-    const visaShare = distributionTaggedShare(distribution?.visa_sponsorship, resultTotal ?? 0);
-    const isRail = layout === "rail";
-    const choiceVariant = isRail ? "stack" : "chips";
-    const itemVariant = isRail ? "row" : "chip";
-
-    if (isRail) {
-        return (
-            <>
-                <div className="grid grid-cols-1 gap-y-3">
-                    {postedDateSupported && (
-                        <Group label="Date posted">
-                            {POSTED_BUCKET_PRESETS.map((o) => (
-                                <Affordance
-                                    key={o.label}
-                                    inputType="radio"
-                                    active={appliedPostedBucket(state) === o.value}
-                                    onClick={() => onPostedBucket(o.value)}
-                                >
-                                    {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
-                                </Affordance>
-                            ))}
-                        </Group>
-                    )}
-                    <Group label="Salary">
-                        {SALARY_PRESETS.map((s) => (
-                            <Affordance
-                                key={s.value}
-                                inputType="radio"
-                                active={state.salaryMin === s.value}
-                                onClick={() => onSalaryMin(s.value)}
-                            >
-                                {s.label}
-                            </Affordance>
-                        ))}
-                        <SalaryCustomMinInput salaryMin={state.salaryMin} onSalaryMin={onSalaryMin} />
-                    </Group>
-                    <FacetGroup
-                        label="Work mode"
-                        facetKey="work_type"
-                        distribution={distribution}
-                        resultTotal={resultTotal ?? 0}
-                        state={state}
-                        onToggleFacet={onToggleFacet}
-                    />
-                    <FacetGroup
-                        label="Experience"
-                        facetKey="experience_level"
-                        distribution={distribution}
-                        resultTotal={resultTotal ?? 0}
-                        state={state}
-                        onToggleFacet={onToggleFacet}
-                        cap={TOP_N}
-                    />
-                    <FacetGroup
-                        label="Employment"
-                        facetKey="employment_type"
-                        distribution={distribution}
-                        resultTotal={resultTotal ?? 0}
-                        state={state}
-                        onToggleFacet={onToggleFacet}
-                        cap={TOP_N}
-                    />
-                </div>
-                {activeCount > 0 && (
-                    <div className="mt-2 flex justify-end border-t border-border pt-2">
-                        <Button variant="ghost" size="xs" onClick={onClearAll}>
-                            Reset all ✕
-                        </Button>
-                    </div>
-                )}
-            </>
-        );
-    }
+    const common = { distribution, resultTotal: total, state, onToggleFacet };
 
     return (
-        <div className="flex flex-col divide-y divide-border">
-            {/* Tier 1: Primary quick-select pill bars (Date posted & Salary) */}
-            <div className="flex flex-col gap-4 pb-4">
-                {postedDateSupported && (
-                    <Group label="Date posted" variant={choiceVariant}>
-                        {POSTED_BUCKET_PRESETS.map((o) => (
-                            <Affordance
-                                key={o.label}
-                                variant={itemVariant}
-                                inputType="radio"
-                                active={appliedPostedBucket(state) === o.value}
-                                onClick={() => onPostedBucket(o.value)}
-                            >
-                                {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
-                            </Affordance>
-                        ))}
-                    </Group>
-                )}
-
-                <Group
-                    label="Minimum salary"
-                    variant={choiceVariant}
-                    headerRight={<SalaryCustomMinInput salaryMin={state.salaryMin} onSalaryMin={onSalaryMin} />}
+        // One column: every section starts on the same left edge (J-MOB-11).
+        <div className="grid grid-cols-1">
+            {postedDateSupported && (
+                <FilterSection
+                    id="posted"
+                    label="Date posted"
+                    chosen={posted !== appliedPostedBucket(PRISTINE_FILTER_STATE)}
+                    summary={posted ? (DATE_POSTED_SHORT_LABELS[posted] ?? posted) : "Any date"}
                 >
-                    {SALARY_PRESETS.map((s) => (
-                        <Affordance
-                            key={s.value}
-                            variant={itemVariant}
-                            inputType="radio"
-                            active={state.salaryMin === s.value}
-                            onClick={() => onSalaryMin(s.value)}
-                        >
-                            {s.label}
-                        </Affordance>
-                    ))}
-                </Group>
-            </div>
-
-            {/* Tier 2: Role attributes in a balanced 2x2 grid */}
-            <div className="grid grid-cols-1 gap-x-6 gap-y-4 py-4 sm:grid-cols-2">
-                <FacetGroup
-                    label="Work mode"
-                    facetKey="work_type"
-                    distribution={distribution}
-                    resultTotal={resultTotal ?? 0}
-                    state={state}
-                    onToggleFacet={onToggleFacet}
-                    variant={choiceVariant}
-                    caption={workShare != null ? `~${Math.round(workShare * 100)}% tagged` : undefined}
-                />
-
-                <Group label="Years of experience" variant={choiceVariant}>
-                    {YEARS_EXPERIENCE_PRESETS.map((o) => (
+                    {POSTED_BUCKET_PRESETS.map((o) => (
                         <Affordance
                             key={o.label}
-                            variant={itemVariant}
                             inputType="radio"
-                            active={state.yearsExperience === o.value}
-                            onClick={() => onYearsExperience(o.value)}
+                            active={posted === o.value}
+                            onClick={() => onPostedBucket(o.value)}
+                            className={ROW_CLASS}
                         >
-                            {o.label}
+                            {o.value ? (DATE_POSTED_SHORT_LABELS[o.value] ?? o.label) : "Any date"}
                         </Affordance>
                     ))}
-                </Group>
+                </FilterSection>
+            )}
 
-                <FacetGroup
-                    label="Experience level"
-                    facetKey="experience_level"
-                    distribution={distribution}
-                    resultTotal={resultTotal ?? 0}
-                    state={state}
-                    onToggleFacet={onToggleFacet}
-                    cap={TOP_N}
-                    variant={choiceVariant}
-                />
-
-                <FacetGroup
-                    label="Employment type"
-                    facetKey="employment_type"
-                    distribution={distribution}
-                    resultTotal={resultTotal ?? 0}
-                    state={state}
-                    onToggleFacet={onToggleFacet}
-                    cap={TOP_N}
-                    variant={choiceVariant}
-                />
-            </div>
-
-            {/* Tier 3: Searchable tag-pill pickers for high-cardinality facets (Country, Skills & tools, Must-have skills) */}
-            <div className="flex flex-col gap-5 py-4">
-                <FacetGroup
-                    label="Country"
-                    facetKey="location_country"
-                    distribution={distribution}
-                    resultTotal={resultTotal ?? 0}
-                    state={state}
-                    onToggleFacet={onToggleFacet}
-                    cap={TOP_N}
-                    variant="search-pills"
-                />
-
-                <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
-                    <FacetGroup
-                        label={facetKeyLabel("tech_stack")}
-                        facetKey="tech_stack"
-                        distribution={distribution}
-                        resultTotal={resultTotal ?? 0}
-                        state={state}
-                        onToggleFacet={onToggleFacet}
-                        cap={TOP_N}
-                        variant="search-pills"
-                    />
-
-                    <FacetGroup
-                        label="Must-have skills"
-                        facetKey="must_have_skills"
-                        distribution={distribution}
-                        resultTotal={resultTotal ?? 0}
-                        state={state}
-                        onToggleFacet={onToggleFacet}
-                        cap={TOP_N}
-                        variant="search-pills"
-                    />
-                </div>
-            </div>
-
-            {/* Tier 4: Listing quality, visa, viewed & company board preferences */}
-            <div className="grid grid-cols-1 gap-x-6 gap-y-4 pt-4 sm:grid-cols-2">
-                <Group label="Posting check" variant={choiceVariant}>
-                    <Affordance variant={itemVariant} inputType="radio" active={hideGhosts} onClick={() => onHideGhosts(true)}>
-                        {ghostHideLabel}
+            <FilterSection
+                id="salary"
+                label="Minimum salary"
+                chosen={state.salaryMin > 0}
+                summary={state.salaryMin > 0 ? salaryFloorLabel(state.salaryMin) : undefined}
+            >
+                {SALARY_PRESETS.map((s) => (
+                    <Affordance
+                        key={s.value}
+                        inputType="radio"
+                        active={state.salaryMin === s.value}
+                        onClick={() => onSalaryMin(s.value)}
+                        className={ROW_CLASS}
+                    >
+                        {s.label}
                     </Affordance>
-                    <Affordance variant={itemVariant} inputType="radio" active={!hideGhosts} onClick={() => onHideGhosts(false)}>
-                        Show all postings
-                    </Affordance>
-                </Group>
+                ))}
+                <SalaryCustomMinInput salaryMin={state.salaryMin} onSalaryMin={onSalaryMin} />
+            </FilterSection>
 
-                <Group label="Viewed" variant={choiceVariant}>
-                    <Affordance variant={itemVariant} inputType="radio" active={!hideViewed} onClick={() => onHideViewed(false)}>
-                        Show all
-                    </Affordance>
-                    <Affordance variant={itemVariant} inputType="radio" active={hideViewed} onClick={() => onHideViewed(true)}>
-                        Hide already viewed
-                    </Affordance>
-                </Group>
+            <FacetSection {...common} label="Work mode" facetKey="work_type" primary note={taggedNote} />
 
-                <Group
-                    label="Visa sponsorship"
-                    variant={choiceVariant}
-                    caption={visaShare != null ? `~${Math.round(visaShare * 100)}% tagged` : undefined}
-                >
-                    <Affordance variant={itemVariant} active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)}>
-                        Sponsors visas
-                    </Affordance>
-                </Group>
+            <FacetSection {...common} label="Experience level" facetKey="experience_level" primary cap={TOP_N} />
 
+            <FilterSection
+                id="years"
+                label="Years of experience"
+                chosen={Boolean(years)}
+                summary={years ? YEARS_EXPERIENCE_PRESETS.find((o) => o.value === years)?.label : undefined}
+            >
+                {YEARS_EXPERIENCE_PRESETS.map((o) => (
+                    <Affordance
+                        key={o.label}
+                        inputType="radio"
+                        active={years === o.value}
+                        onClick={() => onYearsExperience(o.value)}
+                        className={ROW_CLASS}
+                    >
+                        {o.label}
+                    </Affordance>
+                ))}
+            </FilterSection>
+
+            <FacetSection {...common} label="Employment type" facetKey="employment_type" cap={TOP_N} />
+
+            <SearchPillsFacetSection {...common} label="Country" facetKey="location_country" />
+            <SearchPillsFacetSection {...common} label={facetKeyLabel("tech_stack")} facetKey="tech_stack" />
+            <SearchPillsFacetSection {...common} label="Must-have skills" facetKey="must_have_skills" />
+
+            <FilterSection
+                id="visa"
+                label="Visa sponsorship"
+                count={state.visaOnly ? 1 : 0}
+                note={taggedNote(visaShare)}
+            >
+                <Affordance active={state.visaOnly} onClick={() => onVisaOnly(!state.visaOnly)} className={ROW_CLASS}>
+                    Sponsors visas
+                </Affordance>
+            </FilterSection>
+
+            <FilterSection id="listings" label="Listings" count={listingsCount}>
+                <Affordance active={hideGhosts} onClick={() => onHideGhosts(!hideGhosts)} className={ROW_CLASS}>
+                    {ghostLabel}
+                </Affordance>
+                <Affordance active={hideViewed} onClick={() => onHideViewed(!hideViewed)} className={ROW_CLASS}>
+                    Hide already viewed
+                </Affordance>
                 {onBoardChange && (
-                    <Group label="Boards" variant={choiceVariant}>
-                        <Affordance
-                            testId="board-filter-elite"
-                            variant={itemVariant}
-                            inputType="radio"
-                            active={board === "elite"}
-                            onClick={() => onBoardChange("elite")}
-                        >
-                            Elite startups
-                        </Affordance>
-                        <Affordance
-                            testId="board-filter-all"
-                            variant={itemVariant}
-                            inputType="radio"
-                            active={board !== "elite"}
-                            onClick={() => onBoardChange("all")}
-                        >
-                            All companies
-                        </Affordance>
-                    </Group>
+                    <Affordance
+                        testId="board-filter-elite"
+                        active={board === "elite"}
+                        onClick={() => onBoardChange(board === "elite" ? "all" : "elite")}
+                        className={ROW_CLASS}
+                    >
+                        Elite startups only
+                    </Affordance>
                 )}
-            </div>
+            </FilterSection>
         </div>
     );
 }

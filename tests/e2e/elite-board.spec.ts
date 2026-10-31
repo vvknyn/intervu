@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openGroup, showFilters } from './journeys/filters-panel';
 
 /**
  * TEST GROUP: ELITE-BOARD — Milestone 1 smoke
@@ -28,9 +29,10 @@ async function enterBrowseMode(page: Page) {
     ).toBeVisible({ timeout: 30_000 });
 }
 
+/** The panel (a rail on a laptop, a sheet on a phone), with its Listings group open. */
 async function openFilters(page: Page) {
-    await page.getByTestId('filters-toggle').click();
-    await expect(page.getByTestId('filters-panel')).toBeVisible({ timeout: 15_000 });
+    const panel = await showFilters(page);
+    await openGroup(panel, 'listings');
 }
 
 test.describe('ELITE-BOARD - Milestone 1 smoke', () => {
@@ -54,8 +56,8 @@ test.describe('ELITE-BOARD - Milestone 1 smoke', () => {
         await elite.click();
         await expect(page).toHaveURL(/board=elite/);
 
-        const all = page.getByTestId('board-filter-all');
-        await all.click();
+        // The same row turns it off again.
+        await elite.click();
         await expect(page).not.toHaveURL(/board=elite/);
     });
 

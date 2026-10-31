@@ -249,7 +249,6 @@ export function TopBar() {
                                     )}
                                 </button>
                                 <div data-testid="topbar-docked-field-directory" className="flex shrink-0 items-center gap-2" />
-                                <div data-testid="topbar-docked-facets" className="flex shrink-0 items-center gap-2" />
                                 {docked.chips.length > 0 && (
                                     <>
                                         <div data-testid="topbar-docked-active-filters" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
