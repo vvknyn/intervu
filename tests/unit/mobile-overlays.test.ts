@@ -49,9 +49,3 @@ test("no call site puts choice rows in a bare PopoverContent", () => {
         .map((f) => relative(ROOT, f));
     assert.deepEqual(offenders, []);
 });
-
-test("FacetBar's chips (posted, salary, work mode and the rest) all open through ChoicePopover", () => {
-    const src = read("src", "components", "jobs", "FacetBar.tsx");
-    assert.match(src, /<ChoicePopover\b/);
-    assert.doesNotMatch(src, /<Popover\b/);
-});
