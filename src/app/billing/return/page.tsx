@@ -7,6 +7,7 @@ import { decideReturn } from "@/lib/billing/return";
 import { getStripe } from "@/lib/billing/stripe-client";
 import { readIdField } from "@/lib/billing/events";
 import { recomputeAccess } from "@/lib/billing/recompute";
+import { describeStripeError } from "@/lib/billing/stripe-error";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle } from "@/components/ui/heading";
 
@@ -32,7 +33,8 @@ async function resolveMessage(sessionId: string | undefined): Promise<string> {
                 : "Your payment went through but is still being linked to your account. Refresh in a minute.";
         }
         return `Paid until ${date(until)}.`;
-    } catch {
+    } catch (error) {
+        console.error(`[billing-return] could not confirm payment: ${describeStripeError(error)}`);
         return "We could not confirm that payment yet. If you were charged, your access will appear shortly.";
     }
 }

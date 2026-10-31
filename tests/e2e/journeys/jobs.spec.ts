@@ -66,13 +66,19 @@ async function expectMatchingHorizontalEdges(locators: Locator[]) {
 }
 
 /**
- * Bare /jobs at rest is a front door, not a list: the search box, one h1, the résumé band,
- * and no job rows. The rows are checked after the page has had time to fetch any, so a list
- * that arrives late still fails.
+ * Bare /jobs at rest is a front door: the search box, one h1 and the résumé band. Whether job
+ * rows sit under it depends on who is looking (`frontDoorRegions`, front-door-state.ts): a
+ * confirmed signed-out visitor gets the list at once (`"listed"`, since #966); anyone else
+ * gets none (`"none"`, the default). "none" is checked after the page has had time to fetch
+ * any, so a list that arrives late still fails.
  */
-async function expectFrontDoor(page: Page, timeout = FIRST_PAINT_MS) {
+async function expectFrontDoor(page: Page, timeout = FIRST_PAINT_MS, rows: "listed" | "none" = "none") {
   await expect(page.locator(SEARCH_INPUT).first()).toBeVisible({ timeout });
   await expect(page.locator(RESUME_BAND)).toBeVisible({ timeout: 15_000 });
+  if (rows === "listed") {
+    await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+    return;
+  }
   await page.waitForTimeout(3_000);
   await expect(page.getByTestId("job-row")).toHaveCount(0);
 }
@@ -102,11 +108,12 @@ async function openJobs(page: Page, baseURL: string | undefined, previousSession
   await page.goto(path);
 }
 
-test("first-time visitor opens /jobs and sees the front door: search box, one h1, the week's count, the résumé band, no job rows", { tag: ["@J-JOBS-01"] }, async ({ page, diagnostics }) => {
+test("first-time visitor opens /jobs and sees the front door: search box, one h1, the résumé band, and the list with its count line", { tag: ["@J-JOBS-01"] }, async ({ page, diagnostics }) => {
   const res = await page.goto("/jobs");
   expect(res?.status()).toBe(200);
-  await expectFrontDoor(page);
-  await expect(page.getByTestId("front-door-week-count")).toContainText(/^[\d,]+\+? roles? posted this week/, { timeout: 15_000 });
+  await expectFrontDoor(page, FIRST_PAINT_MS, "listed");
+  // The list's own count line stands in for the week's count: rows at arrival count as search intent (hasSearchIntent), so the week's count is off.
+  await expect(page.getByTestId("result-line")).toContainText(/[\d,]+\+? roles?\b/, { timeout: 15_000 });
   await expect(page.locator(POSTER)).toHaveCount(0);
   await expect(page.locator("h1:visible")).toHaveCount(1);
   await expect(page.getByTestId("signup-gate")).toHaveCount(0);
@@ -169,7 +176,7 @@ for (const visitor of VISITORS) {
 
   test(`${visitor.name} clicks Sign in or Get started and the front door is still there 2s later`, { tag: ["@J-JOBS-24"] }, async ({ page, baseURL }) => {
     await openJobs(page, baseURL, visitor.previousSession);
-    await expectFrontDoor(page);
+    await expectFrontDoor(page, FIRST_PAINT_MS, "listed");
     // By accessible name, so any visible entry point counts, not one testid.
     const cta = page
       .getByRole("button", { name: /^(sign in|get started)$/i })
@@ -340,7 +347,7 @@ test("a returning guest with a résumé in this browser opens /jobs on their top
 test("a guest with no résumé who opens a fit link gets the front door, and the fit sort leaves the URL", { tag: ["@J-JOBS-58"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.goto("/jobs?sort=fit");
-  await expectFrontDoor(page, 30_000);
+  await expectFrontDoor(page, 30_000, "listed");
   await expect(page).not.toHaveURL(/[?&]sort=fit/);
   await expect(page.getByTestId("signup-gate")).toHaveCount(0);
   expect(diagnostics.serverErrors).toEqual([]);
