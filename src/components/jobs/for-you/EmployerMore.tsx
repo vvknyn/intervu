@@ -46,53 +46,65 @@ export function EmployerMore({
     if (total <= 0) return null;
     const employer = displayCompanyBrand(lead.company, lead.company_domain, lead.title) || "this employer";
     return (
-        <Disclosure open={defaultOpen} data-testid={testId} className={cn("text-sm", className)}>
-            <DisclosureSummary
-                marker={false}
-                data-testid={`${testId}-toggle`}
-                className="flex w-fit items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-            >
-                <DisclosureCaret weight="bold" />
-                <span>
-                    {total} more at {employer}
-                </span>
-            </DisclosureSummary>
-            <ul className="mt-2 flex flex-col gap-2 border-l border-border pl-3">
-                {roles.map(({ job, score }) => {
-                    const presented = presentJob(job);
-                    const placeKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
-                    const age = postedAgeShort(derivePostedTs(job), nowMs);
-                    return (
-                        <li key={job.id} data-testid={`${testId}-role`} data-job-id={job.id} className="min-w-0">
-                            <Link href={jobPath(job)} className="line-clamp-2 font-normal text-foreground hover:underline">
-                                {presented.title}
-                            </Link>
-                            <div className="flex flex-wrap items-baseline text-muted-foreground">
-                                <MetaLine
-                                    items={[
-                                        score && <MatchChip key="fit" score={score} jobId={job.id} variant="text" testId={null} />,
-                                        placeKnown && <span key="place">{presented.location}</span>,
-                                        age && (
-                                            <span key="age" className="tabular-nums">
-                                                {age}
-                                            </span>
-                                        ),
-                                    ]}
-                                />
-                            </div>
-                        </li>
-                    );
-                })}
-            </ul>
-            {hidden > 0 ? (
-                <Link
-                    href={jobCompanyHref(lead.company ?? employer, lead.company_domain)}
-                    data-testid={`${testId}-all`}
-                    className="mt-2 inline-block text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+        <div
+            data-testid={testId}
+            className={cn(
+                "mb-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 bg-surface-2 pb-4 text-sm",
+                className,
+            )}
+        >
+            {/* As wide as the logo tile above it, so the roles line up under the titles; the rail of the cards turns into the row. */}
+            <span aria-hidden className="w-12">
+                <span className="ml-6 block h-2.5 w-3 border-b border-l border-border" />
+            </span>
+            <Disclosure open={defaultOpen} data-testid={`${testId}-disclosure`}>
+                <DisclosureSummary
+                    marker={false}
+                    data-testid={`${testId}-toggle`}
+                    className="flex w-fit items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
                 >
-                    See the other {hidden} at {employer}
-                </Link>
-            ) : null}
-        </Disclosure>
+                    <DisclosureCaret weight="bold" />
+                    <span>
+                        {total} more at {employer}
+                    </span>
+                </DisclosureSummary>
+                <ul className="mt-2 flex flex-col gap-2 border-l border-border pl-3">
+                    {roles.map(({ job, score }) => {
+                        const presented = presentJob(job);
+                        const placeKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
+                        const age = postedAgeShort(derivePostedTs(job), nowMs);
+                        return (
+                            <li key={job.id} data-testid={`${testId}-role`} data-job-id={job.id} className="min-w-0">
+                                <Link href={jobPath(job)} className="line-clamp-2 font-normal text-foreground hover:underline">
+                                    {presented.title}
+                                </Link>
+                                <div className="flex flex-wrap items-baseline text-muted-foreground">
+                                    <MetaLine
+                                        items={[
+                                            score && <MatchChip key="fit" score={score} jobId={job.id} variant="text" testId={null} />,
+                                            placeKnown && <span key="place">{presented.location}</span>,
+                                            age && (
+                                                <span key="age" className="tabular-nums">
+                                                    {age}
+                                                </span>
+                                            ),
+                                        ]}
+                                    />
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+                {hidden > 0 ? (
+                    <Link
+                        href={jobCompanyHref(lead.company ?? employer, lead.company_domain)}
+                        data-testid={`${testId}-all`}
+                        className="mt-2 inline-block text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                    >
+                        See the other {hidden} at {employer}
+                    </Link>
+                ) : null}
+            </Disclosure>
+        </div>
     );
 }
