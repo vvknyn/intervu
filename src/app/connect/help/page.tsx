@@ -3,7 +3,7 @@ import Link from "next/link";
 import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/openclaw-content";
 import { AGENT } from "@/lib/agent/config";
 import { PageContainer } from "@/components/layout/PageContainer";
-import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageEyebrow, PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { READING_MEASURE } from "@/components/ui/prose";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 
@@ -69,12 +69,10 @@ export default function ConnectHelpPage() {
   const MCP_CONNECTOR_URL = mcpConnectorUrl(issuer);
   const OPENCLAW_INSTALL_COMMAND = openclawInstallCommand(issuer);
   return (
-    <PageContainer measure="reading" data-testid="connect-help-page" className="py-10">
-      <p className="text-xs font-semibold text-muted-foreground">
-        Setup help
-      </p>
-      <PageTitle className="mt-2">Connecting your AI to velai</PageTitle>
-      <p className={`mt-3 ${READING_MEASURE} text-base text-muted-foreground`}>
+    <PageContainer measure="reading" data-testid="connect-help-page" className="page-top pb-10">
+      <PageEyebrow>Setup help</PageEyebrow>
+      <PageTitle>Connecting your AI to velai</PageTitle>
+      <PageLead>
         Two ways to connect: a connector you paste into an AI client you already use, or a local
         agent you install on your own Mac. If an install failed and sent you here, find the
         section it named below — each one covers what happened, why, and what to do next. Start
@@ -83,7 +81,7 @@ export default function ConnectHelpPage() {
           /connect
         </Link>{" "}
         if you haven&apos;t begun yet.
-      </p>
+      </PageLead>
 
       <nav
         aria-label="On this page"

@@ -8,7 +8,7 @@ import { IS_VELAI_LEGIT } from "@/lib/blog/is-velai-legit";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { buildJobSearchFaqJsonLd, buildWebApplicationJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
+import { PageEyebrow, PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Disclosure, DisclosureSummary } from "@/components/ui/disclosure";
 
@@ -25,10 +25,10 @@ const aboutJsonLd = [buildWebApplicationJsonLd(), buildJobSearchFaqJsonLd()].fil
 
 export default function AboutPage() {
   return (
-    <PageContainer measure="reading" data-testid="about-page" className="py-10">
+    <PageContainer measure="reading" data-testid="about-page" className="page-top pb-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(aboutJsonLd) }} />
-      <p className="text-xs font-semibold text-muted-foreground">About velai</p>
-      <PageTitle className="mt-3">About velai</PageTitle>
+      <PageEyebrow>About velai</PageEyebrow>
+      <PageTitle>About velai</PageTitle>
       <PageLead>
         An honest layer over the real job market: what&apos;s actually posted, flagged when it looks stale, out of
         the way otherwise.
