@@ -9,16 +9,14 @@ import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { PlanEndingNotice } from "@/components/layout/PlanEndingNotice";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
-import { CountBadge, SolidBadge } from "@/components/ui/badge";
+import { SolidBadge } from "@/components/ui/badge";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { TabItem, TabNav } from "@/components/ui/tabs";
 import { NAV_TABS, RESUME_TAB } from "@/components/layout/nav-tabs";
 import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
-import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandHomeLink } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
@@ -28,7 +26,8 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 /**
  * Frozen coherent chrome:
  * - Mobile (< lg): centered mark + wordmark, auth affordance pinned right — nav lives in MobileTabBar
- * - Desktop (lg+): logo left · Jobs · Tracker · Connect · DP rightmost
+ * - Desktop (lg+): logo left · Jobs · Résumé · Tracker · account avatar rightmost
+ * Nothing else sits in the bar: new roles at followed companies and the plan live in the avatar's menu.
  */
 export function TopBar() {
     const pathname = usePathname();
@@ -53,7 +52,6 @@ export function TopBar() {
     // duplicate fetch. This slot now belongs to the docked search below.
     const authChrome = resolveAuthChrome(user);
     const { docked } = useSearchDock();
-    const navBadges = useNavBadgeCounts();
     // The header's ONE nav: every product destination as an underline tab.
     const navTabs = NAV_TABS.filter((t) => {
         // Signed out there is no product nav (Sign in instead).
@@ -166,7 +164,6 @@ export function TopBar() {
                     <TabNav aria-label="Primary" className="hidden lg:flex">
                         {navTabs.map((tab) => {
                             const active = tab.match(pathname);
-                            const count = tab.badge ? navBadges[tab.badge] : 0;
                             return (
                                 <TabItem key={tab.href + tab.label} asChild size="bar" current={active ? "page" : false}>
                                     <Link
@@ -179,14 +176,11 @@ export function TopBar() {
                                         data-nav-current={active ? "true" : undefined}
                                     >
                                         {tab.href === RESUME_TAB.href ? resumeLabel : tab.label}
-                                        {count > 0 && <CountBadge count={count} data-testid={`${tab.testId}-badge`} />}
                                     </Link>
                                 </TabItem>
                             );
                         })}
                     </TabNav>
-
-                    <FollowAlertsBell />
 
                     {authChrome === "pending" ? (
                         /* Auth unresolved: reserve the row height so the bar
