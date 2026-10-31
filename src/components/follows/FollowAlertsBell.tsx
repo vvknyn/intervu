@@ -121,7 +121,7 @@ export function FollowAlertsBell() {
       <PopoverContent
         align="end"
         sideOffset={6}
-        className="w-[min(20rem,calc(100vw-1rem))] rounded-none border border-border bg-card p-0"
+        className="w-[min(20rem,calc(100vw-1rem))] rounded-panel border border-border bg-card p-0"
       >
         <div className="flex items-start gap-3 border-b border-border p-4">
           <div className="min-w-0 flex-1">

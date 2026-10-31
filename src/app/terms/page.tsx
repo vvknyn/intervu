@@ -23,8 +23,7 @@ const LAST_UPDATED = "September 29, 2026";
 
 export default function TermsPage() {
   return (
-    <LegalDocFrame testId="terms-page">
-        <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
+    <LegalDocFrame testId="terms-page" header={<LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />}>
 
         <Prose>
         <p>

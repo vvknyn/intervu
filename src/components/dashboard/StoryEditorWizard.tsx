@@ -200,7 +200,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         className="bg-muted border-input focus:bg-background focus:border-brand transition-all"
                                     />
                                     {isTitleFocused && (
-                                        <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-none max-h-60 overflow-y-auto p-1">
+                                        <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-panel max-h-60 overflow-y-auto p-1">
                                             {COMMON_QUESTIONS.filter(q =>
                                                 !formData.question || q.toLowerCase().includes(formData.question.toLowerCase())
                                             ).map((q, i) => (

@@ -48,9 +48,6 @@ import { LoadFailedState } from "@/components/ui/load-failed-state";
 function TrackerHeader({ actions, openCount = 0 }: { actions?: React.ReactNode; openCount?: number }) {
     return (
         <PageHeader
-            fullWidth
-            sticky={false}
-            size="display"
             title={trackerPageHeading(openCount)}
             description={TRACKER_PAGE_SUBCOPY}
             actions={actions}
@@ -61,7 +58,7 @@ function TrackerHeader({ actions, openCount = 0 }: { actions?: React.ReactNode; 
 function YoursLoading() {
     return (
         <PageLayout fullWidth header={<TrackerHeader />}>
-            <div className="shell-row py-8">
+            <div className="shell-row pb-16 pt-6">
                 <WaitState
                     label="Loading your tracker"
                     className={cn(posterInlinePanelClassName, "p-6")}

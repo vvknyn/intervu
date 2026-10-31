@@ -140,7 +140,7 @@ export function CompanyPageBody({
 
   return (
     <CompanyFollowChannelProvider domain={data.domain}>
-      <div data-testid="company-page" className="shell-row py-8 pb-12 sm:pb-16">
+      <div data-testid="company-page" className="shell-row page-top pb-12 sm:pb-16">
         {/* Identity header: name, the "is X hiring?" answer folded straight
             into the subtitle line, and Follow as the page's one primary
             action (`variant="primary"`). Blue is for interactive accents,

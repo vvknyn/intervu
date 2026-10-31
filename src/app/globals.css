@@ -739,6 +739,18 @@ body:has([data-shell="bleed"]) {
   }
 }
 
+/* ONE page-top gap: a page's masthead (eyebrow or title) starts this far below
+   the header on every route, so the title doesn't hop when you move between
+   pages or tabs. It used to be whatever each page's own `py-*` said: 8, 24,
+   32, 40 or 64px. <PageHeader> carries it; a page body that opens with its
+   own title writes `page-top` on its container. Journey J-NAV-47 (page-frame.spec.ts) measures it. */
+:root {
+  --page-top: 2.5rem;
+}
+.page-top {
+  padding-top: var(--page-top);
+}
+
 /* CONTROL SCALE — the ONE height ladder for every button, input, select,
    chip and icon button (design-language.md §5: h-6 segment, h-8 chip/compact,
    h-11 input/form button). A primitive picks a step (`.ctl-sm|md|lg`); a

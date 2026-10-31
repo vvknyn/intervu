@@ -106,8 +106,7 @@ export const FIRESTORE_COLLECTIONS_DISCLOSED: readonly string[] =
 
 export default function PrivacyPage() {
   return (
-    <LegalDocFrame testId="privacy-page">
-        <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
+    <LegalDocFrame testId="privacy-page" header={<LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />}>
 
         <PrivacyPromises heading="Velai's privacy promises" showPolicyLink={false} className="mb-8" />
 

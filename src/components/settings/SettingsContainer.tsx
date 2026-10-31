@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { onAuthChange, signOut, getCurrentUser, type User } from "@/lib/firebase/client-auth";
+import { EDITOR_CANVAS_FRAME } from "@/components/layout/PageContainer";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -172,19 +173,14 @@ export function SettingsContainer() {
 
     return (
         <PageLayout fullWidth>
-            <div
-                // page-scale-allow: the open résumé editor runs edge to edge below lg, and the form tabs keep their centred 3xl column
-                className={cn(
-                    "mx-auto transition-all",
-                    resumeEditorOpen
-                        ? "max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
-                        : cn("px-4 pb-16 pt-6 sm:px-8 xl:px-10", tab === "resume" ? "max-w-6xl xl:max-w-7xl" : "max-w-3xl"),
-                )}
-            >
+            {/* Every tab sits in the one page frame, so the title, plan card and
+                tab bar never move when the tab changes (the form tabs used to
+                pick a centred 3xl column of their own). */}
+            <div className={cn("transition-all", resumeEditorOpen ? EDITOR_CANVAS_FRAME : "shell-row page-top pb-16")}>
                 {!resumeEditorOpen && (
                     <>
                         <div className="mb-5">
-                            <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} bare size="display" />
+                            <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} bare />
                         </div>
                         <PlanCard />
                         <TabBar tab={tab} onChange={selectTab} />
