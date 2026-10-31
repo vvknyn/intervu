@@ -4651,6 +4651,7 @@ export function JobsContent({
         j: PublicJob,
         clusterProps?: { variantCount: number; clusterLabel: string; expanded: boolean; onToggleExpand: () => void },
         tourAnchor = false,
+        group?: "member" | "last",
     ) => {
         // 1-based position in `hits` — the same rendered list `openJob`'s
         // click-rank reads (findIndex against the currently-shown result
@@ -4675,6 +4676,7 @@ export function JobsContent({
                 expanded={clusterProps?.expanded ?? false}
                 onToggleExpand={clusterProps?.onToggleExpand}
                 tourAnchor={tourAnchor}
+                group={group}
                 matchScore={matchScores?.get(j.id) ?? null}
                 matchAsOfDate={resumeAsOfDate}
                 reasonLine={recommended ? rowReasonLine(j, matchScores?.get(j.id), resume) : null}
@@ -6294,8 +6296,13 @@ export function JobsContent({
                                                           }
                                                         : undefined,
                                                     i === 0,
+                                                    employerMore ? (expanded && cluster.variants.length > 0 ? "member" : "last") : undefined,
                                                 ),
-                                                ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
+                                                ...(expanded
+                                                    ? cluster.variants.map((v, k) =>
+                                                          renderJobRow(v, undefined, false, employerMore ? (k === cluster.variants.length - 1 ? "last" : "member") : undefined),
+                                                      )
+                                                    : []),
                                                 ...(employerMore
                                                     ? [
                                                           <EmployerMore
@@ -6304,7 +6311,7 @@ export function JobsContent({
                                                               roles={employerMore.roles}
                                                               hidden={employerMore.hidden}
                                                               nowMs={nowMs}
-                                                              className="px-[var(--list-inset)] pb-3 pt-1"
+                                                              className="px-[var(--list-inset)]"
                                                           />,
                                                       ]
                                                     : []),

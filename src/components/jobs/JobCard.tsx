@@ -68,6 +68,7 @@ export function JobCard({
     appliedPursuit,
     onGoAfter,
     saveSuccessPulse = false,
+    group,
     position,
 }: {
     job: PublicJob;
@@ -111,6 +112,10 @@ export function JobCard({
     appliedPursuit?: Pursuit;
     onGoAfter?: () => void;
     saveSuccessPulse?: boolean;
+    /** The row is one of an employer's group (its roles in a list that gives each employer one slot): the group's rows sit on one
+     *  surface and carry a rail down from the logo. `last` is the group's last row before its "N more at X" row, which takes
+     *  over the divider, so the row ends where the "more" row begins instead of being cut off from it by a line. */
+    group?: "member" | "last";
     /** 1-based index of this row in the current search's rendered list
      *  (`hits`, jobs/page.tsx) — stamped as `data-position` for
      *  `useResultImpressions` to read off the DOM (SPEC §5's position-
@@ -194,13 +199,18 @@ export function JobCard({
                 // 3.85x / 3.87x / 4.61x in the :root block (WCAG 1.4.11 needs 3x). No
                 // thicker than the 1px the craft floor allows. The tint is only 1.2x the
                 // page, so the ring, not the fill, carries the 3x; text stays >=6.4x on it.
-                active ? "bg-brand-tint-bg inset-outline-1 outline-brand-muted" : "hover:bg-surface-hover",
+                active
+                    ? "bg-brand-tint-bg inset-outline-1 outline-brand-muted"
+                    : group
+                      ? "bg-surface-2 hover:bg-surface-3"
+                      : "hover:bg-surface-hover",
             )}
         >
-            <div className="self-start">
+            <div className={cn("flex flex-col", group ? "self-stretch" : "self-start")}>
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
+                {group && <span aria-hidden data-testid="employer-rail" className="ml-6 mt-2 w-px flex-1 bg-border" />}
             </div>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border-subtle pb-4">
+            <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3", group === "last" ? "pb-3" : "border-b border-border-subtle pb-4")}>
             <div className="min-w-0">
                 <span className="inline-flex flex-wrap items-baseline gap-x-1">
                     <Link
