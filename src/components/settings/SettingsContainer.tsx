@@ -210,6 +210,11 @@ export function SettingsContainer() {
 
                 {tab === "account" && (
                     <>
+                        {/* The plan card above the tabs, then Payments: "Plan & payments" in the account menu lands here. */}
+                        <SettingsCard>
+                            <PaymentsSection />
+                        </SettingsCard>
+
                         <SettingsCard>
                             <h2 className="mb-1 text-base font-semibold leading-snug">Sign-in details</h2>
                             <p className="mb-4 text-sm text-muted-foreground">
@@ -238,10 +243,6 @@ export function SettingsContainer() {
                                     {resetMessage.text}
                                 </p>
                             )}
-                        </SettingsCard>
-
-                        <SettingsCard>
-                            <PaymentsSection />
                         </SettingsCard>
 
                         <SettingsCard>

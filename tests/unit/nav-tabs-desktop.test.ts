@@ -67,7 +67,7 @@ test("the résumé tab is on the mobile bar as well as the desktop bar", () => {
 
 test("current-page marker is the shared tab primitive's bar, driven by aria-current", () => {
     const src = readFileSync(TOPBAR, "utf8");
-    const navBlock = src.slice(src.indexOf("navTabs.map"), src.indexOf("<FollowAlertsBell"));
+    const navBlock = src.slice(src.indexOf("navTabs.map"), src.indexOf("</TabNav>"));
     assert.match(navBlock, /<TabItem\b[^>]*current=\{active \? "page" : false\}/);
     assert.doesNotMatch(navBlock, /border-b-2/, "TopBar must not paint its own underline");
     const tabs = readFileSync(join(__dirname, "..", "..", "src", "components", "ui", "tabs.tsx"), "utf8");
