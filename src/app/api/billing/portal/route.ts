@@ -11,6 +11,7 @@ import { isBillingConfigured } from "@/lib/billing/config";
 import { validateVelaiUid } from "@/lib/billing/events";
 import { readProfileBilling } from "@/lib/billing/profile-store";
 import { getStripe } from "@/lib/billing/stripe-client";
+import { describeStripeError } from "@/lib/billing/stripe-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export async function POST(): Promise<NextResponse> {
         return NextResponse.json(result.body, { status: result.status });
     } catch (error) {
         // Stripe refuses until the portal is switched on in the Dashboard; the reason goes to the log, not the page.
-        console.error(`[billing-portal] ${error instanceof Error ? error.message : "failed"}`);
+        console.error(`[billing-portal] ${describeStripeError(error)}`);
         return NextResponse.json({ error: UNAVAILABLE }, { status: 503 });
     }
 }
