@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { X } from "@phosphor-icons/react";
+import { SidebarSimple, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { filterCountBadgeClass } from "@/components/ui/chip";
 import { Sheet, SheetBar, SheetBody, SheetClose, SheetContent, SheetFooter, SheetTitle } from "@/components/ui/sheet";
@@ -21,10 +21,13 @@ import { SubTitle } from "@/components/ui/heading";
 export function FilterRail({
     activeCount,
     onClearAll,
+    onHide,
     children,
 }: {
     activeCount: number;
     onClearAll: () => void;
+    /** Collapses the whole rail; the Filters button brings it back. */
+    onHide: () => void;
     children: React.ReactNode;
 }) {
     return (
@@ -39,15 +42,27 @@ export function FilterRail({
                     Filters
                     {activeCount > 0 && <span className={filterCountBadgeClass}>{activeCount}</span>}
                 </SubTitle>
-                <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={onClearAll}
-                    disabled={activeCount === 0}
-                    data-testid="filters-clear-all"
-                >
-                    Clear all
-                </Button>
+                <div className="flex items-center gap-1">
+                    <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={onClearAll}
+                        disabled={activeCount === 0}
+                        data-testid="filters-clear-all"
+                    >
+                        Clear all
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={onHide}
+                        aria-label="Hide filters"
+                        title="Hide filters"
+                        data-testid="filters-rail-hide"
+                    >
+                        <SidebarSimple size={16} aria-hidden />
+                    </Button>
+                </div>
             </div>
             <div id="filters-panel" data-testid="filters-panel" className="poster-list-inset-x pb-2 text-foreground">
                 {children}

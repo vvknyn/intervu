@@ -111,7 +111,7 @@ test("the filter panel is still reachable — the guard above must not pass by d
     // doors would fail the count above, but a door wired to nothing would not.
     assert.match(JOBS_PAGE_SRC, /onClick=\{toggleFilters\}/);
     assert.match(JOBS_PAGE_SRC, /<FiltersSheet[\s\S]{0,400}onOpenChange=\{setFiltersOpen\}/);
-    assert.match(JOBS_PAGE_SRC, /<FilterRail\b/);
+    assert.match(JOBS_PAGE_SRC, /<FilterRail\b[^>]*onHide=\{toggleFilters\}/);
 });
 
 test("the quick-filter row cannot open the panel at all", () => {

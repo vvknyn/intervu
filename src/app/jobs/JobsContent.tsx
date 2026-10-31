@@ -5727,7 +5727,7 @@ export function JobsContent({
                     railOnScreen && "lg:grid lg:grid-cols-[var(--jobs-rail-w)_minmax(0,1fr)] lg:gap-4",
                 )}>
                     {railOnScreen && (
-                        <FilterRail activeCount={activeCount} onClearAll={panelClearAll}>
+                        <FilterRail activeCount={activeCount} onClearAll={panelClearAll} onHide={toggleFilters}>
                             {filtersPanelEl}
                         </FilterRail>
                     )}
