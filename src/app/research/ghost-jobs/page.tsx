@@ -4,7 +4,7 @@ import { buildArticleJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle, SubTitle, PageLead } from "@/components/ui/heading";
+import { PageEyebrow, PageTitle, SectionTitle, SubTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const HEADLINE = "Ghost jobs aren't the problem — wasted applications are";
@@ -51,15 +51,13 @@ const RTABLE = {
 
 export default function GhostJobsResearchPage() {
   return (
-    <PageContainer measure="reading" data-testid="research-ghost-jobs-page" className="py-10">
+    <PageContainer measure="reading" data-testid="research-ghost-jobs-page" className="page-top pb-10">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }}
       />
-      <p className="mono-data text-xs font-semibold text-muted-foreground">
-        From our research · Corpus snapshot
-      </p>
-      <PageTitle className="mt-3">
+      <PageEyebrow className="mono-data">From our research · Corpus snapshot</PageEyebrow>
+      <PageTitle>
         Ghost jobs aren&apos;t the problem. Wasted applications are.
       </PageTitle>
       <PageLead>

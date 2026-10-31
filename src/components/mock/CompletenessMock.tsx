@@ -764,9 +764,6 @@ export function CompletenessMock() {
             {panel === "tracker" && (
                 <main className="shell-row pb-16 pt-6">
                     <PageHeader
-                        size="display"
-                        fullWidth
-                        sticky={false}
                         title="Tracker"
                         description="Your records — not submissions. Agent drafts still stop before send."
                         actions={

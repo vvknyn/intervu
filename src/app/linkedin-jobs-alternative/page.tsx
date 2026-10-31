@@ -5,7 +5,7 @@ import { LINKEDIN_JOBS_ALTERNATIVE, LINKEDIN_JOBS_ALTERNATIVE_FAQ } from "@/lib/
 import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
+import { PageEyebrow, PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = LINKEDIN_JOBS_ALTERNATIVE;
@@ -20,15 +20,15 @@ const faqJsonLd = buildFaqPageJsonLd(LINKEDIN_JOBS_ALTERNATIVE_FAQ);
 
 export default function LinkedinJobsAlternativePage() {
   return (
-    <PageContainer measure="reading" data-testid="linkedin-jobs-alternative-page" className="py-10">
+    <PageContainer measure="reading" data-testid="linkedin-jobs-alternative-page" className="page-top pb-10">
       {faqJsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
         />
       )}
-      <p className="text-xs font-semibold text-brand">LinkedIn Jobs alternative</p>
-      <PageTitle className="mt-3">
+      <PageEyebrow>LinkedIn Jobs alternative</PageEyebrow>
+      <PageTitle>
         Easy Apply is a feeling. It isn&apos;t a reply.
       </PageTitle>
       <PageLead>

@@ -103,7 +103,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                 {favorites.map((favorite) => (
                                     <div
                                         key={favorite.id}
-                                        className="group bg-muted hover:bg-muted border border-border rounded-none p-4 transition-all"
+                                        className="group bg-muted hover:bg-muted border border-border rounded-panel p-4 transition-all"
                                     >
                                         {/* Question Header */}
                                         <div className="flex items-start justify-between gap-3 mb-3">
@@ -190,7 +190,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                 </div>
                                             </div>
                                         ) : favorite.notes ? (
-                                            <div className="mt-3 p-3 bg-muted rounded-none border border-border">
+                                            <div className="mt-3 p-3 bg-muted rounded-panel border border-border">
                                                 <p className="text-xs text-muted-foreground italic">{favorite.notes}</p>
                                             </div>
                                         ) : (

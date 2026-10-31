@@ -34,7 +34,7 @@ export default async function ConnectPage() {
   const issuer = AGENT.issuer();
   const user = await getServerUser();
   return (
-    <div data-testid="connect-page" className="shell-row py-10">
+    <div data-testid="connect-page" className="shell-row page-top pb-10">
       <Suspense fallback={<WaitState label="Loading agents page" fill className="bg-background" />}>
         <ConnectClient
           mcpUrl={mcpConnectorUrl(issuer)}

@@ -92,7 +92,7 @@ export function McpHandoffNote({
 
     if (!job) {
         return (
-            <div className={cn("flex items-start gap-2 rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
+            <div className={cn("flex items-start gap-2 rounded-panel border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
                 <div className="min-w-0 flex-1">
                     {copy.heading && <p className="mb-1 font-semibold text-foreground">{copy.heading}</p>}
                     {copy.sentence}{" "}
@@ -106,7 +106,7 @@ export function McpHandoffNote({
     }
 
     return (
-        <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
+        <div className={cn("rounded-panel border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <p className="min-w-[16ch] flex-1">
                     {copy.heading && <span className="block font-semibold text-foreground">{copy.heading}</span>}

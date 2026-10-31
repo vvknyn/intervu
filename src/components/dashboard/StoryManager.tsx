@@ -71,7 +71,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center bg-muted p-4 rounded-none border border-border">
+            <div className="flex justify-between items-center bg-muted p-4 rounded-panel border border-border">
                 <div>
                     <h3 className="font-semibold text-foreground">Your Career Stories</h3>
                     <p className="text-xs text-muted-foreground mt-1">
