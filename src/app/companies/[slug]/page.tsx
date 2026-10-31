@@ -80,7 +80,7 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
 
   if (!profile) {
     return (
-      <PageContainer measure="reading" data-testid="company-truth-page" className="py-10">
+      <PageContainer measure="reading" data-testid="company-truth-page" className="page-top pb-10">
         <p className="text-sm text-muted-foreground">Company data isn&apos;t available right now.</p>
       </PageContainer>
     );
@@ -89,7 +89,7 @@ export default async function CompanyTruthPage({ params }: { params: Promise<{ s
   const jobsSearchUrl = `/?q=${encodeURIComponent(profile.name)}`;
 
   return (
-    <PageContainer measure="reading" data-testid="company-truth-page" className="py-10">
+    <PageContainer measure="reading" data-testid="company-truth-page" className="page-top pb-10">
       <CompanyHeader name={profile.name} totalOpenRoles={profile.totalOpenRoles} />
 
       {profile.roles.length === 0 ? (

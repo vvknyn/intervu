@@ -6,7 +6,7 @@ import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
+import { PageEyebrow, PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = ELUTA_ALTERNATIVE;
@@ -21,15 +21,15 @@ const faqJsonLd = buildFaqPageJsonLd(ELUTA_ALTERNATIVE_FAQ);
 
 export default function ElutaAlternativePage() {
   return (
-    <PageContainer measure="reading" data-testid="eluta-alternative-page" className="py-10">
+    <PageContainer measure="reading" data-testid="eluta-alternative-page" className="page-top pb-10">
       {faqJsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
         />
       )}
-      <p className="text-xs font-semibold text-brand">Eluta alternative</p>
-      <PageTitle className="mt-3">
+      <PageEyebrow>Eluta alternative</PageEyebrow>
+      <PageTitle>
         Eluta crawls the career page. So do we — then we ask if it&apos;s still open.
       </PageTitle>
       <PageLead>

@@ -38,9 +38,11 @@ describe("yours tracker chrome", () => {
         assert.doesNotMatch(src, /Search company or role/);
     });
 
-    it("tracker header uses display masthead with stacked actions on narrow viewports", () => {
+    it("tracker header uses the one PageHeader masthead (stacked actions on narrow viewports)", () => {
         const src = readFileSync(YOURS, "utf8");
-        assert.match(src, /size="display"/);
+        assert.match(src, /<PageHeader/);
+        // The masthead has one look now; a size prop would mean a second one crept back.
+        assert.doesNotMatch(src, /<PageHeader[^>]*\bsize=/);
     });
 
     it("lane row role title shows full text — no truncate or line-clamp", () => {
