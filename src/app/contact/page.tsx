@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <PageContainer measure="reading" data-testid="contact-page" className="py-10">
+    <PageContainer measure="reading" data-testid="contact-page" className="page-top pb-10">
       <header>
         <PageTitle>Contact</PageTitle>
         <PageLead>

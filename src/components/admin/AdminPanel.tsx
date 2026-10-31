@@ -190,7 +190,7 @@ export function AdminPanel() {
                                     const config = TYPE_CONFIG[item.type] || TYPE_CONFIG.other;
                                     const Icon = config.icon;
                                     return (
-                                        <div key={item.id} className="border border-border rounded-none p-3 space-y-2">
+                                        <div key={item.id} className="border border-border rounded-panel p-3 space-y-2">
                                             <div className="flex items-center justify-between gap-2">
                                                 <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-none ${config.color}`}>
                                                     <Icon size={12} weight="bold" />

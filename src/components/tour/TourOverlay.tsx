@@ -144,7 +144,7 @@ export function TourOverlay() {
 
         <motion.div
           ref={cardRef}
-          className="absolute pointer-events-auto flex flex-col bg-card text-card-foreground rounded-none border border-border"
+          className="absolute pointer-events-auto flex flex-col bg-card text-card-foreground rounded-panel border border-border"
           style={{
             width: cardWidth,
             maxHeight: cardMaxHeight,

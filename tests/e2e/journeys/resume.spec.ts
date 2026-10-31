@@ -441,7 +441,8 @@ test.describe("signed in (dev-server only)", () => {
     await signInWithTextResume(page);
     await page.goto("/resume");
 
-    await expect(page.getByText(RESUME_PAGE_SUBCOPY_SIGNED_IN)).toBeVisible();
+    // Scoped to the page body: with the dev-only signed-in hook the dev error overlay also quotes this line (a hydration diff, never in production builds).
+    await expect(page.getByRole("main").getByText(RESUME_PAGE_SUBCOPY_SIGNED_IN)).toBeVisible();
     const summary = page.getByText("Backend engineer with 8 years building payments systems in Go and TypeScript.");
     await expect(summary).toBeVisible();
     await expect(summary).not.toContainText("jane@example.com");

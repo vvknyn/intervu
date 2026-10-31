@@ -40,7 +40,7 @@ function readVisitOnce(): Promise<VisitRead> {
 /**
  * "New roles since your last visit" — one quiet line at the top of the list
  * panel, self-contained about its own fetch (same posture as
- * `FollowAlertsBell`). It used to be a corner toast that dismissed itself
+ * `FollowAlertsDialog`). It used to be a corner toast that dismissed itself
  * after six seconds, so the one reason to come back was gone before most
  * people read it; now it stays for the whole visit. Its "Email me new roles"
  * link is gone (2026-10-10): the results line's "Job alert" switch

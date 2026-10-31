@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
+import { EDITOR_CANVAS_FRAME } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -40,9 +41,6 @@ import { scoringPreferences } from "@/lib/agent-preferences-read";
 function ResumeHeader({ signedIn }: { signedIn: boolean }) {
     return (
         <PageHeader
-            fullWidth
-            sticky={false}
-            size="display"
             title={RESUME_PAGE_HEADLINE}
             // The signed-out line ends "…once you sign in", which read oddly
             // to someone already signed in.
@@ -187,15 +185,7 @@ function ResumeContent() {
 
     return (
         <PageLayout fullWidth header={!editorOpen ? <ResumeHeader signedIn={!!user} /> : undefined}>
-            <div
-                className={cn(
-                    "transition-all",
-                    editorOpen
-                        // page-scale-allow: the open editor's canvas runs edge to edge below lg
-                        ? "mx-auto max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
-                        : "shell-row pb-16 pt-6",
-                )}
-            >
+            <div className={cn("transition-all", editorOpen ? EDITOR_CANVAS_FRAME : "shell-row pb-16 pt-6")}>
                 {!authReady ? (
                     <ResumeAuthSkeleton />
                 ) : !user ? (

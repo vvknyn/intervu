@@ -43,7 +43,7 @@ export default async function BillingReturnPage({ searchParams }: { searchParams
     await connection();
     const message = await resolveMessage((await searchParams).session_id);
     return (
-        <PageContainer measure="reading" className="py-16">
+        <PageContainer measure="reading" className="page-top pb-16">
             <PageTitle>Payment</PageTitle>
             <p className="mt-4">{message}</p>
             <p className="mt-6">

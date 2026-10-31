@@ -1528,7 +1528,7 @@ export function locationWithMode(location: string, workType: string | null | und
  * (`buildFactChips`' work_type chip label, which is just `prettyEnum`),
  * folded onto an already-computed place string as its own " · Mode"
  * segment — for the surfaces that render `locationText` with no adjacent
- * work-mode chip of their own (`RelatedJobRow`, `FollowAlertsBell`, the
+ * work-mode chip of their own (`RelatedJobRow`, `FollowAlertsDialog`, the
  * digest email) and so lost their only remote/hybrid signal once
  * `locationText` stopped prefixing "Remote ·" onto the place text. Skipped
  * when the mode token already IS the place text — `locationText`'s own

@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function BlogIndexPage() {
   return (
-    <PageContainer measure="reading" data-testid="blog-index" className="py-10">
+    <PageContainer measure="reading" data-testid="blog-index" className="page-top pb-10">
       <PageTitle>Blog</PageTitle>
       <PageLead>{DESCRIPTION}</PageLead>
 

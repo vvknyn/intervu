@@ -20,7 +20,7 @@ import {
 } from "@/components/marketing/openclaw-content";
 import { AGENT } from "@/lib/agent/config";
 import { PageContainer } from "@/components/layout/PageContainer";
-import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { READING_MEASURE } from "@/components/ui/prose";
 
 export const metadata: Metadata = {
@@ -36,13 +36,13 @@ export default function OpenclawPage() {
   return (
     <div data-testid="openclaw-page" className="bg-background">
       {/* Hero */}
-      <PageContainer measure="reading" className="flex flex-col items-start pb-14 pt-16">
+      <PageContainer measure="reading" className="page-top flex flex-col items-start pb-14">
         <OpenclawStatusBadge />
         <PageTitle className="mt-4 max-w-2xl">{OPENCLAW_HEADLINE}</PageTitle>
-        <p className={`mt-4 ${READING_MEASURE} text-base text-muted-foreground`}>
+        <PageLead>
           A skill for OpenClaw, the open-source assistant you run on your own machine. It works while you
           sleep and messages you on WhatsApp when an application is ready. You read it, you send it.
-        </p>
+        </PageLead>
         <WhatsAppThreadHero className="mt-10 mx-0" />
         <OpenclawWaitlistForm className="mt-10 w-full max-w-sm" />
       </PageContainer>
