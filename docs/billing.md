@@ -11,7 +11,7 @@ Access = `access_until` on `profiles/{uid}`, recomputed from the customer's paid
 
 | Variable | Purpose |
 | --- | --- |
-| `STRIPE_SECRET_KEY` | Restricted key preferred (`rk_...`). Needs read on Charges, Checkout Sessions, Customers, Invoices, PaymentIntents, Prices, Subscriptions and Disputes, and write on Checkout Sessions, Customers and Customer portal sessions. |
+| `STRIPE_SECRET_KEY` | Restricted key preferred (`rk_...`). Needs read on Charges, Checkout Sessions, Customers, PaymentIntents, Prices and Disputes, and write on Checkout Sessions, Customers and Customer portal sessions. Month to month also needs read on Invoices and Subscriptions: while `STRIPE_SUBSCRIPTION_PRICE_ID` is unset a refusal of those two is logged (`[billing] ... not readable by this Stripe key`) and counted as none; once it is set a refusal fails the read like any other. A failed Payments read, webhook recompute or return-page recompute logs `describeStripeError` (class, status, Stripe's message with keys and ids blanked), which names the missing permission. |
 | `STRIPE_WEBHOOK_SECRET` | Signing secret (`whsec_...`) of the endpoint below. |
 | `STRIPE_PRICE_ID` | The one-time Price at `MONTH_PRICE_USD`. The client never sends a price. |
 | `STRIPE_SUBSCRIPTION_PRICE_ID` | Optional. A recurring Price at `MONTH_PRICE_USD`, every 1 month, on the same product. Unset, month to month is off. |
