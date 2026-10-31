@@ -125,10 +125,10 @@ test("jobs page resolves the résumé on file from the confirmed session and cle
     assert.match(src, /deepLinkedSession[\s\S]*revalidateClientSession/);
 });
 
-test("follow alerts bell requires a confirmed signed-in session", () => {
-    const src = readFileSync(new URL("../../src/components/follows/FollowAlertsBell.tsx", import.meta.url), "utf8");
+test("follow alerts (the account menu's row and avatar dot) need a confirmed signed-in session", () => {
+    const src = readFileSync(new URL("../../src/lib/follows/use-follow-alerts.ts", import.meta.url), "utf8");
     assert.match(src, /isSignedIn/);
-    assert.match(src, /if \(!isSignedIn\) return null/);
+    assert.match(src, /isSignedIn \? flattenAlertRows\(groups\) : \[\]/);
 });
 
 test("résumé tab label ignores server résumé presence when signed out", () => {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { formatPaidUntil, PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 import { Button } from "@/components/ui/button";
 import { usePlan } from "@/lib/account/plan";
+import { PLAN_AND_PAYMENTS_HREF } from "@/lib/billing/paths";
 import { DELETE_AFTER_DAYS } from "@/lib/retention/delete-after";
 
 const FREE_LINE = "Search, matching with a résumé kept on your device, the tracker and saved jobs are free.";
@@ -40,7 +41,7 @@ export function PlanCard() {
                     </div>
                     <Button asChild variant="outline" size="sm">
                         {plan.status === "full" && plan.autoRenew ? (
-                            <Link href="/settings?tab=account">Manage payments</Link>
+                            <Link href={PLAN_AND_PAYMENTS_HREF}>Manage payments</Link>
                         ) : (
                             <Link href="/pricing">{plan.status === "free" ? `See the paid month — ${PRO_MONTHLY_PRICE}` : "Add months"}</Link>
                         )}

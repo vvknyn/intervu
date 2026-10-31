@@ -2,7 +2,7 @@
  * Thin I/O layer: gathers one user's follows + saved searches, asks the
  * EXISTING "what's new since a cursor" mechanisms for each (never
  * reimplemented — `listNewRolesForFollows` already backs the in-app
- * FollowAlertsBell; `listNewRolesForSavedSearch` is `saved-search-
+ * FollowAlertsDialog; `listNewRolesForSavedSearch` is `saved-search-
  * new-roles.ts`'s search-direct sibling of `countNewSinceAction`'s saved
  * scope), and hands the raw sections to the pure `assembleDigest`.
  */
