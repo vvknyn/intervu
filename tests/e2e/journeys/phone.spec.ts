@@ -1,6 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { expectDockFrame, expectDockInline, expectEveryTabGlyphCentred, minimizedTabGlyphs, pinnedBottomBars } from "./dock-frame";
 import { expect, test } from "./fixtures";
 import { isLocalOrigin, mockSignIn, SIGNED_IN_SKIP_REASON } from "./signed-in";
 
@@ -551,8 +552,9 @@ for (const width of [390, 320]) {
         // A capsule: the radius is at least half the height. Glass: a blur, and a fill you can see through.
         expect(glass.radius).toBeGreaterThanOrEqual(glass.height / 2);
         expect(glass.blur).toContain("blur");
-        expect(glass.alpha).toBeGreaterThan(0.5);
-        expect(glass.alpha).toBeLessThan(1);
+        // See-through: 0.82 read as a dark slab, 0.94 as a black band (2026-11-01).
+        expect(glass.alpha).toBeGreaterThan(0.3);
+        expect(glass.alpha).toBeLessThan(0.9);
         await expect(bar.getByTestId("mobile-topbar-jobs")).toBeVisible();
         // At the end of the page the footer's last line sits above the bar, not under it.
         await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -572,25 +574,111 @@ for (const width of [390, 320]) {
     });
 }
 
-test("on a phone the opened job's Apply bar is lifted off the bottom edge, the same distance as the tab bar", { tag: ["@J-MOB-30"] }, async ({ page, diagnostics }, testInfo) => {
+/** The first live job page that is long enough for its Apply bar to stick above the tab bar, or null. */
+async function openLongJobPage(page: Page): Promise<boolean> {
+    await page.goto("/jobs?q=engineer");
+    if (!(await rowsIfAny(page))) return false;
+    const paths = await page
+        .getByTestId("job-row")
+        .locator('a[href^="/jobs/"]')
+        .evaluateAll((links) => [...new Set(links.map((a) => a.getAttribute("href")).filter((h): h is string => Boolean(h)))].slice(0, 4));
+    for (const path of paths) {
+        await page.goto(path);
+        if (!(await page.getByTestId("job-detail-action-bar").isVisible({ timeout: 15_000 }).catch(() => false))) continue;
+        // Stuck above the tab bar only while the page runs well past the screen; a short posting rests the bar in the page.
+        if (await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight * 1.8)) return true;
+    }
+    return false;
+}
+
+for (const width of [390, 320]) {
+    test(`on a ${width}px phone every bar pinned to the bottom is one floating glass capsule, stacked off the bottom edge: the tab bar alone, and the opened job page with its Apply bar above it`, { tag: ["@J-MOB-31"] }, async ({ page, diagnostics }, testInfo) => {
+        test.skip(testInfo.project.name !== "mobile", "a phone width");
+        await page.setViewportSize({ width, height: 800 });
+        await returningVisitor(page);
+        // The tab bar by itself.
+        await page.goto("/pricing");
+        await expect(page.getByTestId("mobile-tabbar")).toBeVisible({ timeout: 15_000 });
+        expectDockFrame(await pinnedBottomBars(page), 1);
+        // The Apply bar was a flush, near-opaque band across the full width that cut the text under it with hard
+        // edges, with a strip of text between it and the tab bar (2026-11-01): now the tab bar's twin, directly above it.
+        test.skip(!(await openLongJobPage(page)), "this server lists no job with a long posting (no search backend), so there is no job page to measure");
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await expect.poll(async () => (await pinnedBottomBars(page)).length).toBe(2);
+        const bars = await pinnedBottomBars(page);
+        expectDockFrame(bars, 2);
+        expect(bars.map((b) => b.name)).toEqual(["mobile-tabbar", "job-detail-action-bar"]);
+        await testInfo.attach("job-page-dock", { body: await page.screenshot(), contentType: "image/png" });
+        expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0);
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
+}
+
+/** Scrolls the page down in a few swipes' worth of steps; the dock reads runs of scrolling, not one jump. */
+async function scrollDown(page: Page, to: number) {
+    for (let y = 100; y <= to; y += 100) {
+        await page.evaluate((top) => window.scrollTo(0, top), y);
+        await page.waitForTimeout(40);
+    }
+}
+
+for (const width of [390, 320]) {
+    test(`on a ${width}px phone scrolling down a job page minimizes the dock like Apple's tab bar (one round button, Apply beside it); scrolling up or a tap on the button brings it back`, { tag: ["@J-MOB-32"] }, async ({ page, diagnostics }, testInfo) => {
+        test.skip(testInfo.project.name !== "mobile", "a phone width");
+        await page.setViewportSize({ width, height: 800 });
+        await returningVisitor(page);
+        test.skip(!(await openLongJobPage(page)), "this server lists no job with a long posting (no search backend), so there is no job page to scroll");
+        const url = page.url();
+        await page.evaluate(() => window.scrollTo(0, 0));
+        // At the top the dock is the full stack.
+        await expect.poll(async () => (await pinnedBottomBars(page)).length).toBe(2);
+        // Reading down the page: the tab bar shrinks to one round button and Apply takes the row beside it.
+        await scrollDown(page, 600);
+        await expect
+            .poll(async () => {
+                const bars = await pinnedBottomBars(page, undefined, 40);
+                return bars.find((b) => b.name === "mobile-tabbar")?.width ?? 0;
+            })
+            .toBeLessThan(80);
+        // Transitions run ~200ms: read the pair once it holds still.
+        await page.waitForTimeout(500);
+        expectDockInline(await pinnedBottomBars(page, undefined, 40));
+        // Whichever tab stays in the circle, its icon is in the middle of it.
+        expectEveryTabGlyphCentred(await minimizedTabGlyphs(page));
+        await testInfo.attach("dock-minimized", { body: await page.screenshot(), contentType: "image/png" });
+        // A short scroll up restores the stack.
+        await page.evaluate(() => window.scrollBy(0, -60));
+        await page.waitForTimeout(500);
+        expectDockFrame(await pinnedBottomBars(page), 2);
+        // Down again, then a tap on the round button expands it in place: no navigation.
+        await scrollDown(page, 1000);
+        await page.waitForTimeout(500);
+        expectDockInline(await pinnedBottomBars(page, undefined, 40));
+        await page.getByTestId("mobile-tabbar").click();
+        await page.waitForTimeout(500);
+        expectDockFrame(await pinnedBottomBars(page), 2);
+        expect(page.url()).toBe(url);
+        expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0);
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
+}
+
+test("on a phone the opened job sheet's Apply bar is the same capsule, lifted off the bottom edge", { tag: ["@J-MOB-31"] }, async ({ page, diagnostics }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "a phone width");
     await returningVisitor(page);
     await page.goto("/jobs?q=engineer");
     test.skip(!(await rowsIfAny(page)), "this server lists no jobs (no search backend), so there is no job to open");
     await page.getByTestId("job-row").first().click();
     const sheet = page.getByRole("dialog");
-    const bar = sheet.getByTestId("job-detail-action-bar");
-    await expect(bar).toBeVisible({ timeout: 15_000 });
-    // The sheet slides up as it opens, so read the gap once its bar stops moving.
+    await expect(sheet.getByTestId("job-detail-action-bar")).toBeVisible({ timeout: 15_000 });
+    // The sheet slides up as it opens, so read the bar once it stops moving.
     await expect
         .poll(async () => {
-            const apply = await box(bar.getByRole("button").first());
-            return Math.round(page.viewportSize()!.height - (apply.y + apply.height));
+            const [bar] = await pinnedBottomBars(page, sheet);
+            return bar ? Math.round(bar.bottom) : -1;
         })
         .toBeGreaterThanOrEqual(19);
-    // The button is padded inside the bar too: the bar's own bottom is the screen's, the button is not.
-    const b = await box(bar);
-    expect(Math.round(page.viewportSize()!.height - (b.y + b.height))).toBeLessThanOrEqual(1);
-    await testInfo.attach("job-sheet-bar", { body: await page.screenshot(), contentType: "image/png" });
+    expectDockFrame(await pinnedBottomBars(page, sheet), 1);
+    await testInfo.attach("job-sheet-dock", { body: await page.screenshot(), contentType: "image/png" });
     expect(diagnostics.pageErrors).toEqual([]);
 });
