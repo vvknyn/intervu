@@ -68,7 +68,12 @@ export const THRESHOLDS = {
   optionalSkillWeight: 0.5,
   /** O*NET Related Occupations tiers (5 Primary-Short, 5 Primary-Long, 10 Supplemental per occupation). */
   onetTierWeight: { "Primary-Short": 0.9, "Primary-Long": 0.7, Supplemental: 0.5 } as Record<string, number>,
-  /** The two classifications describing the same work. */
+  /**
+   * The crosswalk files each ESCO occupation under the O*NET occupation(s) that cover it: O*NET is coarser, so one
+   * O*NET occupation covers many ESCO ones (Electricians covers 11, from cable jointer to event electrician). A link
+   * says less the more occupations share it: crosswalkWeight / sqrt(ESCO occupations under that O*NET code), and none
+   * at all to a residual O*NET occupation (", All Other"), which says only what the work is not.
+   */
   crosswalkWeight: 0.95,
   /** One role's display title is a listed name of another role. */
   sharedTitleWeight: 0.8,
@@ -199,15 +204,22 @@ export function assembleTitleMap(input: {
   const unitOf = new Map(esco.map((o) => [escoId(o.uri), o.iscoUnit] as const));
   const unitVotes = new Map<string, Map<string, number>>();
   const uriByCode = new Map(esco.filter((o) => o.code).map((o) => [o.code!, o.uri] as const));
-  for (const { esco: ref, onetCode } of input.crosswalk ?? []) {
+  const pairs = (input.crosswalk ?? []).flatMap(({ esco: ref, onetCode }) => {
     const escoUri = ref.startsWith("http") ? ref : uriByCode.get(ref);
-    if (!escoUri) continue;
+    return escoUri && unitOf.has(escoId(escoUri)) ? [{ escoUri, onetCode }] : [];
+  });
+  const covered = new Map<string, Set<string>>();
+  for (const { escoUri, onetCode } of pairs) covered.set(onetCode, (covered.get(onetCode) ?? new Set()).add(escoUri));
+  const residual = new Set((input.onet?.occupations ?? []).filter((o) => /,\s*All Other\b/i.test(o.title)).map((o) => o.code));
+  for (const { escoUri, onetCode } of pairs) {
     const unit = unitOf.get(escoId(escoUri));
     if (!unit) continue;
     const votes = unitVotes.get(onetCode) ?? new Map<string, number>();
     votes.set(unit, (votes.get(unit) ?? 0) + 1);
     unitVotes.set(onetCode, votes);
-    links.push([escoId(escoUri), onetId(onetCode), THRESHOLDS.crosswalkWeight, "x"]);
+    if (residual.has(onetCode)) continue;
+    const weight = THRESHOLDS.crosswalkWeight / Math.sqrt(covered.get(onetCode)!.size);
+    links.push([escoId(escoUri), onetId(onetCode), weight, "x"]);
   }
   for (const o of input.onet?.occupations ?? []) {
     const votes = [...(unitVotes.get(o.code) ?? [])].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));

@@ -11,7 +11,10 @@ This file includes information from the O*NET 31.0 Database by the U.S. Departme
 
 ## ESCO
 
-Not in this build: the ESCO API (ec.europa.eu) could not be reached from the build machine on 2026-10-31. ESCO may be reused for any purpose with an acknowledgment (Commission Decision 2011/833/EU); add its acknowledgment wording here when the build includes it.
+This file uses the ESCO classification of the European Commission. ESCO may be reused for any purpose with an acknowledgment (Commission Decision 2011/833/EU); the wording above is the one Velai shows (the exact statement ESCO asks for was not confirmed from its site on 2026-11-01). Velai has modified the data: names are normalised and occupations are linked by shared essential and optional skills.
+
+- Read from the ESCO web-service API (https://ec.europa.eu/esco/api), English, on 2026-11-01: the 2,942 occupations listed by `search?type=occupation`, then one `resource/occupation` record each. 2,938 records were read; 4 answered HTTP 500 on every try and are left out (their URIs are printed by the builder). The cached records file's sha256 is recorded in `sources`.
+- Crosswalk links to O*NET weigh crosswalkWeight / sqrt(ESCO occupations under that O*NET code) and are not drawn to residual O*NET occupations (", All Other").
 
 ## Velai postings
 
