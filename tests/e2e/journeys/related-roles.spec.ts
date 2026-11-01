@@ -66,11 +66,13 @@ test("a title search lists the roles next to it after the title matches, under a
   );
 
   // Order on the page: the two title matches, the line, the two related roles, the mentions line, the mention.
-  const order = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-testid="job-row"], [data-testid="related-seam"], [data-testid="relevance-seam"]')].map((el) =>
-      el.getAttribute("data-testid") === "job-row" ? el.getAttribute("data-job-id")!.slice(-1) : el.getAttribute("data-testid"),
-    ),
-  );
-  expect(order).toEqual(["1", "2", "related-seam", "3", "4", "relevance-seam", "5"]);
+  // Polled: the list can redraw once after the first paint (it is read again whenever it is drawn again).
+  const order = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="job-row"], [data-testid="related-seam"], [data-testid="relevance-seam"]')].map((el) =>
+        el.getAttribute("data-testid") === "job-row" ? el.getAttribute("data-job-id")!.slice(-1) : el.getAttribute("data-testid"),
+      ),
+    );
+  await expect.poll(order, { timeout: 15_000 }).toEqual(["1", "2", "related-seam", "3", "4", "relevance-seam", "5"]);
   expect(diagnostics.pageErrors).toEqual([]);
 });

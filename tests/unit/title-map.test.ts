@@ -123,7 +123,7 @@ describe("title map", () => {
         ["product manager", "product owner", 0.62],
         ["product manager", "technical account manager", 0.31],
         ["technical account manager", "customer success manager", 0.58],
-        ["product manager", "customer success manager", 0.1],
+        ["product manager", "customer success manager", 0.05],
       ],
     },
   });
@@ -142,7 +142,7 @@ describe("title map", () => {
   it("links the same title across sources and drops posting links under the bar", () => {
     const pm = roleNeighbours(map, "postings:product manager", 10);
     assert.ok(pm.some((n) => n.role.id === "onet:11-2021.00" && n.kinds.includes("n")));
-    assert.ok(!pm.some((n) => n.role.id === "postings:customer success manager"), "0.10 is under the 0.25 bar");
+    assert.ok(!pm.some((n) => n.role.id === "postings:customer success manager"), "0.05 is under the 0.1 floor");
   });
 
   it("reads a tree from a title: product manager -> product owner, TAM; TAM -> CSM; no role twice", () => {
@@ -172,9 +172,10 @@ describe("title map", () => {
     assert.ok(!titles.some((t) => t.toLowerCase() === "product manager"));
   });
 
-  it("reads the search table: posting titles only, never a role that merely lists the title", () => {
+  it("reads the search table: an occupation reads as the posting title named after it, never as a role that merely lists the title", () => {
     const table = searchNeighbourTable(map, "2026-11-01");
     assert.deepEqual(table.titles, {
+      "ict product manager": ["Product Owner"],
       "product manager": ["Product Owner", "Technical Account Manager"],
       "product owner": ["Product Manager"],
       "technical account manager": ["Customer Success Manager", "Product Manager"],
@@ -236,6 +237,11 @@ describe("related titles for a search", () => {
   it("finds the roles next to a typed title, singular or plural, strongest first", () => {
     assert.deepEqual(relatedTitlesFor("Technical Account Managers", 4, table), ["Customer Success Manager", "Solutions Engineer", "Implementation Manager"]);
     assert.deepEqual(relatedTitlesFor("technical account manager", 2, table), ["Customer Success Manager", "Solutions Engineer"]);
+  });
+
+  it("reads a ranked or qualified title as the title it ends in", () => {
+    assert.deepEqual(relatedTitlesFor("Senior Technical Account Manager", 1, table), ["Customer Success Manager"]);
+    assert.deepEqual(relatedTitlesFor("enterprise technical account manager", 1, table), ["Customer Success Manager"]);
   });
 
   it("leaves out a title holding every typed word (the title search already finds it) and unknown titles", () => {

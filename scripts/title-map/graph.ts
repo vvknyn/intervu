@@ -77,8 +77,16 @@ export const THRESHOLDS = {
   crosswalkWeight: 0.95,
   /** One role's display title is a listed name of another role. */
   sharedTitleWeight: 0.8,
-  /** Posting links below this cosine are dropped (the learner keeps its own top-k). */
-  postingsMinCosine: 0.25,
+  /**
+   * Posting links (cosine of the terms two titles' postings ask for). Cosines run low and unevenly by title (measured
+   * 2026-11-01 on the live index: the strongest link per title has median 0.38, Technical Account Manager's is 0.24),
+   * so a link's weight is its cosine over the geometric mean of the two titles' strongest cosines to another job (a
+   * title holding every word of the other is a kind of it, not another job), times
+   * postingsWeightScale: each title's best link reads 0.9, a link half as strong as both titles' best reads 0.45.
+   * Links under postingsMinCosine are dropped.
+   */
+  postingsMinCosine: 0.1,
+  postingsWeightScale: 0.9,
 } as const;
 
 export const ISCO_MAJOR: Record<string, string> = {
@@ -238,7 +246,19 @@ export function assembleTitleMap(input: {
   }
 
   for (const t of input.postings?.titles ?? []) roles.push({ id: postingsId(t.key), label: t.label, names: names([t.label, t.key]) });
-  for (const [a, b, c] of input.postings?.links ?? []) if (c >= THRESHOLDS.postingsMinCosine) links.push([postingsId(a), postingsId(b), c, "p"]);
+  const kept = (input.postings?.links ?? []).filter(([, , c]) => c >= THRESHOLDS.postingsMinCosine);
+  // A title's strongest link to another job: not to a kind of itself ("technical product owner" for "product owner"
+  // holds every word of it and reads near 0.7, which would make every real neighbour look weak).
+  const kindOf = (a: string, b: string) => {
+    const [wa, wb] = [new Set(a.split(" ")), new Set(b.split(" "))];
+    return [...wa].every((w) => wb.has(w)) || [...wb].every((w) => wa.has(w));
+  };
+  const strongest = new Map<string, number>();
+  for (const [a, b, c] of kept) if (!kindOf(a, b)) for (const t of [a, b]) strongest.set(t, Math.max(strongest.get(t) ?? 0, c));
+  for (const [a, b, c] of kept) {
+    const w = Math.min(1, c / Math.sqrt((strongest.get(a) ?? c) * (strongest.get(b) ?? c))) * THRESHOLDS.postingsWeightScale;
+    links.push([postingsId(a), postingsId(b), w, "p"]);
+  }
 
   // Shared titles, across sources only (within one source a shared name is that source's own call):
   // a role's display title that another role lists among its names.

@@ -32,7 +32,8 @@ describe("group weights under an explicit sort", () => {
     }
 
     it("an alias title hit is above the divider", () => {
-        const aliases = buildTieredQuerySpecs({ q: "physical therapist", sort: "newest" }).filter((s) => s.query.attributesToSearchOn?.join() === "title");
+        // Title-only queries other than the roles next to it (tier 3, their own describe below).
+        const aliases = buildTieredQuerySpecs({ q: "physical therapist", sort: "newest" }).filter((s) => s.query.attributesToSearchOn?.join() === "title" && s.tier !== 3);
         assert.ok(aliases.length > 0);
         assert.ok(aliases.every((s) => s.tier === 1));
     });

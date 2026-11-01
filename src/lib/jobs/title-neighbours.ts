@@ -5,6 +5,7 @@
  * The table (data/title-neighbours.json) is read out of the title neighbour map (title-map.ts) by
  * scripts/build-title-map.ts (rules in scripts/title-map/search-table.ts); this module is the pure read side.
  */
+import { RANK_WORDS } from "../match/duty-signals";
 import tableJson from "./data/title-neighbours.json";
 import { expandTitleQuery, normalizeTitleName } from "./title-aliases";
 
@@ -31,15 +32,37 @@ const holdsEveryWord = (title: string, typedWords: string[]) => {
 };
 
 /**
- * Titles of the roles next to the typed one, strongest first, at most `max`. Looked up by the typed title and its
- * other names (`expandTitleQuery`). Leaves out the typed title, its other names, and any title holding every typed
- * word (the title search already finds those). An unknown title returns [].
+ * The table key a typed title reads as: the title itself or one of its other names (`expandTitleQuery`), else the
+ * same without rank words ("senior accountant" -> "accountant"), else its longest ending that is a key ("licensed
+ * electrician" -> "electrician").
+ */
+function lookupNames(typed: string, table: TitleNeighbourTable): string[] {
+  const found = (names: string[]) => names.filter((n) => spellings(n).some((k) => table.titles[k]));
+  const direct = found(expandTitleQuery(typed));
+  if (direct.length > 0) return direct;
+  const unranked = typed.split(" ").filter((w) => !RANK_WORDS.has(w)).join(" ");
+  if (unranked && unranked !== typed) {
+    const viaUnranked = found(expandTitleQuery(unranked));
+    if (viaUnranked.length > 0) return viaUnranked;
+  }
+  const ws = (unranked || typed).split(" ");
+  for (let n = ws.length - 1; n >= 1; n--) {
+    const ending = found([ws.slice(-n).join(" ")]);
+    if (ending.length > 0) return ending;
+  }
+  return [];
+}
+
+/**
+ * Titles of the roles next to the typed one, strongest first, at most `max` (`lookupNames` finds its key). Leaves
+ * out the typed title, its other names, and any title holding every typed word (the title search already finds
+ * those). An unknown title returns [].
  */
 export function relatedTitlesFor(q: string, max = 4, table: TitleNeighbourTable = DEFAULT_TABLE): string[] {
   const typed = normalizeTitleName(q);
   if (!typed) return [];
-  const names = expandTitleQuery(typed);
-  const own = new Set(names);
+  const names = lookupNames(typed, table);
+  const own = new Set([typed, ...expandTitleQuery(typed), ...names]);
   const typedWords = typed.split(" ");
   const seen = new Set<string>();
   const out: string[] = [];

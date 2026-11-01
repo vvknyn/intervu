@@ -1331,7 +1331,16 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
     configured: true,
     facetDistribution: body.facetsByIndex?.[JOBS_INDEX]?.distribution as FacetDistribution | undefined,
     tier1Total,
-    ...(hits.some((hit) => hit.tier === 3) ? { relatedTitles: [...new Set(specs.flatMap((s) => (s.title ? [s.title] : [])))] } : {}),
+    // The related titles this page holds rows for, in the order they were searched (strongest first).
+    ...(hits.some((hit) => hit.tier === 3)
+      ? {
+          relatedTitles: [
+            ...new Set(
+              specs.flatMap((s, i) => (s.title && (body.hits ?? []).some((hit) => hit._federation?.queriesPosition === i) ? [s.title] : [])),
+            ),
+          ],
+        }
+      : {}),
   };
 }
 
