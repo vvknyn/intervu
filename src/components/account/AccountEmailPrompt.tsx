@@ -70,7 +70,7 @@ export function AccountEmailPrompt({
 
     if (state === "pending-confirmation" && pendingEmail) {
         return (
-            <div className={className}>
+            <div data-header-line="band" className={className}>
                 <p className="text-sm">Check {pendingEmail}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                     Click the link in that email and we&apos;ll start sending your job alerts there.
@@ -100,7 +100,7 @@ export function AccountEmailPrompt({
     }
 
     return (
-        <div className={className}>
+        <div data-header-line="band" className={className}>
             <p className="text-sm">Add an email for job alerts</p>
             <p className="mt-1 text-xs text-muted-foreground">
                 You signed up with a username, so we have no way to reach you. Add an address and

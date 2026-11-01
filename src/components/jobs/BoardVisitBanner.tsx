@@ -86,6 +86,7 @@ export function BoardVisitBanner({
     return (
         <div
             data-testid="board-visit-banner"
+            data-header-line="band"
             className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-4 pb-2 text-sm text-muted-foreground"
         >
             <p role="status" className="inline-flex items-baseline gap-2">

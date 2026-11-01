@@ -53,6 +53,7 @@ export function ExtensionTile({ className }: { className?: string }) {
         <section
             aria-label={CHROME_EXTENSION_NAME}
             data-testid="extension-tile"
+            data-header-line="band"
             data-variant="band"
             className={cn(
                 "surface-paper flex items-center gap-2.5 rounded-panel border border-border bg-surface-postcard px-3 py-2 text-surface-postcard-foreground",
