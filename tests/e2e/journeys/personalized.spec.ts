@@ -1199,7 +1199,7 @@ test("the list gives each employer one row with its other roles inside it", { ta
 
   // Four roles fit, at two employers: two rows, not four, and a count that says both.
   await expect(page.getByTestId("job-row")).toHaveCount(2, { timeout: 60_000 });
-  await expect(page.getByTestId("result-line")).toHaveText("4 roles fit your résumé at 2 employers · best fit first");
+  await expect(page.getByTestId("result-line")).toHaveText("4 roles · ranked by fit");
 
   // The row with roles inside it is Orchard CRM's; Northstar Data's has none.
   const more = page.getByTestId("employer-more");
@@ -1221,5 +1221,90 @@ test("the list gives each employer one row with its other roles inside it", { ta
     await expect(row).toContainText("Toronto");
     await expect(row.getByRole("link")).toHaveAttribute("href", /\/jobs\//);
   }
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+/**
+ * J-JOBS-165 — Vivek, 2026-10-31, from a screenshot of the list ("this UI is also confusing... I think product manager is under
+ * Affirm"): "1 more at Affirm" sat between Affirm's card and the next company's card, with the card's divider above it and nothing
+ * below, so the next company's card read as Affirm's. An employer's card and its "N more" row are now one group: one surface, a
+ * rail from the logo into the row, the row under the title, no divider between them, and a gap before the next company, whose
+ * card (a single role) is not on that surface. Measured on the rendered page, so it holds at both widths.
+ */
+test("a company's card and its 'N more' row read as one group, and the next company's card is not part of it", { tag: ["@J-JOBS-165"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await seedResume(page, RICH_RESUME);
+  const roles = (prefix: string, company: string, titles: string[], firstAge: number) =>
+    titles.map((title, i) => described(posting(`${prefix}-0000-4000-8000-${String(firstAge * 10 + i).padStart(12, "0")}`, title, company, "senior", firstAge + i), askingForTheResumeWork(company, title)));
+  const harbor = roles("dddddddd", "Harbor Pay", ["Senior Customer Success Manager, Payments", "Customer Success Manager"], 1);
+  const lumen = roles("eeeeeeee", "Lumen Analytics", ["Technical Account Manager, Enterprise", "Solutions Engineer"], 3);
+  const cedar = roles("ffffffff", "Cedar Health", ["Customer Success Manager"], 5);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [...harbor, ...lumen, ...cedar], "journey-employer-group");
+  await openFitList(page);
+
+  // Three employers, five roles: three cards, and a "more" row under each of the two employers with a second role.
+  await expect(page.getByTestId("job-row")).toHaveCount(3, { timeout: 60_000 });
+  await expect(page.getByTestId("employer-more")).toHaveCount(2);
+  await expect(page.getByTestId("employer-rail")).toHaveCount(2);
+  const lumenMore = page.getByTestId("employer-more").nth(1);
+  await expect(lumenMore.getByTestId("employer-more-toggle")).toHaveText("1 more at Lumen Analytics");
+
+  // One read of the page, once the rows have stopped moving (the list's entrance and a late re-render both shift them): Lumen's card,
+  // the element right after it, and Cedar's card.
+  const measure = () =>
+    page.evaluate(() => {
+      if (document.getAnimations().some((a) => a.playState === "running")) return null;
+      const rows = [...document.querySelectorAll<HTMLElement>('[data-testid="job-row"]')];
+      const [, lead, next] = rows;
+      const more = lead?.nextElementSibling as HTMLElement | null;
+      if (!lead || !next || !more) return null;
+      const read = (el: HTMLElement) => ({ top: el.getBoundingClientRect().top, bottom: el.getBoundingClientRect().bottom, background: getComputedStyle(el).backgroundColor });
+      const divider = (el: HTMLElement) => parseFloat(getComputedStyle(el.querySelector(":scope > div:nth-of-type(2)")!).borderBottomWidth);
+      const titleX = lead.querySelector('[data-testid="job-title"]')!.getBoundingClientRect().x;
+      const toggleX = more.querySelector('[data-testid="employer-more-toggle"]')!.getBoundingClientRect().x;
+      return {
+        names: [lead.querySelector('[data-testid="job-row-meta"]')!.textContent, next.querySelector('[data-testid="job-row-meta"]')!.textContent],
+        moreTestId: more.getAttribute("data-testid"),
+        lead: { ...read(lead), dividerPx: divider(lead) },
+        more: read(more),
+        next: { ...read(next), dividerPx: divider(next) },
+        toggleOffset: toggleX - titleX,
+      };
+    });
+  // Read again until it holds: the list can redraw once after it first shows (a second search answer), and a read then is of a list that is gone.
+  let surface = "";
+  await expect(async () => {
+    const seen = await measure();
+    expect(seen).not.toBeNull();
+    expect(seen!.names[0]).toContain("Lumen Analytics");
+    expect(seen!.names[1]).toContain("Cedar Health");
+    // The card is followed by its own "N more" row, nothing between them.
+    expect(seen!.moreTestId).toBe("employer-more");
+    // One surface: the card and its row share it, and it is a colour the next company's card does not have.
+    expect(seen!.lead.background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(seen!.more.background).toBe(seen!.lead.background);
+    expect(seen!.next.background).not.toBe(seen!.lead.background);
+    // No line between the card and its row (a line there is what cut the row off from its card), the row starts where the card ends,
+    // and the next company's card keeps its own divider.
+    expect(seen!.lead.dividerPx).toBe(0);
+    expect(seen!.next.dividerPx).toBe(1);
+    expect(Math.abs(seen!.more.top - seen!.lead.bottom)).toBeLessThanOrEqual(1);
+    // A gap, in the list's own colour, before the next company.
+    expect(seen!.next.top - seen!.more.bottom).toBeGreaterThanOrEqual(8);
+    // The row sits under the title, not under the logo.
+    expect(Math.abs(seen!.toggleOffset)).toBeLessThanOrEqual(1);
+    surface = seen!.lead.background;
+  }).toPass({ timeout: 30_000 });
+
+  // Opened, the other roles are inside the same surface.
+  const role = lumenMore.getByTestId("employer-more-role");
+  await expect(async () => {
+    if (!(await role.isVisible())) await lumenMore.getByTestId("employer-more-toggle").click();
+    await expect(role).toBeVisible({ timeout: 1_000 });
+    const [roleBox, moreBox] = [await role.boundingBox(), await lumenMore.boundingBox()];
+    expect(roleBox!.y + roleBox!.height).toBeLessThanOrEqual(moreBox!.y + moreBox!.height);
+    expect(await lumenMore.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(surface);
+  }).toPass({ timeout: 30_000 });
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });

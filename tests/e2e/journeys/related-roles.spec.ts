@@ -3,7 +3,7 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboardi
 import { expect, test } from "./fixtures";
 
 /**
- * Journey for the roles next to a typed title — see tests/journeys/CATALOG.md (J-JOBS-165).
+ * Journey for the roles next to a typed title — see tests/journeys/CATALOG.md (J-JOBS-166).
  * Read-only: the search answer is replaced in the browser (no backend needed).
  *
  * Vivek, 2026-11-01: "feed it into our search engine so that the search also knows what to return". A title search
@@ -32,7 +32,7 @@ const posting = (n: number, title: string, company: string, tier: 1 | 2 | 3) => 
   tier,
 });
 
-test("a title search lists the roles next to it after the title matches, under a line naming them, before the mentions", { tag: ["@J-JOBS-165"] }, async ({ page, diagnostics }) => {
+test("a title search lists the roles next to it after the title matches, under a line naming them, before the mentions", { tag: ["@J-JOBS-166"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   const hits = [
     posting(1, "Technical Account Manager", "Maple Relay", 1),
