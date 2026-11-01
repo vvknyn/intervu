@@ -105,9 +105,9 @@ describe("header nav", () => {
         assert.match(src, /data-tour=\{tab\.tourSelector\}/);
     });
 
-    it("MobileTabBar paints glass material (calm pass R4), not ink siteChrome", () => {
+    it("MobileTabBar paints glass material (the floating capsule's `material-float`), not ink siteChrome", () => {
         const src = readFileSync(MOBILE_TABBAR, "utf8");
-        assert.match(src, /material-bar/);
+        assert.match(src, /material-float/);
         assert.doesNotMatch(src, /siteChrome/);
         assert.doesNotMatch(src, /bg-chrome/);
     });
@@ -115,7 +115,7 @@ describe("header nav", () => {
     it("MobileTabBar tab links use CHROME_FOCUS_VISIBLE for keyboard focus", () => {
         const src = readFileSync(MOBILE_TABBAR, "utf8");
         assert.match(src, /CHROME_FOCUS_VISIBLE/);
-        assert.match(src, /rounded-ctl/);
+        assert.match(src, /rounded-pill/);
         assert.doesNotMatch(src, /focus-visible:ring-/);
     });
 
