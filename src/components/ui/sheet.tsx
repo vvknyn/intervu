@@ -319,7 +319,7 @@ const SheetBar = ({
 SheetBar.displayName = "SheetBar"
 
 const sheetVariants = cva(
-    "fixed z-[150] flex flex-col overflow-y-auto overscroll-contain gap-4 bg-background border border-border text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+    "glass-surface [--material-alpha:0.9] fixed z-[150] flex flex-col overflow-y-auto overscroll-contain gap-4 bg-background border border-border text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
     {
         variants: {
             side: {

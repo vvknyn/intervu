@@ -194,7 +194,7 @@ export function JobCard({
                 // 3.85x / 3.87x / 4.61x in the :root block (WCAG 1.4.11 needs 3x). No
                 // thicker than the 1px the craft floor allows. The tint is only 1.2x the
                 // page, so the ring, not the fill, carries the 3x; text stays >=6.4x on it.
-                active ? "bg-brand-tint-bg inset-outline-1 outline-brand-muted" : "hover:bg-surface-hover",
+                active ? "glass-selected bg-brand-tint-bg inset-outline-1 outline-brand-muted" : "hover:bg-surface-hover",
             )}
         >
             <div className="self-start">

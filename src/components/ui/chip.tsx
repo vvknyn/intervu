@@ -13,7 +13,7 @@ export const chipVariants = cva(
   // A chip carries a label, never code, so it takes the sans — with tabular
   // figures, since chips routinely hold counts that sit in a row and should
   // not jitter as the numbers change.
-  "ctl-md inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-pill bg-surface-2 px-3 text-sm tabular-nums text-muted-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
+  "glass-chip ctl-md inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-pill bg-surface-2 px-3 text-sm tabular-nums text-muted-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {

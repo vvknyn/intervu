@@ -129,6 +129,11 @@
 
 
 :root {
+  /* The two corner roles as runtime values: `@theme inline` bakes a token into
+     the utility, so `--radius-ctl|panel` point at these and the look switch
+     (data-look, below) can move them without touching a call site. */
+  --ctl-radius: 12px;
+  --panel-radius: 16px;
   /* 0 by default; the one place that actually renders the bar (the
      `@media (max-width: 1023px) { body:has([data-mobile-tabbar]) }` rule
      below) is the only place that raises it, to 5.25rem: the floating bar's
@@ -582,8 +587,8 @@
   --radius-2xl: 20px;
   --radius-3xl: 24px;
   --radius-4xl: 32px;
-  --radius-ctl: 12px;
-  --radius-panel: 16px;
+  --radius-ctl: var(--ctl-radius);
+  --radius-panel: var(--panel-radius);
   --radius-pill: 9999px;
   --color-sidebar: rgb(var(--sidebar));
   --color-sidebar-foreground: rgb(var(--sidebar-foreground));
@@ -831,6 +836,103 @@ body:has([data-shell="bleed"]) {
   @media (prefers-reduced-transparency: reduce) {
     background-color: rgb(var(--background));
   }
+}
+
+/* LOOK — the glass look (iOS 27 on the phone, macOS 27 on the desktop) behind ONE
+   switch: <html data-look="glass|classic">, stamped before first paint by the
+   inline script in app/layout.tsx and flipped by <LookSection> (Settings). "classic" is the
+   look before this existed, byte for byte: every rule below is keyed on
+   :root[data-look="glass"], so removing the attribute removes the look.
+   What Apple's WWDC26 design pages say, and what this takes from it:
+   - glass is the navigation layer that floats over content (bars, sheets, menus,
+     popovers), never the content cards themselves -> `glass-surface` is added
+     to those primitives only; cards keep bg-card.
+   - a darkened edge and a brighter specular highlight give depth -> the rim +
+     inset highlight already in `material-float`.
+   - macOS windows share one tighter corner radius -> desktop panel 12px, control
+     8px; the phone keeps the large concentric corners of iOS -> panel 28px,
+     control 16px, buttons capsule.
+   - a uniform toolbar appears when content scrolls under floating bars -> the
+     flush header (`material-bar`) gains a hairline edge.
+   `glass-surface` is the look gate around the ONE glass recipe (`material-float`),
+   not a second material. Reduced transparency / no-backdrop fallbacks come from
+   `material-float`'s own @media / @supports branches. */
+@utility glass-surface {
+  :root[data-look="glass"] & {
+    @apply material-float;
+    background-color: rgb(var(--background) / var(--material-alpha, 0.9));
+    box-shadow: var(--shadow-overlay), var(--shadow-bevel-highlight);
+    @media (prefers-reduced-transparency: reduce) {
+      background-color: rgb(var(--background));
+    }
+  }
+}
+:root[data-look="glass"] {
+  --ctl-radius: 8px;
+  --panel-radius: 12px;
+}
+@media (max-width: 1023px) {
+  :root[data-look="glass"] {
+    --ctl-radius: 16px;
+    --panel-radius: 28px;
+  }
+  /* A button that writes its own corner (a row-shaped menu item, a switch) keeps it. */
+  :root[data-look="glass"] :is(.ctl-sm, .ctl-md, .ctl-lg):is(button, a, [role="button"]):not([class*="rounded-"]) {
+    border-radius: var(--radius-pill);
+  }
+}
+/* Buttons (HIG Buttons, Color > Liquid Glass color): colour goes on the BACKGROUND of the one
+   prominent action (the brand-filled default button); every other button is a monochrome label on
+   a neutral glass fill, not brand-coloured text. A call site that paints its own danger/white text
+   (Delete account) keeps it. Inline `link` buttons are copy, not controls, and keep the brand. */
+:root[data-look="glass"] [data-slot="button"]:is([data-variant="outline"], [data-variant="quiet"], [data-variant="ghost"], [data-variant="secondary"]):not([class*="danger"], [class*="text-white"]) {
+  color: rgb(var(--foreground));
+  background-color: rgb(var(--foreground) / 0.06);
+  border-color: rgb(var(--foreground) / 0.1);
+  box-shadow: var(--shadow-bevel-highlight);
+}
+@media (hover: hover) {
+  :root[data-look="glass"] [data-slot="button"]:is([data-variant="outline"], [data-variant="quiet"], [data-variant="ghost"], [data-variant="secondary"]):not([class*="danger"], [class*="text-white"]):hover {
+    background-color: rgb(var(--foreground) / 0.1);
+  }
+}
+@utility glass-chip {
+  :root[data-look="glass"] & {
+    border: 1px solid rgb(var(--foreground) / 0.1);
+    box-shadow: var(--shadow-bevel-highlight);
+  }
+}
+@utility glass-selected {
+  :root[data-look="glass"] & {
+    border-radius: var(--radius-ctl);
+  }
+}
+:root[data-look="glass"] .material-bar {
+  border-bottom: 1px solid rgb(var(--foreground) / 0.08);
+}
+/* Tabs (HIG Segmented controls): one grouped capsule track, the active item a filled capsule
+   thumb, instead of the 2px underline. Same markup, same state attributes. The header's nav
+   tabs have no track (they are the toolbar). The list keeps its `scroll-hit` block padding
+   (the tap band), so the track is painted on the content box only. */
+:root[data-look="glass"] [data-slot="tabs-list"] {
+  width: fit-content;
+  gap: 0.125rem;
+  border-radius: var(--radius-pill);
+  background-color: rgb(var(--foreground) / 0.06);
+  background-clip: content-box;
+}
+:root[data-look="glass"] :is([data-slot="tabs-trigger"], [data-slot="tab-item"]) {
+  isolation: isolate;
+  border-radius: var(--radius-pill);
+}
+:root[data-look="glass"] :is([data-slot="tabs-trigger"], [data-slot="tab-item"])::after {
+  inset: calc((100% - 2rem) / 2 + 0.125rem) 0.125rem;
+  height: auto;
+  border-radius: var(--radius-pill);
+  z-index: -1;
+}
+:root[data-look="glass"] :is([data-slot="tabs-trigger"], [data-slot="tab-item"]):is([data-state="active"], [aria-current], [aria-pressed="true"])::after {
+  background-color: rgb(var(--surface-3));
 }
 
 /* State indicator drawn inside the box that paints ABOVE the box's own descendants.
