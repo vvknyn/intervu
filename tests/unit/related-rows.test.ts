@@ -18,7 +18,7 @@ import {
     searchMeili,
 } from "../../src/lib/jobs/meilisearch";
 import { keepsRelatedRow } from "../../src/lib/jobs/related-rows";
-import { relatedSuggestions, type TitleNeighbourTable } from "../../src/lib/jobs/title-neighbours";
+import { relatedSuggestions, relatedTitlesFor, type TitleNeighbourTable } from "../../src/lib/jobs/title-neighbours";
 import { MATCH_BAND_GOOD_MIN, MATCH_BAND_STRONG_MIN, type MatchScore } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -163,4 +163,20 @@ describe("type-ahead suggests related roles from the same table", () => {
         assert.deepEqual(relatedSuggestions("sous chef", ["Sous Chef"], 3, table), []);
         assert.deepEqual(relatedSuggestions("xyz", [], 3, table), []);
     });
+});
+
+describe("a typed word that names a property of a plain object is not a title", () => {
+    // "Constructor" is a job title in construction; the table is a plain object whose inherited `constructor` is a
+    // function, so reading it as a key made every search ending in it throw.
+    for (const q of ["constructor", "bridge constructor", "senior constructor", "__proto__", "hasOwnProperty"]) {
+        it(`"${q}": no related roles, no type-ahead roles, and the search runs`, async () => {
+            assert.deepEqual(relatedTitlesFor(q), []);
+            assert.deepEqual(relatedSuggestions(q, [q]), []);
+            await primeNonCompanyIntent(q);
+            installMock([{ ...job("c", "Bridge Constructor"), _federation: { queriesPosition: 0 } }], []);
+            const result = await searchMeili({ q, limit: 20, offset: 0, fromResume: true, relatedPreview: true });
+            mock.reset();
+            assert.deepEqual(result.hits.map((h) => h.id), ["c"]);
+        });
+    }
 });
