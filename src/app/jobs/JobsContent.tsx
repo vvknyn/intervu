@@ -84,6 +84,8 @@ import {
     seamSummary,
     shortDate,
     tieredSeamIndex,
+    relatedSeamIndex,
+    relatedSeamSummary,
 } from "@/lib/jobs/presentation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
@@ -2915,6 +2917,10 @@ export function JobsContent({
     // too — `primaryIndex >= 0` would otherwise always match at cluster 0.
     const clusterSeamIndex =
         seamIndex > 0 ? clusters.findIndex((c) => c.primaryIndex >= seamIndex) : -1;
+    // The roles next to the typed one (tier 3) sit in their own band between the title matches and the mentions,
+    // under a line that names them; a cluster never straddles it either (it keys on the tier).
+    const relatedSeam = relatedSeamIndex(displayHits);
+    const clusterRelatedSeamIndex = relatedSeam >= 0 ? clusters.findIndex((c) => c.primaryIndex >= relatedSeam) : -1;
 
     // The flat list of jobs actually rendered as their own row right now —
     // every cluster's primary, plus its variants only while expanded, in
@@ -6328,6 +6334,17 @@ export function JobsContent({
                                             // longer describes anything real, so it's
                                             // suppressed rather than drawn at a now-
                                             // meaningless position.
+                                            if (!fitActive && i === clusterRelatedSeamIndex) {
+                                                rows.unshift(
+                                                    <p
+                                                        key="related-seam"
+                                                        data-testid="related-seam"
+                                                        className="mb-1 pt-4 pb-1 text-xs text-muted-foreground"
+                                                    >
+                                                        {relatedSeamSummary(result?.effectiveQ ?? query, result?.relatedTitles ?? [])}
+                                                    </p>,
+                                                );
+                                            }
                                             if (fitActive || i !== clusterSeamIndex) return rows;
                                             return [
                                                 <p
@@ -6335,7 +6352,7 @@ export function JobsContent({
                                                     data-testid="relevance-seam"
                                                     className="mb-1 pt-4 pb-1 text-xs text-muted-foreground"
                                                 >
-                                                    {seamSummary(seamIndex, total, displayHits.length)}
+                                                    {seamSummary(seamIndex, total, displayHits.length, displayHits.slice(0, seamIndex).filter((h) => h.tier !== 3).length)}
                                                 </p>,
                                                 ...rows,
                                             ];

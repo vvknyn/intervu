@@ -1852,11 +1852,24 @@ function titledNounVerb(seamIndex: number): { noun: string; verb: string } {
  * Relevance ranking only — see `seamSummarySorted` for sorted modes, where
  * `total` can no longer be trusted to mean "more mention it".
  */
-export function seamSummary(seamIndex: number, total: number, hitsLength: number): string {
+export function seamSummary(seamIndex: number, total: number, hitsLength: number, titled = seamIndex): string {
     const remaining = total < seamIndex ? hitsLength - seamIndex : total - seamIndex;
     const n = Math.max(remaining, 0);
-    const { noun, verb } = titledNounVerb(seamIndex);
-    return `${seamIndex.toLocaleString()} ${noun} ${verb} titled this · ${n.toLocaleString()} more mention it`;
+    // `titled` leaves out the roles next to the typed one (`tier` 3) that sit above the seam: they are not titled this.
+    const { noun, verb } = titledNounVerb(titled);
+    return `${titled.toLocaleString()} ${noun} ${verb} titled this · ${n.toLocaleString()} more mention it`;
+}
+
+/** Where the roles next to the typed one begin in a tiered result (`tier` 3, `relatedRoleSpecs`); -1 when none is loaded. */
+export function relatedSeamIndex(hits: PublicJob[]): number {
+    return hits.findIndex((h) => h.tier === 3);
+}
+
+/** The line over the roles next to the typed one: "Roles next to Technical Account Manager: Customer Success Manager, Solutions Engineer and Implementation Manager". */
+export function relatedSeamSummary(q: string, titles: string[]): string {
+    const typed = q.trim();
+    const list = titles.length > 1 ? `${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}` : (titles[0] ?? "");
+    return list ? `Roles next to ${typed}: ${list}` : `Roles next to ${typed}`;
 }
 
 /**
