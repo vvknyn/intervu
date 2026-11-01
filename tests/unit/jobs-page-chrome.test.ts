@@ -215,7 +215,7 @@ describe("jobs page chrome guards", () => {
         const src = readFileSync(PAGE, "utf8");
         const advancedGate = src.indexOf("{showSearchHome ? ("); // #652 (f6a8e9cc) dropped showAdvancedSearch; the onboarding card's gate went with the card
         assert.notStrictEqual(advancedGate, -1, "advanced-search masthead gate moved — update this test");
-        const atRestMasthead = src.indexOf("{atRest ? (", advancedGate);
+        const atRestMasthead = src.indexOf("{listHeader.hero ? (", advancedGate);
         assert.notStrictEqual(atRestMasthead, -1, "at-rest masthead ternary moved — update this test");
         // a0e046d7: the visible masthead h1 is the shared <PageTitle> (heading.tsx renders <h1>).
         const visibleH1 = src.indexOf("<PageTitle>", atRestMasthead);
@@ -303,7 +303,7 @@ describe("jobs page chrome guards", () => {
         const src = readFileSync(PAGE, "utf8");
         const advancedGate = src.indexOf("{showSearchHome ? ("); // #652 (f6a8e9cc) dropped showAdvancedSearch; the onboarding card's gate went with the card
         assert.notStrictEqual(advancedGate, -1);
-        const atRestMasthead = src.indexOf("{atRest ? (", advancedGate);
+        const atRestMasthead = src.indexOf("{listHeader.hero ? (", advancedGate);
         assert.notStrictEqual(atRestMasthead, -1);
         const end = src.indexOf('<h1 className="sr-only">Jobs</h1>', atRestMasthead);
         assert.notStrictEqual(end, -1);

@@ -134,13 +134,19 @@ const RESUME_ACTION = { label: "Résumé", href: "/resume" };
 
 /**
  * The one quiet line the résumé-ranked list shows under its header, which already carries the count and "each a weaker fit" /
- * "posted over 30 days ago": it adds only what the header lacks. The paragraph notices above are for agent prose.
+ * "posted over 30 days ago": it adds only what the header lacks, and only when that is something to do. A list of older roles
+ * says "all posted over 30 days ago" in its count and each card says how old it is, so a second line saying some may be filled
+ * adds nothing (the phone header said it twice, 2026-11-01); a weak list's one action is to add detail to the résumé. The
+ * paragraph notices above are for agent prose.
  */
 export function listNoticeLine(kind: DeckListKind): { text: string; action?: { label: string; href: string } } | null {
-    if (kind === "near") return { text: "Add detail to your résumé for closer matches", action: RESUME_ACTION };
-    if (kind === "older") return { text: "Some may already be filled · each card shows its age" };
-    if (kind === "older-near") return { text: "Some may already be filled · add detail to your résumé for closer matches", action: RESUME_ACTION };
+    if (kind === "near" || kind === "older-near") return { text: "Add detail to your résumé for closer matches", action: RESUME_ACTION };
     return null;
+}
+
+/** Whether a résumé-ranked list has anything to say under its count: the notice, the evaluated/ranked-lower line, or the languages control (`RecommendedListNotes`). */
+export function listNotesPresent(summary: DeckLeftOutSummary, hasLanguages: boolean): boolean {
+    return Boolean(listNoticeLine(deckListKind(summary)) || formatRankedLine(summary) || hasLanguages);
 }
 
 /** The roles a list ranks lower, and the roles it leaves out: the two counts the one disclosure line (`formatRankedLine`) gives. */
