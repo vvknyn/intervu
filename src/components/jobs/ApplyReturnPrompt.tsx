@@ -123,7 +123,7 @@ export function ApplyReturnPrompt({
                 inline
                     ? "flex flex-col gap-3 rounded-panel border border-border-strong bg-surface-2 px-4 py-3"
                     : // page-scale-allow: a fixed toast, not a page column
-                      "fixed inset-x-3 z-[var(--z-apply-return)] mx-auto flex w-auto max-w-sm flex-col gap-3 rounded-panel border border-border-strong bg-surface-2 px-4 py-3 shadow-[var(--shadow-overlay)] bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+0.75rem)] sm:inset-x-auto sm:right-4 sm:left-auto lg:bottom-24"
+                      "glass-surface fixed inset-x-3 z-[var(--z-apply-return)] mx-auto flex w-auto max-w-sm flex-col gap-3 rounded-panel border border-border-strong bg-surface-2 px-4 py-3 shadow-[var(--shadow-overlay)] bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+0.75rem)] sm:inset-x-auto sm:right-4 sm:left-auto lg:bottom-24"
             }
         >
             <div className="min-w-0">

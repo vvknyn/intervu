@@ -1,3 +1,4 @@
+import { DEFAULT_LOOK, LOOK_BOOT_SCRIPT } from "@/lib/ui/look";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google";
@@ -145,6 +146,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`dark ${display.variable} ${sans.variable} ${mono.variable}`}
+      data-look={DEFAULT_LOOK}
       suppressHydrationWarning
     >
       <head>
@@ -154,6 +156,8 @@ export default function RootLayout({
             __html: "html,body{background:#0B0D12}",
           }}
         />
+        {/* The look switch (lib/ui/look.ts): stamp data-look from ?look= / storage before first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: LOOK_BOOT_SCRIPT }} />
         {/* Dark-only FOUC guard — stamp `.dark` before first paint; no light path. */}
         <script
           dangerouslySetInnerHTML={{

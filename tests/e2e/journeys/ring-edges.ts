@@ -59,9 +59,15 @@ export async function edgeMatch(page: Page, row: Locator, colorVar: string, widt
       const d = g.dpr;
       const mid = (width * d) / 2; // device px from the row's edge to the middle of the indicator
       const L = (g.left - ox) * d, R = (g.right - ox) * d, T = (g.top - oy) * d, B = (g.bottom - oy) * d;
-      // The last 16 CSS px at each end of an edge are left out: a row in a rounded list card has its corners clipped by the card.
+      // The ends of each edge are left out: a row in a rounded list card has its corners clipped by the card, so the
+      // cut is the card corner (`--radius-panel`: 16px, 28px on a phone in the glass look), at least 16 CSS px.
+      const card = document.createElement("div");
+      card.style.borderRadius = "var(--radius-panel)";
+      document.body.append(card);
+      const cut = Math.max(16, parseFloat(getComputedStyle(card).borderTopLeftRadius) || 0);
+      card.remove();
       const span = (a: number, b: number) => {
-        const lo = Math.ceil(a + 16 * d), hi = Math.floor(b - 16 * d);
+        const lo = Math.ceil(a + cut * d), hi = Math.floor(b - cut * d);
         return Array.from({ length: Math.max(0, hi - lo) }, (_, i) => lo + i);
       };
       const col = (x: number, ys: number[]) => ys.map((y): [number, number] => [x, y]);

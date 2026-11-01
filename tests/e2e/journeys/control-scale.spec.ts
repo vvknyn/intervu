@@ -150,8 +150,10 @@ const buttonFaceFindings = (page: Page) =>
         const STEPS: Record<string, number> = { "ctl-sm": 24, "ctl-md": 32, "ctl-lg": 44 };
         const TYPE: Record<number, number> = { 24: 12, 32: 14, 44: 16 };
         const stepOf = (el: Element) => Object.keys(STEPS).find((c) => el.classList.contains(c));
-        const probe = document.createElement("div");
-        probe.style.borderRadius = "var(--radius-ctl)";
+        // The corner a bare face gets from the design: the control corner, or the capsule the glass look
+        // gives a phone's buttons (globals.css LOOK). A face drawn with any other corner is overridden somewhere.
+        const probe = document.createElement("button");
+        probe.className = "ctl-button ctl-md";
         document.body.appendChild(probe);
         const ctlRadius = getComputedStyle(probe).borderTopLeftRadius;
         probe.remove();
@@ -179,7 +181,7 @@ const buttonFaceFindings = (page: Page) =>
             const ownCorner = [...el.classList].some((c) => /(?:^|:)rounded(?:-|$)/.test(c));
             if (face && !ownCorner) {
                 const corners = [cs.borderTopLeftRadius, cs.borderTopRightRadius, cs.borderBottomRightRadius, cs.borderBottomLeftRadius];
-                if (corners.some((c) => c !== ctlRadius)) findings.push(`${name}: corners ${corners.join(" ")} (want the control corner, ${ctlRadius})`);
+                if (corners.some((c) => c !== ctlRadius)) findings.push(`${name}: corners ${corners.join(" ")} (want the face corner, ${ctlRadius})`);
             }
         }
         return { measured, findings };
