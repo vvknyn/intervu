@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { TitleSourceMeta } from "../src/lib/jobs/title-aliases";
+import { normalizeTitleName, type TitleSourceMeta } from "../src/lib/jobs/title-aliases";
 import { assembleTitleMap, THRESHOLDS, type PostingLinks } from "./title-map/graph";
 import { searchNeighbourTable } from "./title-map/search-table";
 import { fetchEsco, parseCrosswalk, parseOnet, parseXlsxSheet, readEscoCache } from "./title-map/sources";
@@ -107,7 +107,9 @@ async function main() {
   const out = resolve(outArg ?? join(here, "../src/lib/jobs/data/title-map.json"));
   const json = JSON.stringify(map) + "\n";
   writeFileSync(out, json);
-  const table = postings ? searchNeighbourTable(map, postings.generatedAt) : undefined;
+  const table = postings
+    ? searchNeighbourTable(map, postings.generatedAt, {}, new Map(postings.titles.map((t) => [normalizeTitleName(t.label), t.postings])))
+    : undefined;
   const tableOut = join(dirname(out), "title-neighbours.json");
   if (table) writeFileSync(tableOut, JSON.stringify(table) + "\n");
 

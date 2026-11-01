@@ -83,6 +83,8 @@ export function searchNeighbourTable(
   map: TitleMap,
   generatedAt: string,
   opts: Partial<typeof SEARCH_TABLE_DEFAULTS> = {},
+  /** Normalised posting title -> its open postings (the postings layer's counts). */
+  postingCounts: ReadonlyMap<string, number> = new Map(),
 ): TitleNeighbourTable {
   const { perTitle, minWeight } = { ...SEARCH_TABLE_DEFAULTS, ...opts };
 
@@ -111,6 +113,24 @@ export function searchNeighbourTable(
   // The words a job title ends in, read off the classifications' own occupation titles.
   const heads = new Set(map.roles.filter((r) => !r.id.startsWith("postings:")).map((r) => headOf(r.label)));
   const jobTitle = (key: string) => words(key).length >= 2 && heads.has(headOf(key));
+  // Posting titles the search reads as one (a word's plural or singular) read as the commonest of them (rule 6).
+  const fold = (key: string) => words(key).map(singular).join(" ");
+  const commonest = new Map<string, string>();
+  for (const k of postingKeys) {
+    const c = commonest.get(fold(k));
+    if (!c || (postingCounts.get(k) ?? 0) > (postingCounts.get(c) ?? 0)) commonest.set(fold(k), k);
+  }
+  const postingId = new Map(map.roles.filter((r) => r.id.startsWith("postings:")).map((r) => [normalizeTitleName(r.label), r.id]));
+  const asSearched = new Map<string, string | null>();
+  const searchedAs = (target: string): string | null => {
+    const c = postingKeys.has(target) ? commonest.get(fold(target)) : undefined;
+    if (!c || c === target) return target;
+    if (!asSearched.has(target)) {
+      const linked = roleNeighbours(map, postingId.get(target)!, Number.MAX_SAFE_INTEGER, 0).some((n) => n.role.id === postingId.get(c));
+      asSearched.set(target, linked ? c : null);
+    }
+    return asSearched.get(target)!;
+  };
 
   const titles: Record<string, string[]> = {};
   for (const [key, roots] of rootsOf) {
@@ -118,7 +138,9 @@ export function searchNeighbourTable(
     for (const root of roots) {
       for (const n of roleNeighbours(map, root, Number.MAX_SAFE_INTEGER, minWeight)) {
         if (roots.has(n.role.id) || n.kinds.every((k) => k === "n")) continue;
-        for (const target of ownBy.get(n.role.id) ?? []) {
+        for (const own of ownBy.get(n.role.id) ?? []) {
+          const target = searchedAs(own);
+          if (!target) continue;
           const sameJob = [...(rootsOf.get(target) ?? [])].some((id) => roots.has(id));
           if (target === key || sameJob || holdsEveryWord(target, key) || !jobTitle(target)) continue;
           const path = paths.get(target) ?? { weights: [], postings: false };

@@ -183,6 +183,43 @@ describe("title map", () => {
     });
   });
 
+  it("reads titles one plural apart as the commonest when they are the same work, and drops one that searches as another job", () => {
+    const titles = [
+      { key: "accountant", label: "Accountant", postings: 300, companies: 40 },
+      { key: "accounts executive", label: "Accounts Executive", postings: 46, companies: 12 },
+      { key: "account executive", label: "Account Executive", postings: 4487, companies: 14 },
+      { key: "sales engineer", label: "Sales Engineer", postings: 200, companies: 30 },
+      { key: "solution engineer", label: "Solution Engineer", postings: 152, companies: 13 },
+      { key: "solutions engineer", label: "Solutions Engineer", postings: 626, companies: 13 },
+    ];
+    const plurals = assembleTitleMap({
+      sources: [],
+      esco: [],
+      onet: {
+        occupations: [
+          { code: "13-2011.00", title: "Accountants", titles: [] },
+          { code: "41-9031.00", title: "Sales Engineers", titles: [] },
+          { code: "11-1011.00", title: "Chief Executives", titles: [] },
+        ],
+        related: [],
+      },
+      crosswalk: [],
+      postings: {
+        generatedAt: "2026-11-01",
+        titles,
+        links: [
+          ["accountant", "accounts executive", 0.6],
+          ["sales engineer", "solution engineer", 0.6],
+          ["solution engineer", "solutions engineer", 0.7],
+        ],
+      },
+    });
+    const counts = new Map(titles.map((t) => [t.key, t.postings]));
+    const table = searchNeighbourTable(plurals, "2026-11-01", {}, counts);
+    assert.equal(table.titles["accountant"], undefined, "Accounts Executive searches as the sales title");
+    assert.deepEqual(table.titles["sales engineer"], ["Solutions Engineer"]);
+  });
+
   it("combines agreeing sources as a noisy-or", () => {
     assert.equal(combineWeights([0.5, 0.5]), 0.75);
     assert.equal(combineWeights([]), 0);
