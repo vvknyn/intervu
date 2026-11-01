@@ -16,6 +16,8 @@
  *    requirement and duty terms the fit score reads.
  * 3. Links: a title's vector is the share of its postings using each term times the term's IDF
  *    across titles; cosine through an inverted index; the top LINKS_PER_TITLE at or above MIN_COSINE.
+ *    MIN_COSINE is a low floor so one laptop run is enough: the builder sets the real bar
+ *    (THRESHOLDS.postingsMinCosine) once the cosine spread printed at the end has been read.
  * Writes titles (key, label, counts) and links only: no posting text, no company names.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -35,8 +37,8 @@ export const PARAMS = {
   MAX_TITLES: env("MAX_TITLES", 2000),
   PER_TITLE: env("PER_TITLE", 15),
   PER_COMPANY: 3,
-  LINKS_PER_TITLE: env("LINKS_PER_TITLE", 10),
-  MIN_COSINE: env("MIN_COSINE", 0.25),
+  LINKS_PER_TITLE: env("LINKS_PER_TITLE", 15),
+  MIN_COSINE: env("MIN_COSINE", 0.08),
   /** A term counts for a title when at least this share of its postings use it. */
   MIN_TERM_SHARE: 0.15,
   PAUSE_MS: env("PAUSE_MS", 120),
@@ -245,7 +247,30 @@ async function main() {
   };
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(out) + "\n");
-  console.log(JSON.stringify({ out: outPath, requests, exactTitles: rawCounts.size, keys: byKey.size, kept: kept.length, withTerms: vectors.size, links: links.length }, null, 2));
+  const strongest = new Map<string, number>();
+  for (const [a, , c] of links) strongest.set(a, Math.max(strongest.get(a) ?? 0, c));
+  const spread = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b);
+    const at = (q: number) => (s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 0);
+    return { n: s.length, p10: at(0.1), p25: at(0.25), p50: at(0.5), p75: at(0.75), p90: at(0.9) };
+  };
+  console.log(
+    JSON.stringify(
+      {
+        out: outPath,
+        requests,
+        exactTitles: rawCounts.size,
+        keys: byKey.size,
+        kept: kept.length,
+        withTerms: vectors.size,
+        links: links.length,
+        cosine: { allLinks: spread(links.map((l) => l[2])), strongestPerTitle: spread([...strongest.values()]) },
+        titlesWithoutLinks: vectors.size - strongest.size,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
