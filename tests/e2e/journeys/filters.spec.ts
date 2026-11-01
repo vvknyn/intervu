@@ -46,6 +46,8 @@ test("A custom minimum salary goes into the URL and a reload keeps it", { tag: [
 
 /** The applied-filter chips, in the header band on a laptop and under the controls on a phone. */
 const appliedChips = (page: Page) => page.locator('[data-testid="topbar-docked-chip"], [data-testid="active-filter-chip"]');
+/** The work-mode chip alone: a visitor whose IP maps to a country also sees that country's default chip (Canada), so a bare chip count depends on where the test runs. */
+const workModeChips = (page: Page) => appliedChips(page).filter({ hasText: /work mode/i });
 
 test(
   "On a laptop the filters are a rail on the left of the list: pick a work mode, see its chip, Clear all empties both, the rail collapses from its own button and stays collapsed over a reload",
@@ -64,12 +66,12 @@ test(
     const work = await openGroup(panel, "work_type");
     await work.getByRole("checkbox").first().check();
     await expect.poll(() => new URL(page.url()).searchParams.get("work")).not.toBeNull();
-    await expect(appliedChips(page), "the applied filter is named as a chip").toHaveCount(1);
+    await expect(workModeChips(page), "the applied filter is named as a chip").toHaveCount(1);
     await expect(page.getByTestId("filters-clear-all")).toBeEnabled();
 
     await page.getByTestId("filters-clear-all").click();
     await expect.poll(() => new URL(page.url()).searchParams.get("work")).toBeNull();
-    await expect(appliedChips(page)).toHaveCount(0);
+    await expect(workModeChips(page)).toHaveCount(0);
     await expect(page.getByTestId("filters-clear-all")).toBeDisabled();
 
     // The rail's own Hide button collapses it; the list takes the width and a reload keeps it hidden.
