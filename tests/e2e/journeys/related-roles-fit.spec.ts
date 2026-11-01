@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
+import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
 import { answerListSearch, isListSearch } from "./list-search";
 
 /**
@@ -127,5 +128,20 @@ test("type-ahead lists the roles next to what is typed under the title suggestio
 
   await related.getByRole("option", { name: "Customer Success Manager" }).click();
   await expect(page).toHaveURL(/[?&]q=Customer(\+|%20)Success(\+|%20)Manager(&|$)/);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("a search for a title ending in a word a plain object already holds ('bridge constructor') answers like any other search", { tag: ["@J-SRCH-43"] }, async ({ page, diagnostics }) => {
+  // The related-roles table is a plain object: its inherited `constructor` read as a table key and every search
+  // ending in "constructor" came back "Search is temporarily unavailable". This runs the real search, unmocked.
+  await returningVisitor(page);
+  const answered = page.waitForResponse((res) => isListSearch(res.request()), { timeout: 45_000 });
+  await page.goto("/jobs?q=bridge%20constructor");
+  const res = await answered;
+  const body = (await res.json()) as { configured?: boolean; unavailable?: boolean };
+  test.skip(body.configured === false, "no search backend behind this server");
+  expect(res.status()).toBe(200);
+  expect(body.unavailable ?? false, "the search ran rather than failing").toBe(false);
+  await expect(page.getByText(SEARCH_UNAVAILABLE_MESSAGE)).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
