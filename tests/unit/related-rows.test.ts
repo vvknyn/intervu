@@ -2,8 +2,9 @@
  * The roles next to a typed title, used by fit and by type-ahead (Vivek, 2026-11-01: "used intelligently to
  * appropriately adjust the search results...and also use the same logic for autosuggest or type ahead too").
  *
- *  - A Best match first page (`relatedPreview`) also reads the related roles' first rows, appended after its own and
- *    marked, outside the paging and the total (`runTieredRetrieval`).
+ *  - A typed search's first page (`relatedPreview`, asked by the agent's search_jobs; not by Best match, whose list is
+ *    ranked by a résumé and holds the typed title only) also reads the related roles' first rows, appended after its
+ *    own and marked, outside the paging and the total (`runTieredRetrieval`).
  *  - A list ranked by fit keeps such a row only when it fits as Strong or Good (`keepsRelatedRow`).
  *  - Type-ahead suggests related roles from the same table, only titles postings use (`relatedSuggestions`).
  */
@@ -92,7 +93,9 @@ async function primeNonCompanyIntent(q: string) {
 
 const Q = "technical account manager";
 
-describe("a Best match first page reads the related roles' first rows too", () => {
+// The agent's typed search (`search_jobs`) asks for the preview; the site's Best match no longer does, and a résumé-ranked search
+// (`fromResume`) has no related-role band at all (tests/unit/related-roles-fit-list.test.ts).
+describe("a typed search's first page reads the related roles' first rows too", () => {
     it("appends the related rows the page does not hold, marked, outside the total; names their titles", async () => {
         await primeNonCompanyIntent(Q);
         const tam = job("a", "Technical Account Manager");
@@ -100,7 +103,7 @@ describe("a Best match first page reads the related roles' first rows too", () =
             { ...job("b", "Customer Success Manager"), _federation: { queriesPosition: 0 } },
             { ...tam, _federation: { queriesPosition: 1 } },
         ]);
-        const result = await searchMeili({ q: Q, limit: 300, offset: 0, withFacets: true, fromResume: true, relatedPreview: true });
+        const result = await searchMeili({ q: Q, limit: 300, offset: 0, withFacets: true, relatedPreview: true });
         mock.reset();
 
         const multi = calls.filter((c) => c.url.endsWith("/multi-search"));
