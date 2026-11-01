@@ -1,21 +1,28 @@
 /**
- * Where the facet controls render on /jobs — inline expand at lg+, bottom
- * sheet below. Class strings stay at the call site in app/jobs/page.tsx;
- * this file holds the mount-site decision only.
+ * Where the filters render on /jobs.
+ *
+ *   rail   — lg+ with a results list on screen: a left column beside the list,
+ *            open until the searcher hides it (the Filters button toggles it).
+ *   drawer — lg+ with no list yet (nothing to put a column beside): a left
+ *            drawer the Filters button opens.
+ *   sheet  — below lg: a bottom sheet the Filters button opens.
+ *
+ * Class strings stay at the call site in app/jobs/JobsContent.tsx; this file
+ * holds the mount-site decision only, so it can be asserted without rendering.
  */
 
-export type FacetsMountSite = "inline" | "sheet";
+export type FiltersSurface = "rail" | "drawer" | "sheet";
 
-export function resolveFacetsMountSite(input: {
-    isXlUp: boolean;
-    isLgUp: boolean;
-    filtersOpen: boolean;
-}): FacetsMountSite | null {
-    if (!input.filtersOpen) return null;
-    return input.isLgUp ? "inline" : "sheet";
+export function resolveFiltersSurface(input: { isLgUp: boolean; resultsShown: boolean }): FiltersSurface {
+    if (!input.isLgUp) return "sheet";
+    return input.resultsShown ? "rail" : "drawer";
 }
 
-/** The Filters toggle reveals a panel — always shown (no standing facet rail). */
-export function showsFiltersToggle(_site: FacetsMountSite | null): boolean {
-    return true;
+/**
+ * Whether the filters are on screen right now. A rail is on screen until it is
+ * hidden; a drawer or sheet only while it is open. One answer for the toolbar
+ * toggle's `aria-expanded` and for the header's docked toggle.
+ */
+export function filtersOnScreen(input: { surface: FiltersSurface; railHidden: boolean; overlayOpen: boolean }): boolean {
+    return input.surface === "rail" ? !input.railHidden : input.overlayOpen;
 }

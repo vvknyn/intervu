@@ -27,8 +27,8 @@ const CONTROLS = 'button, a[href], [role="button"], [role="combobox"], input:not
  * Modes, from strictest: "any" (something else takes the tap), "dead" (the tap
  * lands on no control or label: a dead zone), "clip" (a clipping ancestor cut
  * the band: the probe point lies past a scroller's edge where the scroller has
- * no more content to scroll to). A control whose centre is scrolled out of view
- * is not tappable and is skipped in every mode.
+ * no more content to scroll to). A control whose centre is scrolled out of view,
+ * or folded away inside a closed disclosure, is not tappable and is skipped in every mode.
  */
 type ProbeMode = "any" | "dead" | "clip";
 const missedProbes = (page: Page, rootSelectors: string[], mode: ProbeMode = "any") =>
@@ -55,7 +55,7 @@ const missedProbes = (page: Page, rootSelectors: string[], mode: ProbeMode = "an
                     if (seen.has(el)) continue;
                     seen.add(el);
                     const r = el.getBoundingClientRect();
-                    if (r.width < 2 || r.height < 2 || getComputedStyle(el).visibility === "hidden") continue;
+                    if (r.width < 2 || r.height < 2 || getComputedStyle(el).visibility === "hidden" || !el.checkVisibility()) continue;
                     const x = r.left + r.width / 2;
                     const cy = r.top + r.height / 2;
                     const boxes = clippers(el);

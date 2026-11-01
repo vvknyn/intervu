@@ -98,9 +98,10 @@ test("toolbar control height", async (t) => {
         );
         assert.match(scroller, /@2xl:flex-wrap/);
         assert.match(scroller, /@2xl:overflow-x-clip/);
-        // The scrolling lives on the wrapper shared with the active chips (one row below @2xl).
-        const rows = pageSrc.slice(pageSrc.indexOf('data-testid="jobs-toolbar-rows"'), pageSrc.indexOf('data-testid="jobs-toolbar-rows"') + 300);
-        assert.match(rows, /\boverflow-x-auto/);
+        // Below @2xl the controls and the active chips are two lines, each scrolling sideways on its own.
+        assert.match(scroller, /\boverflow-x-auto/);
+        const chips = pageSrc.slice(pageSrc.indexOf('data-testid="active-filter-row"'), pageSrc.indexOf('data-testid="active-filter-row"') + 900);
+        assert.match(chips, /\boverflow-x-auto/);
         assert.doesNotMatch(scroller, /flex-nowrap/);
     });
 

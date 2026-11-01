@@ -113,9 +113,10 @@
   --tracking-wider: 0em;
   --tracking-widest: 0em;
 
-  /* No blur anywhere (rulebook: no translucent/frosted surfaces). The ONE
-     sanctioned exception is the `material-bar` utility below (calm pass R4),
-     which sets backdrop-filter itself; these tokens stay 0. */
+  /* No blur anywhere (rulebook: no translucent/frosted surfaces). The two
+     sanctioned exceptions are the `material-bar` and `material-float`
+     utilities below (calm pass R4, phone glass bar), which set
+     backdrop-filter themselves; these tokens stay 0. */
   --blur-xs: 0px;
   --blur-sm: 0px;
   --blur-md: 0px;
@@ -130,12 +131,22 @@
 :root {
   /* 0 by default; the one place that actually renders the bar (the
      `@media (max-width: 1023px) { body:has([data-mobile-tabbar]) }` rule
-     below) is the only place that raises it to 56px. Every fixed
+     below) is the only place that raises it, to 5.25rem: the floating bar's
+     3.5rem, the 1.25rem it floats above the bottom edge, and 0.5rem of air
+     above it. Consumers add the device inset on top, as they always did. Every fixed
      bottom-anchored control reads this ONE token instead of a duplicated
      `lg:bottom-*`/hidden-route guess, so a route where the bar doesn't
      mount (or a desktop viewport, where it's `lg:hidden`) already clears
      it — not by coincidence of each consumer restating its own escape. */
   --mobile-tabbar-h: 0px;
+  /* How far a fixed bottom control on a phone sits above the screen's bottom
+     edge: 20px, or the device's own inset when that is larger (home-indicator
+     strip). The floor is the point: iOS Safari reports `env(safe-area-inset-
+     bottom)` as 0 unless the page opts into `viewport-fit=cover`, so on its own
+     the env() term left the tab bar and the job sheet's Apply button flush
+     against the bottom edge (2026-11-01). The tab bar and the job sheet's action
+     bar both read this ONE token. */
+  --mobile-bottom-gap: max(1.25rem, env(safe-area-inset-bottom, 0px));
   /* The sticky header's height. TopBar SETS its own height from this, so the
      token can't drift from the bar it describes, and anything that has to
      clear the header — a scroll target's `scroll-margin-top`, an
@@ -152,6 +163,8 @@
   --jobs-filter-row-h: calc(2.75rem + 1rem);
   --jobs-bar-content-gap: 8px;
   --jobs-sticky-gap: 24px;
+  /* Width of the /jobs filter column beside the list (lg and up). */
+  --jobs-rail-w: 16rem;
   /* Single source for the /jobs results list's horizontal inset. The results
      header row, the alert-capture line, the beyond-window line, each
      JobCard row, the guest-nudge/banner group above the results (guest-save,
@@ -628,7 +641,6 @@ html:has([data-testid="topbar-docked-filters-toggle"]) {
 
 /* Empty portal mounts must not leave gap holes in the docked instrument row */
 [data-testid="topbar-docked-field-directory"]:empty,
-[data-testid="topbar-docked-facets"]:empty,
 [data-testid="topbar-docked-clear-filters"]:empty,
 [data-testid="topbar-docked-save-search"]:empty,
 [data-testid="topbar-docked-sort"]:empty,
@@ -663,7 +675,7 @@ body {
   /* The bar's height lives on <html> so the viewport scroller (scroll-padding
      below) and the body's own clearance read the SAME token. */
   html:has([data-mobile-tabbar]) {
-    --mobile-tabbar-h: 56px;
+    --mobile-tabbar-h: 5.25rem;
     scroll-padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
   }
   body:has([data-mobile-tabbar]) {
@@ -781,9 +793,9 @@ body:has([data-shell="bleed"]) {
      only the hit area grows (below). */
   --hit-min: 2.75rem;
 }
-/* Calm pass R4: the single sanctioned glass material. Only chrome that content
-   scrolls UNDER (sticky top bar + /jobs filter band, mobile tab bar, sticky
-   action bar) uses it. Page colour at 94% alpha + blur(16px) saturate(140%),
+/* Calm pass R4: the sanctioned glass material for FLUSH bars. Only chrome that
+   content scrolls UNDER (sticky top bar + /jobs filter band, sticky action
+   bar) uses it. Page colour at 94% alpha + blur(16px) saturate(140%),
    no hairline. The fill alone must hide what scrolls under it (worst-case
    white text under the fill measures 1.13:1), because WebKit can report
    backdrop-filter as supported and still not blur; the blur is only the
@@ -793,6 +805,27 @@ body:has([data-shell="bleed"]) {
   background-color: rgb(var(--background) / 0.94);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
+  @supports not (backdrop-filter: blur(1px)) {
+    background-color: rgb(var(--background));
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: rgb(var(--background));
+  }
+}
+
+/* The phone tab bar's glass: a floating capsule inset from the screen edges
+   (the iOS look), so it carries a hairline rim and a more translucent fill than
+   a flush bar. One consumer, MobileTabBar. The fill still has to hide what
+   scrolls under it without the blur (WebKit can report backdrop-filter as
+   supported and not blur): at 0.82 worst-case white text under it measures
+   1.65:1 against the fill (0.94 on the flush bar gives 1.13:1), faint ghosting
+   at worst, and the bar holds only short labels.
+   design-language.test.ts guards the alpha floor and the opaque fallbacks. */
+@utility material-float {
+  background-color: rgb(var(--background) / 0.82);
+  border: 1px solid rgb(var(--foreground) / 0.14);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
   @supports not (backdrop-filter: blur(1px)) {
     background-color: rgb(var(--background));
   }
@@ -1562,6 +1595,19 @@ a:has(> .link-pending-mark) {
   .animate-scanline {
     animation: none;
   }
+}
+
+/* The /jobs filter column (lg and up): a fixed-width panel that stays under
+   the header while the list scrolls and scrolls on its own when its groups
+   are taller than the window. Below lg the column is not rendered (the
+   filters are a sheet), so this carries no breakpoint of its own. */
+@utility jobs-filter-rail {
+  position: sticky;
+  top: var(--jobs-sticky-offset);
+  width: var(--jobs-rail-w);
+  max-height: calc(100dvh - var(--jobs-sticky-offset) - var(--jobs-sticky-gap));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* Composes --topbar-h + --jobs-sticky-gap for any surface that sits below

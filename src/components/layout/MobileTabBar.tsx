@@ -18,13 +18,16 @@ import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
  *  The AI pairing at /connect is reachable from Settings. */
 const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
 
-/** HIG tab bar in house paint: 48px + the safe-area inset, hit areas
- *  stretched to the bar's full height (HIG/Material minimum touch target is
- *  44px — a bar-height tab clears that with room to spare), 20px icons (the
- *  one documented "icon sits in a stretched control" exception to the 16px
- *  site-wide default), Klein tint on the active tab, secondary on the rest —
- *  no counts/dots (that's TopBar's desktop menu list's own affordance, not
- *  this bar's). */
+/** The iOS tab bar in house paint: a floating glass capsule (`material-float`)
+ *  inset 16px from the screen's sides and lifted off the bottom edge by
+ *  `--mobile-bottom-gap`, not a strip stuck to it. 56px tall with 4px of
+ *  padding, so each tab's hit area is 48px tall (HIG/Material minimum touch
+ *  target is 44px); 20px icons (the one documented "icon sits in a stretched
+ *  control" exception to the 16px site-wide default); the active tab is a
+ *  filled pill, the rest are secondary text — no counts/dots (that's TopBar's
+ *  desktop menu list's own affordance, not this bar's). The space it takes is
+ *  `--mobile-tabbar-h` (globals.css), which everything fixed at the bottom or
+ *  padded for the bar reads. */
 export function MobileTabBar() {
     const pathname = usePathname();
     const prefetchOnIntent = usePrefetchOnIntent();
@@ -45,7 +48,7 @@ export function MobileTabBar() {
             data-testid="mobile-tabbar"
             aria-label="Primary"
             style={{ gridTemplateColumns: `repeat(${MOBILE_TABS.length}, minmax(0, 1fr))` }}
-            className="fixed inset-x-0 bottom-0 z-50 grid h-[calc(var(--mobile-tabbar-h,56px)+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] items-center material-bar px-1 lg:hidden"
+            className="fixed inset-x-4 bottom-[var(--mobile-bottom-gap)] z-50 mx-auto grid h-14 max-w-md items-center rounded-pill p-1 material-float lg:hidden"
         >
             {MOBILE_TABS.map((tab) => {
                 const active = tab.match(pathname);
@@ -67,9 +70,9 @@ export function MobileTabBar() {
                         data-tour={tab.tourSelector}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-ctl text-xs transition-colors duration-100",
+                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-pill text-xs transition-colors duration-100",
                             CHROME_FOCUS_VISIBLE,
-                            active ? "text-foreground font-semibold" : "text-muted-foreground font-normal",
+                            active ? "bg-surface-2 text-foreground font-semibold" : "text-muted-foreground font-normal",
                         )}
                     >
                         {Icon && <Icon />}
