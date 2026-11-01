@@ -1302,7 +1302,7 @@ async function fetchRelatedPreview(
 
 async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
   const specs = buildTieredQuerySpecs(p);
-  const previewSpecs = p.relatedPreview && !p.offset ? specs.filter((s) => s.tier === 3) : [];
+  const previewSpecs = p.relatedPreview && !p.offset && !p.facetCountsOnly ? specs.filter((s) => s.tier === 3) : [];
 
   const federatedBody = {
     federation: {
