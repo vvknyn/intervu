@@ -91,7 +91,8 @@ test("dock-capsule is the one frame: glass, pill radius, viewport-relative width
     assert.ok(util, "@utility dock-capsule missing from globals.css");
     assert.match(util, /@apply material-float;/, "the capsule's paint is the one glass recipe");
     assert.match(util, /border-radius:\s*var\(--radius-pill\)/, "a capsule is fully rounded");
-    assert.match(util, /width:\s*min\(28rem,\s*calc\(100vw - 2rem\)\)/, "inset 16px from both screen sides, read from the viewport so a sticky bar in a padded column matches a fixed one");
+    assert.match(util, /width:\s*var\(--dock-w\)/, "one width token for every capsule");
+    assert.match(CSS, /--dock-w:\s*min\(28rem,\s*calc\(100vw - 2rem\)\)/, "inset 16px from both screen sides, read from the viewport so a sticky bar in a padded column matches a fixed one");
     assert.match(util, /max-width:\s*100%/, "never wider than a narrow parent");
     assert.match(util, /margin-inline:\s*auto/, "centred");
 });
@@ -107,11 +108,31 @@ test("the dock stacks from tokens, never from a bar's own offset", () => {
     assert.match(tabBar, /dock-capsule[^"]*bottom-\[var\(--mobile-bottom-gap\)\]/, "the tab bar is the lowest capsule");
     assert.doesNotMatch(tabBar, /material-(float|bar)/, "the tab bar paints through dock-capsule only");
     const doc = readFileSync(path.join(SRC, "components/jobs/JobDetailDocument.tsx"), "utf8");
-    assert.match(doc, /max-lg:bottom-\[var\(--dock-above-tabbar\)\]/, "the job page's Apply bar stacks on the token");
+    assert.match(doc, /<JobDetailActionBar[\s\S]*?stackedOnTabBar/, "the job page's Apply bar is stacked on the tab bar by prop, not by an offset of its own");
     assert.doesNotMatch(doc, /bottom-\[calc\(var\(--mobile-bottom-gap\)/, "no hand-written offset above the tab bar");
     const bar = readFileSync(path.join(SRC, "components/jobs/JobDetail.tsx"), "utf8");
     const base = bar.slice(bar.indexOf('data-testid="job-detail-action-bar"'), bar.indexOf('data-testid="job-detail-action-bar"') + 900);
     assert.match(base, /max-lg:dock-capsule/, "the Apply bar is a dock capsule on a phone");
     assert.match(base, /max-lg:bottom-\[var\(--mobile-bottom-gap\)\]/, "alone (the job sheet) it sits at the bottom gap");
     assert.match(base, /lg:material-bar/, "from lg it is the split pane's flat bar");
+    assert.match(bar, /stackedOnTabBar && "max-lg:bottom-\[var\(--dock-above-tabbar\)\]/, "stacked on the tab bar it sits at the token");
+    assert.match(bar, /data-dock-accessory=\{stackedOnTabBar \? "" : undefined\}/, "and is marked as the dock's accessory");
+});
+
+test("the dock minimizes like Apple's tab bar: <html data-dock> from scroll, drawn only when an accessory is mounted", () => {
+    // Minimized: the tab bar is one round button (the current tab), the accessory sits inline to its right on the same row.
+    const rule = (selector: string) => CSS.match(new RegExp(`${selector.replace(/[[\]().*+?^${}|]/g, "\\$&")}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+    const min = 'html[data-dock="min"]:has([data-dock-accessory])';
+    assert.match(rule(min), /--dock-above-tabbar:\s*var\(--mobile-bottom-gap\)/, "the accessory drops to the tab bar's row");
+    assert.match(rule(`${min} [data-mobile-tabbar]`), /width:\s*var\(--dock-min-w\)/, "the tab bar shrinks to one round button");
+    assert.match(rule(`${min} [data-mobile-tabbar] > :not([data-dock-current])`), /display:\s*none/, "only the current tab stays");
+    assert.match(rule(`${min} [data-mobile-tabbar] > [data-dock-current] > span`), /display:\s*none/, "without its label");
+    const accessory = rule(`${min} [data-dock-accessory]`);
+    assert.match(accessory, /width:\s*calc\(var\(--dock-w\) - var\(--dock-min-w\) - var\(--dock-air\)\)/, "the accessory takes the rest of the row");
+    assert.match(accessory, /transform:\s*translateX\(calc\(\(var\(--dock-min-w\) \+ var\(--dock-air\)\) \/ 2\)\)/, "and sits to the right of the round button");
+    assert.match(GLOBALS, /@media \(max-width: 1023px\) and \(prefers-reduced-motion: no-preference\)/, "it animates only when motion is allowed");
+    const tabBar = readFileSync(path.join(SRC, "components/layout/MobileTabBar.tsx"), "utf8");
+    assert.match(tabBar, /dataset\.dock = /, "MobileTabBar publishes the state on <html>");
+    assert.match(tabBar, /data-dock-current=/, "and marks the tab that stays");
+    assert.match(tabBar, /onClickCapture=\{expandIfMinimized\}/, "a tap on the round button expands it instead of navigating");
 });

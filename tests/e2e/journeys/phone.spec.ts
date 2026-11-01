@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { expectDockFrame, pinnedBottomBars } from "./dock-frame";
+import { expectDockFrame, expectDockInline, pinnedBottomBars } from "./dock-frame";
 import { expect, test } from "./fixtures";
 import { isLocalOrigin, mockSignIn, SIGNED_IN_SKIP_REASON } from "./signed-in";
 
@@ -609,6 +609,53 @@ for (const width of [390, 320]) {
         expectDockFrame(bars, 2);
         expect(bars.map((b) => b.name)).toEqual(["mobile-tabbar", "job-detail-action-bar"]);
         await testInfo.attach("job-page-dock", { body: await page.screenshot(), contentType: "image/png" });
+        expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0);
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
+}
+
+/** Scrolls the page down in a few swipes' worth of steps; the dock reads runs of scrolling, not one jump. */
+async function scrollDown(page: Page, to: number) {
+    for (let y = 100; y <= to; y += 100) {
+        await page.evaluate((top) => window.scrollTo(0, top), y);
+        await page.waitForTimeout(40);
+    }
+}
+
+for (const width of [390, 320]) {
+    test(`on a ${width}px phone scrolling down a job page minimizes the dock like Apple's tab bar (one round button, Apply beside it); scrolling up or a tap on the button brings it back`, { tag: ["@J-MOB-32"] }, async ({ page, diagnostics }, testInfo) => {
+        test.skip(testInfo.project.name !== "mobile", "a phone width");
+        await page.setViewportSize({ width, height: 800 });
+        await returningVisitor(page);
+        test.skip(!(await openLongJobPage(page)), "this server lists no job with a long posting (no search backend), so there is no job page to scroll");
+        const url = page.url();
+        await page.evaluate(() => window.scrollTo(0, 0));
+        // At the top the dock is the full stack.
+        await expect.poll(async () => (await pinnedBottomBars(page)).length).toBe(2);
+        // Reading down the page: the tab bar shrinks to one round button and Apply takes the row beside it.
+        await scrollDown(page, 600);
+        await expect
+            .poll(async () => {
+                const bars = await pinnedBottomBars(page, undefined, 40);
+                return bars.find((b) => b.name === "mobile-tabbar")?.width ?? 0;
+            })
+            .toBeLessThan(80);
+        // Transitions run ~200ms: read the pair once it holds still.
+        await page.waitForTimeout(500);
+        expectDockInline(await pinnedBottomBars(page, undefined, 40));
+        await testInfo.attach("dock-minimized", { body: await page.screenshot(), contentType: "image/png" });
+        // A short scroll up restores the stack.
+        await page.evaluate(() => window.scrollBy(0, -60));
+        await page.waitForTimeout(500);
+        expectDockFrame(await pinnedBottomBars(page), 2);
+        // Down again, then a tap on the round button expands it in place: no navigation.
+        await scrollDown(page, 1000);
+        await page.waitForTimeout(500);
+        expectDockInline(await pinnedBottomBars(page, undefined, 40));
+        await page.getByTestId("mobile-tabbar").click();
+        await page.waitForTimeout(500);
+        expectDockFrame(await pinnedBottomBars(page), 2);
+        expect(page.url()).toBe(url);
         expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0);
         expect(diagnostics.pageErrors).toEqual([]);
     });

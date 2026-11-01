@@ -26,9 +26,13 @@ export type PinnedBar = {
   alpha: number;
 };
 
-/** Every pinned bottom bar in `root` (the whole page by default), lowest first. */
-export function pinnedBottomBars(page: Page, root?: Locator): Promise<PinnedBar[]> {
-  const read = (scope?: Element) => {
+/**
+ * Every pinned bottom bar in `root` (the whole page by default), lowest first.
+ * A bar is at least half the screen wide unless `minWidth` says otherwise (the
+ * tab bar minimized to one round button is 56px).
+ */
+export async function pinnedBottomBars(page: Page, root?: Locator, minWidth?: number): Promise<PinnedBar[]> {
+  const read = ({ scope, minWidth: min }: { scope?: Element; minWidth?: number }) => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     return [...(scope ?? document).querySelectorAll<HTMLElement>("*")]
@@ -39,7 +43,7 @@ export function pinnedBottomBars(page: Page, root?: Locator): Promise<PinnedBar[
           cs.visibility === "visible" &&
           cs.display !== "none" &&
           cs.pointerEvents !== "none" &&
-          r.width >= vw * 0.5 &&
+          r.width >= (min ?? vw * 0.5) &&
           r.height > 0 &&
           r.height <= 160 &&
           r.top >= vh * 0.5 &&
@@ -58,7 +62,7 @@ export function pinnedBottomBars(page: Page, root?: Locator): Promise<PinnedBar[
       }))
       .sort((a, b) => a.bottom - b.bottom);
   };
-  return root ? root.evaluate(read) : page.evaluate(read, undefined);
+  return page.evaluate(read, { scope: root ? ((await root.elementHandle()) ?? undefined) : undefined, minWidth });
 }
 
 /**
@@ -89,4 +93,35 @@ export function expectDockFrame(bars: PinnedBar[], expectCount: number) {
     expect(gap, `gap between ${bars[i - 1]!.name} and ${bars[i]!.name}`).toBeGreaterThanOrEqual(4);
     expect(gap, `gap between ${bars[i - 1]!.name} and ${bars[i]!.name}`).toBeLessThanOrEqual(16);
   }
+}
+
+/**
+ * The dock minimized (Apple's tab bar behaviour, J-MOB-32): the tab bar is one
+ * round button and the accessory capsule sits to its right on the same row.
+ * `bars` come from `pinnedBottomBars(page, undefined, 40)`.
+ */
+export function expectDockInline(bars: PinnedBar[]) {
+  expect(bars.map((b) => b.name).sort(), "pinned bottom bars found on screen").toEqual(["job-detail-action-bar", "mobile-tabbar"]);
+  const tab = bars.find((b) => b.name === "mobile-tabbar")!;
+  const accessory = bars.find((b) => b.name === "job-detail-action-bar")!;
+  const at = JSON.stringify(bars);
+  // The tab bar is a circle: as wide as it is tall, fully rounded, still glass.
+  expect(Math.abs(tab.width - tab.height), `round button ${at}`).toBeLessThanOrEqual(2);
+  expect(tab.radius).toBeGreaterThanOrEqual(tab.height / 2);
+  expect(tab.blur).toContain("blur");
+  // Same row: the same lift off the bottom edge, level with each other.
+  expect(tab.bottom, `lifted ${at}`).toBeGreaterThanOrEqual(19);
+  expect(Math.abs(tab.bottom - accessory.bottom), `same row ${at}`).toBeLessThanOrEqual(1);
+  expect(Math.abs(tab.height - accessory.height)).toBeLessThanOrEqual(1);
+  // The accessory is to the right of the button, 4 to 16px away, and the pair fills the capsule's width inset 16px from both sides.
+  const gap = accessory.left - (tab.left + tab.width);
+  expect(gap, `gap between the button and the accessory ${at}`).toBeGreaterThanOrEqual(4);
+  expect(gap).toBeLessThanOrEqual(16);
+  expect(tab.left).toBeGreaterThanOrEqual(12);
+  expect(accessory.right).toBeGreaterThanOrEqual(12);
+  expect(Math.abs(tab.left - accessory.right), `the pair is centred ${at}`).toBeLessThanOrEqual(1);
+  // The accessory is still glass.
+  expect(accessory.blur).toContain("blur");
+  expect(accessory.alpha).toBeGreaterThan(0.3);
+  expect(accessory.alpha).toBeLessThan(0.9);
 }

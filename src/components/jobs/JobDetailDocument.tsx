@@ -636,7 +636,8 @@ export function JobDetailDocument({
                 already mounts (JobDetail.tsx doc comment). On a phone it is a
                 dock capsule, the twin of the sitewide `MobileTabBar` (same
                 width, glass and radius), stacked directly above it at
-                `--dock-above-tabbar` — this document scrolls the real page,
+                `--dock-above-tabbar` (`stackedOnTabBar`; it minimizes inline with
+                the tab bar while a person scrolls down) — this document scrolls the real page,
                 unlike the Sheet's own `overflow-y-auto` container that paints
                 over the tab bar. `max-lg:pb-12` above gives the last in-flow
                 content the same clearance so nothing sits under either capsule
@@ -655,7 +656,8 @@ export function JobDetailDocument({
                     onGoAfter={onGoAfter}
                     pursuit={pursuit}
                     saveSuccessPulse={saveSuccessPulse}
-                    className="max-lg:bottom-[var(--dock-above-tabbar)] max-lg:mb-2 lg:hidden"
+                    stackedOnTabBar
+                    className="lg:hidden"
                 />
             )}
         </div>
