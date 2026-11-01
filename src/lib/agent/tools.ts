@@ -369,11 +369,16 @@ export function toJobDetailFields(
 // (which reuses this SAME wire-allowlist mapping for get_company's embedded
 // jobs list) reads as its own concern rather than reaching for
 // `JobDetailFields` directly.
-export type SearchHit = JobDetailFields;
+export type SearchHit = JobDetailFields & {
+  /** A role next to the typed title rather than that title (`relatedRoleSpecs`, meilisearch.ts); listed after the title matches. */
+  related_role?: true;
+};
 
 export interface SearchOut {
   hits: SearchHit[];
   total: number;
+  /** The titles of the roles next to the typed one that the search also returned, strongest first. */
+  related_titles?: string[];
   unavailable?: boolean;
   note?: string;
   /** Opaque cursor for the next page — present only when more results exist
@@ -662,7 +667,9 @@ export async function toolSearchJobs(
   // Depth-cap truncation: the backend was asked for a full page (see the
   // limit comment above), but only `depthCapRemaining(offset)` of those hits
   // are ever handed back — 0 once `offset` has reached the cap.
-  const hits = result.hits.slice(0, depthCapRemaining(offset)).map((job) => toJobDetailFields(job, resume, signals));
+  const hits: SearchHit[] = result.hits
+    .slice(0, depthCapRemaining(offset))
+    .map((job) => ({ ...toJobDetailFields(job, resume, signals), ...(job.tier === 3 ? { related_role: true as const } : {}) }));
   // Corpus-harvesting guardrail: meter the ACTUAL hits about to be returned
   // against the credential's daily record budget before handing them back.
   const budget = await deps.consumeRecordBudget(hits.length);
@@ -671,6 +678,7 @@ export async function toolSearchJobs(
   return {
     hits,
     total: result.total,
+    ...(result.relatedTitles?.length ? { related_titles: result.relatedTitles } : {}),
     ...(note ? { note } : {}),
     ...(nextCursor ? { next_cursor: nextCursor } : {}),
   };

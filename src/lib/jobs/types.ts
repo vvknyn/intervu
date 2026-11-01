@@ -186,14 +186,15 @@ export interface PublicJob {
   /**
    * Per-hit provenance from a federated tiered-retrieval pass
    * (`runTieredRetrieval`, meilisearch.ts): 1 = above the divider (every
-   * typed word in title/company/tags, or a title alias), 2 = below it (whole-document query).
+   * typed word in title/company/tags, or a title alias), 2 = below it (whole-document query),
+   * 3 = the title of a role next to the typed one (`relatedRoleSpecs`), ranked between 1 and 2.
    * Derived from that hit's own `_federation.queriesPosition` before `_federation` is
    * stripped off the wire shape — the seam between tiers is placed from this
    * field, never from a carried count, so it survives client-side filtering
    * (e.g. "hide viewed") without drifting onto the wrong row. Undefined under
    * every non-federated search mechanism.
    */
-  tier?: 1 | 2;
+  tier?: 1 | 2 | 3;
 }
 
 /**
@@ -605,6 +606,11 @@ export interface JobSearchResult {
    * that reshuffled under an explicit sort. Absent on every other path.
    */
   tier1Total?: number;
+  /**
+   * The titles of the roles next to the typed one that this tiered result searched (`relatedRoleSpecs`,
+   * meilisearch.ts), strongest first; present only when at least one of its hits is one (`tier` 3).
+   */
+  relatedTitles?: string[];
   /**
    * Employer search with a place asked for: how many of the leading rows (of
    * `total`) sit in that place. The rows after them are the same employer

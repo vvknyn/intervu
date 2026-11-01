@@ -1868,9 +1868,23 @@ export function seamSummary(seamIndex: number, total: number, hitsLength: number
  */
 export function tieredSeamSummary(shownAbove: number, result: Pick<JobSearchResult, "total" | "hits">): string {
     // `result.total`, never `resolveHeadlineTotal`: the headline policy may report the strict count.
-    const below = Math.max(result.total - result.hits.filter((hit) => hit.tier === 1).length, 0);
+    // Every hit above the divider (title matches, and the roles next to the typed one) is loaded once the first one
+    // below it is, so the rest of `total` is exactly the hits below.
+    const below = Math.max(result.total - result.hits.filter((hit) => hit.tier !== 2).length, 0);
     const lead = shownAbove === 1 ? "1 role matches" : `${shownAbove.toLocaleString()} roles match`;
     return `${lead} by title, company or keywords · ${below.toLocaleString()} more mention it elsewhere in the posting`;
+}
+
+/** Where the roles next to the typed one begin in a tiered result (`tier` 3, `relatedRoleSpecs`); -1 when none is loaded. */
+export function relatedSeamIndex(hits: PublicJob[]): number {
+    return hits.findIndex((h) => h.tier === 3);
+}
+
+/** The line over the roles next to the typed one: "Roles next to Technical Account Manager: Customer Success Manager, Solutions Engineer and Implementation Manager". */
+export function relatedSeamSummary(q: string, titles: string[]): string {
+    const typed = q.trim();
+    const list = titles.length > 1 ? `${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}` : (titles[0] ?? "");
+    return list ? `Roles next to ${typed}: ${list}` : `Roles next to ${typed}`;
 }
 
 /**

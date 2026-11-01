@@ -32,13 +32,14 @@ describe("group weights under an explicit sort", () => {
     }
 
     it("an alias title hit is above the divider", () => {
-        const aliases = buildTieredQuerySpecs({ q: "physical therapist", sort: "newest" }).filter((s) => s.query.attributesToSearchOn?.join() === "title");
+        // Title-only queries other than the roles next to it (tier 3, their own describe below).
+        const aliases = buildTieredQuerySpecs({ q: "physical therapist", sort: "newest" }).filter((s) => s.query.attributesToSearchOn?.join() === "title" && s.tier !== 3);
         assert.ok(aliases.length > 0);
         assert.ok(aliases.every((s) => s.tier === 1));
     });
 
     it("a query with no aliases is the two typed queries, same rule", () => {
-        const specs = weightsOf({ q: "welder", sort: "newest" });
+        const specs = weightsOf({ q: "welder", sort: "newest" }).filter(([t]) => t !== 3); // tier 3: roles next to it (own describe below)
         assert.deepEqual(specs, [[1, 100], [2, 0.01]]);
     });
 
@@ -132,5 +133,39 @@ describe("the divider is structural: every tier-1 hit outranks every tier-2 hit"
         assert.equal(inclusive / known, 0.5);
         const w = federationWeights({ q: "welder", sort: "newest" });
         assert.equal(w.wholeDocument * w.unknownFactor, w.wholeDocument);
+    });
+});
+
+describe("the roles next to the typed one sit in a band of their own", () => {
+    const titles = ["Customer Success Manager", "Solutions Engineer"];
+
+    for (const sort of ["relevance", "newest"] as const) {
+        it(`${sort}: title-only queries, tier 3, under every title-match weight and over every whole-document weight`, async () => {
+            const { relatedRoleSpecs } = await import("../../src/lib/jobs/meilisearch");
+            const p: JobSearchParams = { q: "technical account manager", sort };
+            const related = relatedRoleSpecs(p, titles);
+            assert.deepEqual(related.map((s) => s.query.q), titles);
+            assert.ok(related.every((s) => s.tier === 3 && s.query.attributesToSearchOn?.join() === "title"));
+            const specs = weightsOf(p);
+            const lowestAbove = Math.min(...specs.filter(([t]) => t === 1).map(([, w]) => w));
+            const highestBelow = Math.max(...specs.filter(([t]) => t === 2).map(([, w]) => w));
+            for (const s of related) {
+                assert.ok(s.query.federationOptions.weight * 10 <= lowestAbove, `${s.query.federationOptions.weight} vs ${lowestAbove}`);
+                assert.ok(s.query.federationOptions.weight >= highestBelow * 25, `${s.query.federationOptions.weight} vs ${highestBelow}`);
+            }
+        });
+    }
+
+    it("a filter that admits un-derived rows pairs each title with its inclusive variant, as aliases do", async () => {
+        const { relatedRoleSpecs } = await import("../../src/lib/jobs/meilisearch");
+        const plain = relatedRoleSpecs({ q: "technical account manager" }, titles);
+        const filtered = relatedRoleSpecs({ q: "technical account manager", salaryMin: 100_000 } as JobSearchParams, titles);
+        assert.equal(plain.length, 2);
+        assert.equal(filtered.length, 4);
+    });
+
+    it("an unknown title adds no query", async () => {
+        const { relatedRoleSpecs } = await import("../../src/lib/jobs/meilisearch");
+        assert.deepEqual(relatedRoleSpecs({ q: "zyxwv quux" }), []);
     });
 });
