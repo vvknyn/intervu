@@ -5,13 +5,13 @@ import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
 
 /**
- * Journeys for the roles next to a typed title, used by fit and by type-ahead — see tests/journeys/CATALOG.md
- * (J-JOBS-167, J-SRCH-41). Read-only: the résumé lives in localStorage and the answers are replaced in the browser.
+ * Journeys for the roles next to a typed title - see tests/journeys/CATALOG.md (J-JOBS-167, J-SRCH-41). Read-only:
+ * the resume lives in localStorage and the answers are replaced in the browser.
  *
  * Vivek, 2026-11-01: "this needs to be used intelligently to appropriately adjust the search results...and also use
- * the same logic for autosuggest or type ahead too". Best match reads the related roles' first rows too and lists
- * the ones that fit the résumé as Strong or Good (`keepsRelatedRow`); type-ahead lists the related roles under the
- * title suggestions.
+ * the same logic for autosuggest or type ahead too". Type-ahead lists the related roles under the title suggestions.
+ * Best match first read them too (`relatedPreview`) and listed the ones that fit as Strong or Good; on prod a TAM
+ * resume searching "product manager" then led with Solutions Consultants, so Best match lists the typed title only.
  */
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -66,7 +66,7 @@ const posting = (n: number, title: string, company: string, extra: Record<string
   ...extra,
 });
 
-test("Best match lists a related role that fits the résumé and leaves out one that does not", { tag: ["@J-JOBS-167"] }, async ({ page, diagnostics }) => {
+test("Best match lists the title that was typed and does not read the roles next to it", { tag: ["@J-JOBS-167"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await seedResume(page);
   const asked: string[] = [];
@@ -75,30 +75,33 @@ test("Best match lists a related role that fits the résumé and leaves out one 
     const body = req.postData() ?? "";
     if (!isListSearch(req) || !body.includes('"offset":0') || !body.includes('"withFacets":true')) return route.fallback();
     asked.push(body);
-    // One posting with the typed title, and two related-role rows the search read past it: a Customer Success Manager
-    // role (Strong for this résumé) and an Account Executive one (Stretch).
+    // A TAM résumé searching "product manager": the answer is the title's own postings. (Before this fix the page also
+    // asked for the roles next to the title, and a Solutions Consultant role that fit a TAM résumé as Strong took the
+    // top of the list ahead of the Product Manager rows.)
     const hits = [
-      posting(1, "Technical Account Manager", "Maple Relay", { tier: 1 }),
-      posting(2, "Customer Success Manager", "Birch Cloud", { tier: 3, relatedPreview: true }),
-      posting(3, "Account Executive", "Harbour Grid", { tier: 3, relatedPreview: true }),
+      posting(1, "Product Manager", "Maple Relay", { tier: 1 }),
+      posting(2, "Senior Product Manager", "Birch Cloud", { tier: 1 }),
     ];
     return answerListSearch(route, {
       hits,
-      total: 1,
-      tier1Total: 1,
-      relatedTitles: ["Customer Success Manager", "Account Executive"],
+      total: 2,
+      tier1Total: 2,
+      relatedTitles: [],
       backend: "meilisearch",
       configured: true,
-      searchId: "journey-related-fit",
+      searchId: "journey-title-leads",
     });
   });
-  await page.goto("/jobs?q=technical%20account%20manager&sort=fit");
+  await page.goto("/jobs?q=product%20manager&sort=fit");
 
   const titles = page.getByTestId("job-row").getByTestId("job-title");
   await expect(titles.first()).toBeVisible({ timeout: 45_000 });
-  await expect(titles).toHaveText(["Technical Account Manager", "Customer Success Manager"], { timeout: 30_000 });
-  await expect(page.getByTestId("job-row").filter({ hasText: "Account Executive" })).toHaveCount(0);
-  expect(asked.some((body) => body.includes('"relatedPreview":true')), "Best match asks for the related roles' rows").toBe(true);
+  await expect(titles.first()).toHaveText(/Product Manager/, { timeout: 30_000 });
+  await expect(page.getByTestId("job-row").filter({ hasText: "Solutions Consultant" })).toHaveCount(0);
+  expect(asked.length, "the list search ran").toBeGreaterThan(0);
+  expect(asked.some((body) => body.includes("relatedPreview")), "Best match does not ask for the roles next to the typed title").toBe(false);
+  // The server leaves the related-role band out of a search marked as built for a résumé-ranked list (`fromResume`).
+  expect(asked.every((body) => body.includes('"fromResume":true')), "the first page is marked as a résumé-ranked list").toBe(true);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

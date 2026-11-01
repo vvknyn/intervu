@@ -1246,7 +1246,10 @@ export function buildTieredQuerySpecs(p: JobSearchParams) {
   const inclusive = [query({}, UNKNOWN_TIER_WEIGHT * 100, 1), query({ wholeDocument: true }, UNKNOWN_TIER_WEIGHT, 2)];
   if (JSON.stringify(inclusive[0].query.filter) !== JSON.stringify(specs[0].query.filter)) specs.push(...inclusive);
   specs.push(...titleAliasSpecs(p));
-  specs.push(...relatedRoleSpecs(p));
+  // A list ranked by the person's résumé (`fromResume`: Best match, For you, Today) reads the typed title's postings only:
+  // the roles next to it fill the page before the whole-document rows, and a related role that fits the résumé better
+  // than the title took the top of the list (TAM résumé, "product manager" -> Solutions Consultants, 2026-11-01).
+  if (!p.fromResume) specs.push(...relatedRoleSpecs(p));
   return specs;
 }
 

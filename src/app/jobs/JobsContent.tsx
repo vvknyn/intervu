@@ -2147,8 +2147,10 @@ export function JobsContent({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                               ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, seniorityRef.current),
                               ...resumeContentMark(fitActiveRef.current, query, packContentRef.current),
-                              // Best match also reads the roles next to a typed title, so the ones that fit can lead (`keepsRelatedRow`).
-                              ...(fitActiveRef.current ? { relatedPreview: true } : {}),
+                              // Best match lists the title the person typed and nothing next to it: a related role that fit a
+                              // résumé better than the title took the top of the list (TAM résumé, "product manager" -> Solutions
+                              // Consultants, 2026-11-01). Related roles live in the type-ahead and under the title rows of the
+                              // Relevance sort; the agent lists them after the page (`keepsRelatedRow`).
                               withFacets: true,
                               limit: firstPageLimit,
                               offset: 0,
