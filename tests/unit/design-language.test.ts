@@ -1360,7 +1360,7 @@ const GLASS_UTILITIES = ["material-bar", "material-float"] as const;
 const utilityBlock = (css: string, name: string): string =>
     css.match(new RegExp(`@utility ${name}\\s*\\{[\\s\\S]*?\\n\\}`))?.[0] ?? "";
 
-test("calm pass R4: backdrop-filter exists only in the `material-bar` and `material-float` utilities", () => {
+test("calm pass R4: backdrop-filter exists only in the `material-bar` and `material-float` utilities (the latter reached through `dock-capsule`)", () => {
     const walk = (dir: string): string[] =>
         readdirSync(dir).flatMap((name) => {
             const full = path.join(dir, name);
@@ -1388,23 +1388,30 @@ test("calm pass R4: backdrop-filter exists only in the `material-bar` and `mater
 
 test("glass fills hide content without the blur (alpha floors + reduced-transparency)", () => {
     // 0.94 keeps white text under a flush bar at 1.13:1 against the fill; 0.85 leaves 1.48:1 (readable).
-    // The floating phone bar holds only short labels and is the iOS look, so it may be more translucent: 0.82 is 1.65:1.
-    const floors = { "material-bar": 0.94, "material-float": 0.8 } as const;
+    // The floating phone capsules hold only short labels and a button, and must read as glass (Vivek, 2026-11-01:
+    // "where is our transparency"): 0.6 of the lifted surface keeps worst-case white text under them at 3.9:1.
+    // Below the floor the capsule's own labels stop being legible when WebKit reports backdrop-filter and does not
+    // blur; above 0.9 it is a slab again (journey J-MOB-31 measures the same window on the rendered capsule).
+    const floors = { "material-bar": 0.94, "material-float": 0.6 } as const;
+    const ceilings = { "material-bar": 1, "material-float": 0.9 } as const;
     for (const name of GLASS_UTILITIES) {
         const util = utilityBlock(GLOBALS.replace(/\/\*[\s\S]*?\*\//g, ""), name);
-        const alpha = Number(util.match(/^\s{2}background-color:\s*rgb\(var\(--background\) \/ ([\d.]+)\)/m)?.[1]);
+        const fill = util.match(/^\s{2}background-color:\s*rgb\(var\((--[a-z0-9-]+)\) \/ ([\d.]+)\)/m);
+        const alpha = Number(fill?.[2]);
         assert.ok(alpha >= floors[name], `${name} fill alpha ${alpha} is below its ${floors[name]} legibility floor`);
+        assert.ok(alpha <= ceilings[name], `${name} fill alpha ${alpha} is above its ${ceilings[name]} ceiling (a slab, not glass)`);
         assert.match(
             util,
-            /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*background-color: rgb\(var\(--background\)\);/,
+            new RegExp(`@media \\(prefers-reduced-transparency: reduce\\)\\s*\\{\\s*background-color: rgb\\(var\\(${fill?.[1]}\\)\\);`),
             `${name} must be fully opaque under prefers-reduced-transparency`,
         );
     }
 });
 
-test("material-float has one consumer: the phone tab bar", () => {
+test("material-float is applied through dock-capsule only: no component paints it directly", () => {
     const users = findOffenders(path.join(ROOT, "src"), /\bmaterial-float\b/).map((o) => o.split(":")[0]);
-    assert.deepEqual([...new Set(users)], ["src/components/layout/MobileTabBar.tsx"]);
+    assert.deepEqual([...new Set(users)], [], "paint a phone bottom bar with `dock-capsule` (globals.css), not `material-float`");
+    assert.match(utilityBlock(GLOBALS.replace(/\/\*[\s\S]*?\*\//g, ""), "dock-capsule"), /@apply material-float;/);
 });
 
 /**

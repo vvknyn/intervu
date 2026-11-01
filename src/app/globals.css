@@ -144,9 +144,23 @@
      strip). The floor is the point: iOS Safari reports `env(safe-area-inset-
      bottom)` as 0 unless the page opts into `viewport-fit=cover`, so on its own
      the env() term left the tab bar and the job sheet's Apply button flush
-     against the bottom edge (2026-11-01). The tab bar and the job sheet's action
-     bar both read this ONE token. */
+     against the bottom edge (2026-11-01). Every dock capsule reads this ONE
+     token. */
   --mobile-bottom-gap: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  /* The dock: every bar pinned to the bottom of a phone screen is a floating
+     glass capsule (`dock-capsule` below) and the capsules stack from the
+     bottom edge. `--dock-bar-h` is a capsule's height, `--dock-air` the space
+     between two. `--dock-above-tabbar` is where the NEXT capsule up sits: the
+     bottom gap on a page with no tab bar, above the tab bar's capsule on one
+     with it (html:has([data-mobile-tabbar]) below). A bar stacked on the tab
+     bar says `bottom-[var(--dock-above-tabbar)]`, never its own offset. */
+  --dock-bar-h: 3.5rem;
+  --dock-air: 0.5rem;
+  --dock-above-tabbar: var(--mobile-bottom-gap);
+  /* A capsule's width (inset 16px from both screen sides, 28rem at most) and
+     the width of the tab bar once it minimizes to one round button. */
+  --dock-w: min(28rem, calc(100vw - 2rem));
+  --dock-min-w: 3.5rem;
   /* The sticky header's height. TopBar SETS its own height from this, so the
      token can't drift from the bar it describes, and anything that has to
      clear the header — a scroll target's `scroll-margin-top`, an
@@ -676,6 +690,7 @@ body {
      below) and the body's own clearance read the SAME token. */
   html:has([data-mobile-tabbar]) {
     --mobile-tabbar-h: 5.25rem;
+    --dock-above-tabbar: calc(var(--mobile-bottom-gap) + var(--dock-bar-h) + var(--dock-air));
     scroll-padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
   }
   body:has([data-mobile-tabbar]) {
@@ -813,24 +828,86 @@ body:has([data-shell="bleed"]) {
   }
 }
 
-/* The phone tab bar's glass: a floating capsule inset from the screen edges
-   (the iOS look), so it carries a hairline rim and a more translucent fill than
-   a flush bar. One consumer, MobileTabBar. The fill still has to hide what
-   scrolls under it without the blur (WebKit can report backdrop-filter as
-   supported and not blur): at 0.82 worst-case white text under it measures
-   1.65:1 against the fill (0.94 on the flush bar gives 1.13:1), faint ghosting
-   at worst, and the bar holds only short labels.
-   design-language.test.ts guards the alpha floor and the opaque fallbacks. */
+/* The glass of every floating phone capsule (see `dock-capsule`). It has to
+   read as GLASS: the page shows through, blurred, not a dark slab with a rim
+   (Vivek, 2026-11-01, holding up a Slack iOS 26 tab bar: "where is our
+   transparency"). So the fill is a light veil (alpha 0.6 of a lifted surface)
+   and the blur does the separating. The fill alone must still keep the
+   capsule's own labels legible when WebKit reports backdrop-filter as supported
+   and does not blur: worst-case white text under the veil measures 3.9:1
+   against it at 0.6, so the floor is 0.6 (design-language.test.ts guards the
+   floor and the opaque fallbacks). One family, one recipe: nothing else on the
+   phone is glass. */
 @utility material-float {
-  background-color: rgb(var(--background) / 0.82);
-  border: 1px solid rgb(var(--foreground) / 0.14);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
+  background-color: rgb(var(--surface-3) / 0.6);
+  border: 1px solid rgb(var(--foreground) / 0.16);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
   @supports not (backdrop-filter: blur(1px)) {
-    background-color: rgb(var(--background));
+    background-color: rgb(var(--surface-3));
   }
   @media (prefers-reduced-transparency: reduce) {
-    background-color: rgb(var(--background));
+    background-color: rgb(var(--surface-3));
+  }
+}
+
+/* THE frame for anything pinned to the bottom of a phone screen: the tab bar,
+   the opened job's Apply bar, and whatever pins there next. A capsule inset
+   16px from both screen sides (28rem at most, centred; the width reads the
+   viewport, so a `sticky` one inside a padded page column matches a `fixed`
+   one), fully rounded, in the one glass above. Callers add only the position: `fixed inset-x-0` or `sticky`,
+   then `bottom-[var(--mobile-bottom-gap)]` for the lowest capsule or
+   `bottom-[var(--dock-above-tabbar)]` for one stacked above the tab bar. The
+   earlier Apply bar was a flush, near-opaque band with its own offset: it cut
+   the text under it with hard edges and left a strip of text between it and the
+   tab bar (2026-11-01). unit: bottom-dock.test.ts; journey: J-MOB-30. */
+@utility dock-capsule {
+  @apply material-float;
+  width: var(--dock-w);
+  max-width: 100%;
+  margin-inline: auto;
+  border-radius: var(--radius-pill);
+  /* A control inside a capsule is a capsule too (concentric corners). Stated
+     here, once, so no call site names a corner: control-type.test.ts forbids it
+     and a new bar's buttons cannot come out square in a round frame. */
+  & :is(a, button) {
+    border-radius: var(--radius-pill);
+  }
+}
+
+/* The dock minimized (Apple's tab bar behaviour: HIG "Tab bars" says a tab bar
+   with an attached accessory can minimize while a person scrolls down and move
+   the accessory inline with it). MobileTabBar sets `<html data-dock="min|full">`
+   from the scroll (dock-minimize.ts); the state only draws when an accessory
+   capsule is mounted (`data-dock-accessory`, the Apply bar stacked on the tab
+   bar), so a page with the tab bar alone never changes. Minimized: the tab bar
+   is one round button (the current tab, tap to expand) and the accessory sits
+   on the same row, to its right, at the same height. */
+@media (max-width: 1023px) {
+  html[data-dock="min"]:has([data-dock-accessory]) {
+    --dock-above-tabbar: var(--mobile-bottom-gap);
+  }
+  html[data-dock="min"]:has([data-dock-accessory]) [data-mobile-tabbar] {
+    width: var(--dock-min-w);
+  }
+  html[data-dock="min"]:has([data-dock-accessory]) [data-mobile-tabbar] > :not([data-dock-current]) {
+    display: none;
+  }
+  html[data-dock="min"]:has([data-dock-accessory]) [data-mobile-tabbar] > [data-dock-current] > span {
+    display: none;
+  }
+  html[data-dock="min"]:has([data-dock-accessory]) [data-dock-accessory] {
+    width: calc(var(--dock-w) - var(--dock-min-w) - var(--dock-air));
+    transform: translateX(calc((var(--dock-min-w) + var(--dock-air)) / 2));
+  }
+}
+@media (max-width: 1023px) and (prefers-reduced-motion: no-preference) {
+  [data-mobile-tabbar],
+  [data-dock-accessory] {
+    transition:
+      width var(--transition-enter) var(--ease-standard),
+      bottom var(--transition-enter) var(--ease-standard),
+      transform var(--transition-enter) var(--ease-standard);
   }
 }
 

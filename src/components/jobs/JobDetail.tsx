@@ -222,6 +222,7 @@ export function JobDetailActionBar({
     pursuit,
     saveSuccessPulse = false,
     signedOut = false,
+    stackedOnTabBar = false,
     className,
 }: {
     job: PublicJob;
@@ -232,6 +233,11 @@ export function JobDetailActionBar({
      *  bookmark control rendered inline above. */
     pursuit: Pursuit | undefined;
     saveSuccessPulse?: boolean;
+    /** The bar is the accessory stacked on the sitewide `MobileTabBar` (the job
+     *  page), not the bottom capsule of a sheet. On a phone it sits at
+     *  `--dock-above-tabbar` and, with the tab bar, minimizes while a person
+     *  scrolls down (globals.css, dock-minimize.ts). */
+    stackedOnTabBar?: boolean;
     /** Accepted for callers' sake; the label follows `signedOut`, not this. */
     signedIn?: boolean;
     /** CONFIRMED signed out (`isConfirmedSignedOut`): the button takes the
@@ -244,19 +250,24 @@ export function JobDetailActionBar({
      *  change's scope — still typecheck without editing their call sites. */
     onPrep?: () => void;
     /** Merged over the base classes (rulebook item a's `cn()` override
-     *  pattern) — the only caller that needs this today is the standalone
-     *  `/jobs/[slug]` document, which stacks this bar above the sitewide
-     *  `MobileTabBar` (a `bottom-*` above it instead of the Sheet caller's `bottom-0`,
-     *  since that Sheet paints over the tab bar and this document doesn't).
-     *  By default the bar sits at the bottom of its sheet, so it lifts its
-     *  button off the screen edge by `--mobile-bottom-gap`; a caller that
-     *  stacks it above the tab bar overrides that padding. */
+     *  pattern). On a phone the bar is a dock capsule — the tab bar's twin — so
+     *  it floats `--mobile-bottom-gap` off the bottom edge by default (the
+     *  Sheet's bar: that Sheet paints over the tab bar); the standalone
+     *  `/jobs/[slug]` document passes `stackedOnTabBar` instead. */
     className?: string;
 }) {
     return (
         <div
             data-testid="job-detail-action-bar"
-            className={cn("sticky bottom-0 z-20 flex items-center gap-2 material-bar px-4 pt-2 pb-[var(--mobile-bottom-gap)] xl:h-12 xl:py-0", className)}
+            data-dock-accessory={stackedOnTabBar ? "" : undefined}
+            className={cn(
+                // Below lg: a dock capsule (globals.css), the same one as the tab bar,
+                // lifted off the bottom edge (`mb-` keeps it lifted at the end of the
+                // scroll too). From lg: the flat bar of the split pane.
+                "sticky bottom-0 z-20 flex items-center gap-2 max-lg:dock-capsule max-lg:bottom-[var(--mobile-bottom-gap)] max-lg:mb-[var(--mobile-bottom-gap)] max-lg:h-14 max-lg:p-3 lg:material-bar lg:px-4 lg:pt-2 lg:pb-[var(--mobile-bottom-gap)] xl:h-12 xl:py-0",
+                stackedOnTabBar && "max-lg:bottom-[var(--dock-above-tabbar)] max-lg:mb-2",
+                className,
+            )}
         >
             {job.apply_url && (
                 <Button size={jobActionSize} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand transition-colors" onClick={onOpenPosting}>
