@@ -280,7 +280,10 @@ export const MCP_TOOL_SPECS = {
             `facets entry for a key remote_only/experience_level/employment_type already set may only ` +
             `NARROW that filter, never widen it — no overlap between the two is an input error, never a ` +
             `silent empty page) — all AND ` +
-            `together and with query. Postings that look stale (unlikely to lead to an ` +
+            `together and with query. A job title as the query also returns roles next to it (searching ` +
+            `"technical account manager" also finds customer success roles), listed after the postings ` +
+            `titled with the query: those hits carry related_role:true and the response names them in ` +
+            `related_titles. Postings that look stale (unlikely to lead to an ` +
             `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
             `Returns up to ${AGENT.RESULT_CAP} results per page (default ${AGENT.SEARCH_DEFAULT_LIMIT}), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
             `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +

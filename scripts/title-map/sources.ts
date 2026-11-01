@@ -169,8 +169,11 @@ async function getJson(url: string): Promise<unknown> {
  * interrupted run resumes where it stopped. Polite: one request at a time, `pauseMs` apart.
  * The search endpoint's `offset` is a page number (its own next link says offset=1 after page 0).
  */
-export async function fetchEsco(cacheFile: string, opts: { pauseMs?: number; log?: (s: string) => void } = {}): Promise<{ requests: number; occupations: number }> {
-  const { pauseMs = 300, log = () => {} } = opts;
+export async function fetchEsco(
+  cacheFile: string,
+  opts: { pauseMs?: number; concurrency?: number; log?: (s: string) => void } = {},
+): Promise<{ requests: number; occupations: number; failed: string[] }> {
+  const { pauseMs = 300, concurrency = 3, log = () => {} } = opts;
   const done = new Set<string>();
   if (existsSync(cacheFile)) {
     for (const line of readFileSync(cacheFile, "utf8").split("\n")) if (line) done.add((JSON.parse(line) as { uri: string }).uri);
@@ -194,16 +197,27 @@ export async function fetchEsco(cacheFile: string, opts: { pauseMs?: number; log
     if (results.length === 0 || uris.length >= body.total || page > 100) break;
     await sleep(pauseMs);
   }
-  for (const uri of uris) {
-    if (done.has(uri)) continue;
-    const record = await getJson(`${ESCO_API}/resource/occupation?uri=${encodeURIComponent(uri)}&language=en`);
-    requests++;
-    appendFileSync(cacheFile, JSON.stringify(record) + "\n");
-    done.add(uri);
-    if (done.size % 100 === 0) log(`esco occupations: ${done.size}/${uris.length}`);
-    await sleep(pauseMs);
-  }
-  return { requests, occupations: done.size };
+  // A few requests in flight at once (the API takes about 3 s per record); each record is one appended line.
+  const todo = uris.filter((uri) => !done.has(uri));
+  const failed: string[] = [];
+  const worker = async () => {
+    for (let uri = todo.shift(); uri; uri = todo.shift()) {
+      // A record the API keeps failing on (one answers HTTP 500 every time) is left out and named, not fatal.
+      const record = await getJson(`${ESCO_API}/resource/occupation?uri=${encodeURIComponent(uri)}&language=en`).catch((err: Error) => {
+        failed.push(uri);
+        log(`esco occupation left out: ${err.message}`);
+        return null;
+      });
+      requests++;
+      if (!record) continue;
+      appendFileSync(cacheFile, JSON.stringify(record) + "\n");
+      done.add(uri);
+      if (done.size % 100 === 0) log(`esco occupations: ${done.size}/${uris.length}`);
+      await sleep(pauseMs);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
+  return { requests, occupations: done.size, failed };
 }
 
 export function readEscoCache(cacheFile: string): EscoOccupation[] {

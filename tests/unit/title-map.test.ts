@@ -4,6 +4,8 @@ import { combineWeights, neighbourTitles, neighbourTree, ownRoles, roleNeighbour
 import { assembleTitleMap, skillLinks, type EscoOccupation } from "../../scripts/title-map/graph";
 import { parseCrosswalk, parseEscoOccupation, parseOnet, parseTsv, parseXlsxSheet } from "../../scripts/title-map/sources";
 import { postingLinks, seedTerms, titleKey, titleKeys } from "../../scripts/title-map/learn-from-postings";
+import { holdsEveryWord, searchNeighbourTable } from "../../scripts/title-map/search-table";
+import { relatedTitlesFor } from "../../src/lib/jobs/title-neighbours";
 
 const occ = (id: string, label: string, essential: string[], optional: string[] = [], unit = "2511"): EscoOccupation => ({
   uri: `http://data.europa.eu/esco/occupation/${id}`,
@@ -170,6 +172,16 @@ describe("title map", () => {
     assert.ok(!titles.some((t) => t.toLowerCase() === "product manager"));
   });
 
+  it("reads the search table: posting titles only, never a role that merely lists the title", () => {
+    const table = searchNeighbourTable(map, "2026-11-01");
+    assert.deepEqual(table.titles, {
+      "product manager": ["Product Owner", "Technical Account Manager"],
+      "product owner": ["Product Manager"],
+      "technical account manager": ["Customer Success Manager", "Product Manager"],
+      "customer success manager": ["Technical Account Manager"],
+    });
+  });
+
   it("combines agreeing sources as a noisy-or", () => {
     assert.equal(combineWeights([0.5, 0.5]), 0.75);
     assert.equal(combineWeights([]), 0);
@@ -209,5 +221,28 @@ describe("posting titles", () => {
     const pairs = links.map(([a, b]) => `${a}>${b}`);
     assert.ok(pairs.includes("product manager>product owner"), pairs.join(","));
     assert.ok(!pairs.some((p) => p.includes("line cook")), pairs.join(","));
+  });
+});
+
+describe("related titles for a search", () => {
+  const table = {
+    generatedAt: "2026-11-01",
+    titles: {
+      "technical account manager": ["Customer Success Manager", "Solutions Engineer", "Implementation Manager"],
+      "account manager": ["Technical Account Manager", "Sales Manager"],
+    },
+  };
+
+  it("finds the roles next to a typed title, singular or plural, strongest first", () => {
+    assert.deepEqual(relatedTitlesFor("Technical Account Managers", 4, table), ["Customer Success Manager", "Solutions Engineer", "Implementation Manager"]);
+    assert.deepEqual(relatedTitlesFor("technical account manager", 2, table), ["Customer Success Manager", "Solutions Engineer"]);
+  });
+
+  it("leaves out a title holding every typed word (the title search already finds it) and unknown titles", () => {
+    assert.deepEqual(relatedTitlesFor("account manager", 4, table), ["Sales Manager"]);
+    assert.deepEqual(relatedTitlesFor("zyxwv quux", 4, table), []);
+    assert.deepEqual(relatedTitlesFor("", 4, table), []);
+    assert.ok(holdsEveryWord("Senior Technical Account Manager", "technical account manager"));
+    assert.ok(!holdsEveryWord("Customer Success Manager", "technical account manager"));
   });
 });

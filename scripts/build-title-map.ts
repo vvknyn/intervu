@@ -2,7 +2,10 @@
  * Builds the job title neighbour map (src/lib/jobs/title-map.ts) from O*NET, ESCO, the official
  * ESCO to O*NET-SOC crosswalk and, when given, the links learned from Velai's postings.
  *
- *   npx tsx scripts/build-title-map.ts <work-dir> [out.json] [postings-links.json]
+ *   npx tsx scripts/build-title-map.ts <work-dir> [out.json] [postings-links.json] [--skip-esco]
+ *
+ * With postings links it also writes the search's table of roles next to each posting title
+ * (title-neighbours.json beside out.json; rules in scripts/title-map/search-table.ts).
  *
  * Files missing from <work-dir> are downloaded (O*NET zip and crosswalk: one GET each; ESCO: one API
  * request per occupation, cached as JSON lines so a stopped run resumes). Downloads are untrusted
@@ -11,10 +14,11 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TitleSourceMeta } from "../src/lib/jobs/title-aliases";
 import { assembleTitleMap, THRESHOLDS, type PostingLinks } from "./title-map/graph";
+import { searchNeighbourTable } from "./title-map/search-table";
 import { fetchEsco, parseCrosswalk, parseOnet, parseXlsxSheet, readEscoCache } from "./title-map/sources";
 
 const ONET_VERSION = "31.0";
@@ -72,7 +76,7 @@ async function main() {
 
   // --skip-esco builds from O*NET alone (for when the ESCO API cannot be reached); the sources list then has no ESCO entry.
   const escoCache = join(workDir, ESCO_CACHE.name);
-  const fetched = skipEsco ? { requests: 0, occupations: 0 } : await fetchEsco(escoCache, { log });
+  const fetched = skipEsco ? { requests: 0, occupations: 0, failed: [] as string[] } : await fetchEsco(escoCache, { log });
   const esco = skipEsco ? [] : readEscoCache(escoCache);
 
   const postings: PostingLinks | undefined = postingsArg ? JSON.parse(readFileSync(postingsArg, "utf8")) : undefined;
@@ -103,6 +107,9 @@ async function main() {
   const out = resolve(outArg ?? join(here, "../src/lib/jobs/data/title-map.json"));
   const json = JSON.stringify(map) + "\n";
   writeFileSync(out, json);
+  const table = postings ? searchNeighbourTable(map, postings.generatedAt) : undefined;
+  const tableOut = join(dirname(out), "title-neighbours.json");
+  if (table) writeFileSync(tableOut, JSON.stringify(table) + "\n");
 
   const bySource = new Map<string, number>();
   for (const r of map.roles) bySource.set(r.id.split(":")[0], (bySource.get(r.id.split(":")[0]) ?? 0) + 1);
@@ -118,7 +125,7 @@ async function main() {
       {
         out,
         bytes: json.length,
-        esco: { occupations: esco.length, requests: fetched.requests },
+        esco: { occupations: esco.length, requests: fetched.requests, leftOut: fetched.failed },
         onet: { occupations: onet.occupations.length, related: onet.related.length, titles: onet.occupations.reduce((n, o) => n + o.titles.length, 0) },
         crosswalkPairs: crosswalk.length,
         roles: Object.fromEntries(bySource),
@@ -126,6 +133,7 @@ async function main() {
         rolesWithoutLinks: map.roles.length - linked.size,
         names: map.roles.reduce((n, r) => n + r.names.length, 0),
         thresholds: THRESHOLDS,
+        searchTable: table ? { out: tableOut, titles: Object.keys(table.titles).length, neighbours: Object.values(table.titles).reduce((n, t) => n + t.length, 0) } : null,
       },
       null,
       2,
