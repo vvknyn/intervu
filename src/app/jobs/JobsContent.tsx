@@ -82,9 +82,12 @@ import {
     seamSummary,
     shortDate,
     tieredSeamIndex,
+    relatedSeamIndex,
+    relatedSeamSummary,
 } from "@/lib/jobs/presentation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { keepsRelatedRow } from "@/lib/jobs/related-rows";
 import { writeTodaySeen } from "@/lib/jobs/for-you/today";
 import {
     subscribeRecentSearches,
@@ -541,9 +544,11 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
  * both the render hint and the semantic label; no counts (company isn't a
  * facet — see `JobSuggestions`, lib/jobs/types.ts).
  */
-function mapToSuggestions(data: { titles: string[]; companies: string[] }): SearchSuggestion[] {
+function mapToSuggestions(data: { titles: string[]; companies: string[]; related?: string[] }): SearchSuggestion[] {
     return [
         ...data.titles.map((text): SearchSuggestion => ({ text, type: "role" })),
+        // The roles next to what is typed, from the same table as the search's related band (`relatedSuggestions`).
+        ...(data.related ?? []).map((text): SearchSuggestion => ({ text, type: "related" })),
         ...data.companies.map((text): SearchSuggestion => ({ text, type: "company" })),
     ];
 }
@@ -2142,6 +2147,8 @@ export function JobsContent({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                               ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, seniorityRef.current),
                               ...resumeContentMark(fitActiveRef.current, query, packContentRef.current),
+                              // Best match also reads the roles next to a typed title, so the ones that fit can lead (`keepsRelatedRow`).
+                              ...(fitActiveRef.current ? { relatedPreview: true } : {}),
                               withFacets: true,
                               limit: firstPageLimit,
                               offset: 0,
@@ -2571,12 +2578,14 @@ export function JobsContent({
     const levelBounds = !fitActive && omitsPastSenior(signals?.seniority, false);
     const pastSeniorLeftOut = levelBounds ? (result?.hits ?? []).filter((job) => !withinSenior(job)).length : 0;
     const hits = useMemo(() => {
-        const raw = levelBounds ? (result?.hits ?? []).filter(withinSenior) : (result?.hits ?? []);
+        // A list not ranked by fit never lists the related rows read for Best match (`keepsRelatedRow`).
+        const pool = fitActive ? (result?.hits ?? []) : (result?.hits ?? []).filter((job) => !job.relatedPreview);
+        const raw = levelBounds ? pool.filter(withinSenior) : pool;
         // `viewedIds` (the hook's own server+local merge) union'd with this
         // render's `openedIds` — belt-and-suspenders so a just-opened job is
         // excluded even before the optimistic `markViewed` state re-renders.
         return applyViewedFilter(raw, buildViewedSet(viewedIds, openedIds, []), hideViewed);
-    }, [result?.hits, levelBounds, viewedIds, openedIds, hideViewed]);
+    }, [result?.hits, fitActive, levelBounds, viewedIds, openedIds, hideViewed]);
 
     /**
      * Render fallback for a zero-query state (`resolveJobsRenderMode`,
@@ -2708,7 +2717,8 @@ export function JobsContent({
     const recommended = useMemo(() => {
         if (!fitActive || !matchScores) return null;
         const read = listCandidates(
-            placeDropped ? [] : clusters.map((c) => c.primary),
+            // A role next to the typed title is listed only when it fits as Strong or Good (`keepsRelatedRow`).
+            placeDropped ? [] : clusters.map((c) => c.primary).filter((job) => keepsRelatedRow(job, matchScores.get(job.id))),
             listApplied ? (job) => trackedPursuitFor(job, listApplied.index) != null : undefined,
         );
         const { ranked, lower, summary } = deckListFor(
@@ -2905,6 +2915,10 @@ export function JobsContent({
     // too — `primaryIndex >= 0` would otherwise always match at cluster 0.
     const clusterSeamIndex =
         seamIndex > 0 ? clusters.findIndex((c) => c.primaryIndex >= seamIndex) : -1;
+    // The roles next to the typed one (tier 3) sit in their own band between the title matches and the mentions,
+    // under a line that names them; a cluster never straddles it either (it keys on the tier).
+    const relatedSeam = relatedSeamIndex(displayHits);
+    const clusterRelatedSeamIndex = relatedSeam >= 0 ? clusters.findIndex((c) => c.primaryIndex >= relatedSeam) : -1;
 
     // The flat list of jobs actually rendered as their own row right now —
     // every cluster's primary, plus its variants only while expanded, in
@@ -3290,7 +3304,8 @@ export function JobsContent({
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
         // A ranked list reads on a whole page at a time ("Rank 300 more"), scored in the browser like the first.
         const pageSize = fitActiveRef.current ? FOR_YOU_PAGE : PAGE;
-        const ticket = paginationRef.current!.beginLoadMore(pageSize, cur.hits.length);
+        // The related rows a Best match page read past its own (`relatedPreview`) are not in the search's paging.
+        const ticket = paginationRef.current!.beginLoadMore(pageSize, cur.hits.filter((h) => !h.relatedPreview).length);
         if (!ticket) return; // first page active or another load-more owns the generation
         setLoadingMore(true);
         try {
@@ -6277,6 +6292,17 @@ export function JobsContent({
                                             // longer describes anything real, so it's
                                             // suppressed rather than drawn at a now-
                                             // meaningless position.
+                                            if (!fitActive && i === clusterRelatedSeamIndex) {
+                                                rows.unshift(
+                                                    <p
+                                                        key="related-seam"
+                                                        data-testid="related-seam"
+                                                        className="mb-1 pt-4 pb-1 text-xs text-muted-foreground"
+                                                    >
+                                                        {relatedSeamSummary(result?.effectiveQ ?? query, result?.relatedTitles ?? [])}
+                                                    </p>,
+                                                );
+                                            }
                                             if (fitActive || i !== clusterSeamIndex) return rows;
                                             return [
                                                 <p
@@ -6284,7 +6310,7 @@ export function JobsContent({
                                                     data-testid="relevance-seam"
                                                     className="mb-1 pt-4 pb-1 text-xs text-muted-foreground"
                                                 >
-                                                    {seamSummary(seamIndex, total, displayHits.length)}
+                                                    {seamSummary(seamIndex, total, displayHits.length, displayHits.slice(0, seamIndex).filter((h) => h.tier !== 3).length)}
                                                 </p>,
                                                 ...rows,
                                             ];

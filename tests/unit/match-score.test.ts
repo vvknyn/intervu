@@ -846,7 +846,10 @@ describe('the seniority reason agrees with the role\'s details', () => {
         assert.equal(at('senior', 'Senior Customer Success Manager').detail, 'senior role — matches your senior level (set in Settings)');
     });
 
-    it('a level read from the résumé names the years and the role it came from', () => {
+    it('a level read from the résumé names the years and the role it came from', (t) => {
+        // The résumé's current role runs to "Present", so its months are counted to today: pinned, or the whole years
+        // step up as months pass (143 months read 11 years on 2026-10-31, 144 read 12 on 2026-11-01).
+        t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 9, 15) });
         const led = scoreJobAgainstResume(fixture('vivek-tam-resume'), mkJob({ title: 'Technical Account Manager', experience_level: 'senior' }))!
             .components.find((c) => c.key === 'seniority')!;
         assert.equal(led.detail, 'senior role — matches your senior level (11 years of experience, including lead and senior roles)');

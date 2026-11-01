@@ -4,11 +4,13 @@ import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 import { isListSearch } from "./list-search";
 import { openGroup, showFilters } from "./filters-panel";
+import { rollupCountryDistribution } from "../../../src/lib/jobs/country-classification";
 
 /**
  * Journeys for what a typed search reaches and in what order (2026-09-30):
  * the 90-day posted default (J-JOBS-04, J-FILT-02, J-FILT-25, J-FILT-26), the
- * IP-country default's remote-anywhere rule (J-SRCH-22), newer first among
+ * IP-country default's remote-anywhere rule (J-SRCH-22) and its Country
+ * counts (J-SRCH-42), newer first among
  * equally matching roles (J-SRCH-23), an entry-level title such as "Sales
  * Associate" listing that title (J-SRCH-34), and the job page's "checked"
  * date (J-DETAIL-40). See tests/journeys/CATALOG.md. Read-only.
@@ -32,7 +34,13 @@ type Hit = {
   ghost_checked_at?: string | null;
   last_observed_alive_at?: string | null;
 };
-type SearchResult = { hits: Hit[]; total: number; defaultedLocation?: string; remoteAnywhere?: boolean };
+type SearchResult = {
+  hits: Hit[];
+  total: number;
+  defaultedLocation?: string;
+  remoteAnywhere?: boolean;
+  facetDistribution?: Record<string, Record<string, number>>;
+};
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -90,21 +98,29 @@ async function collectSearchResults(page: Page): Promise<SearchResult[]> {
 /**
  * Types `q` into the board's search box and returns the result the rows on
  * screen came from — or `null` when the search shows its no-results state.
+ * Pass `results` (from `collectSearchResults`) to keep reading the page's
+ * later searches after this one.
  */
-async function typedSearch(page: Page, q: string): Promise<SearchResult | null> {
+async function typedSearch(page: Page, q: string, results?: SearchResult[]): Promise<SearchResult | null> {
   await returningVisitor(page);
-  const results = await collectSearchResults(page);
+  const collected = results ?? (await collectSearchResults(page));
   await page.goto("/jobs");
-  const rows = page.getByTestId("job-row");
-  const empty = page.getByTestId("search-empty-results");
   // Bare /jobs is the front door, with no list of its own. Let it settle, so
   // the search below is the only read the rows can come from.
   await expect(page.getByPlaceholder(SEARCH_INPUT)).toBeVisible({ timeout: 30_000 });
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-  const before = results.length;
+  const before = collected.length;
   await page.getByPlaceholder(SEARCH_INPUT).fill(q);
   await runSearch(page, page.getByPlaceholder(SEARCH_INPUT));
   await expect(page).toHaveURL(/[?&]q=/, { timeout: 30_000 });
+  return resultOnScreen(page, collected, before);
+}
+
+/** The result among `results` read after index `before` that the rows on screen came from, or `null` when the
+ *  page shows its no-results state. */
+async function resultOnScreen(page: Page, results: SearchResult[], before: number): Promise<SearchResult | null> {
+  const rows = page.getByTestId("job-row");
+  const empty = page.getByTestId("search-empty-results");
   let shown: SearchResult | null = null;
   await expect
     .poll(
@@ -231,6 +247,38 @@ test("the country default leaves out a remote role with a city but no country, a
     }
   }
   test.skip(!anywhereShown, "no remote role with no place at all on page 1 of either query");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("with the visitor's own country applied, the Country counts name every country the search has roles in, and a count says what picking it lists", { tag: ["@J-SRCH-42"] }, async ({ page, diagnostics }) => {
+  // 2026-11-01: from Canada, signed out, "data scientist" read "United States 1" (the one posting listing both
+  // countries) while the US held 8,958 such roles: the counts were taken inside the visitor's own country.
+  const results = await collectSearchResults(page);
+  let checked: string | undefined;
+  for (const q of ["data scientist", "software engineer", "registered nurse"]) {
+    const result = await typedSearch(page, q, results);
+    if (!result) continue;
+    test.skip(!result.defaultedLocation, "no IP country default applied to this client");
+    const home = new Intl.DisplayNames(["en"], { type: "region" }).of(result.defaultedLocation!);
+    const elsewhere = rollupCountryDistribution(result.facetDistribution?.location_country).find(
+      (row) => row.rawValues && row.country !== home,
+    );
+    if (!elsewhere) continue;
+
+    // Picking that country (the chip writes `country=` to the URL) lists about what its count said.
+    const before = results.length;
+    await page.goto(`/jobs?q=${encodeURIComponent(q)}&country=${encodeURIComponent(elsewhere.country)}`);
+    const picked = await resultOnScreen(page, results, before);
+    expect(picked, `"${q}" in ${elsewhere.country} lists roles`).not.toBeNull();
+    expect(picked!.defaultedLocation, "a picked country replaces the default").toBeUndefined();
+    const said = `"${q}": ${elsewhere.country} counted ${elsewhere.count} beside the ${home} default; picking it lists ${picked!.total}`;
+    expect(elsewhere.count, said).toBeGreaterThanOrEqual(Math.ceil(picked!.total / 2));
+    expect(elsewhere.count, said).toBeLessThanOrEqual(Math.ceil(picked!.total * 1.1));
+    checked = said;
+    break;
+  }
+  test.skip(!checked, "no sample query has roles outside the visitor's country");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

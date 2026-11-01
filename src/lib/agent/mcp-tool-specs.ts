@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AGENT } from "@/lib/agent/config";
-import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS } from "@/lib/agent/tools";
+import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS, RELATED_AGENT_CAP } from "@/lib/agent/tools";
 import { JOB_SORT_MODES, YEARS_EXPERIENCE_BUCKETS, PANEL_FACET_KEYS } from "@/lib/jobs/types";
 import { PURSUIT_STAGES } from "@/lib/pursuits/types";
 import { CHANGE_HISTORY_LIMIT } from "@/lib/companies/exhaust";
@@ -280,7 +280,12 @@ export const MCP_TOOL_SPECS = {
             `facets entry for a key remote_only/experience_level/employment_type already set may only ` +
             `NARROW that filter, never widen it — no overlap between the two is an input error, never a ` +
             `silent empty page) — all AND ` +
-            `together and with query. Postings that look stale (unlikely to lead to an ` +
+            `together and with query. A job title as the query also returns roles next to it (searching ` +
+            `"technical account manager" also finds customer success roles), listed after the postings ` +
+            `titled with the query: those hits carry related_role:true and the response names them in ` +
+            `related_titles. On the first page, when the user's résumé is on file, up to ${RELATED_AGENT_CAP} of those ` +
+            `roles that fit the résumé as Strong or Good follow the page's hits even when the query's own postings fill ` +
+            `it (related_role:true; ones that fit less are left out). Postings that look stale (unlikely to lead to an ` +
             `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
             `Returns up to ${AGENT.RESULT_CAP} results per page (default ${AGENT.SEARCH_DEFAULT_LIMIT}), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
             `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +

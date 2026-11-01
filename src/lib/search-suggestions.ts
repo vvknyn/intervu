@@ -21,7 +21,9 @@ export interface SearchSuggestion {
      *  query (SearchAutocomplete's `seeds` prop) — falls through to the
      *  default magnifying-glass icon like `role`/`full`, distinguished only
      *  by the "Popular searches" section header rendered above the list. */
-    type: 'company' | 'role' | 'history' | 'full' | 'seed' | 'query';
+    /** `related` = a role next to the typed one (`relatedSuggestions`, lib/jobs/title-neighbours.ts), listed after
+     *  the titles that hold what is typed. */
+    type: 'company' | 'role' | 'related' | 'history' | 'full' | 'seed' | 'query';
 }
 
 /**
@@ -35,6 +37,7 @@ export const SECTION_LABELS: Record<SearchSuggestion['type'], string | undefined
     seed: "Popular searches",
     history: "Recent searches",
     role: "Roles",
+    related: "Related roles",
     company: "Companies",
     full: undefined,
     query: undefined,

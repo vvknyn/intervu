@@ -186,14 +186,21 @@ export interface PublicJob {
   /**
    * Per-hit provenance from a federated tiered-retrieval pass
    * (`runTieredRetrieval`, meilisearch.ts): 1 = strict-scope query
-   * (title/company/tags), 2 = whole-document query. Derived from that hit's
+   * (title/company/tags), 2 = whole-document query or a title alias, 3 = the title of a role next to the
+   * typed one (`relatedRoleSpecs`), ranked after the aliases and before the whole-document hits. Derived from that hit's
    * own `_federation.queriesPosition` (0 → 1, 1 → 2) before `_federation` is
    * stripped off the wire shape — the seam between tiers is placed from this
    * field, never from a carried count, so it survives client-side filtering
    * (e.g. "hide viewed") without drifting onto the wrong row. Undefined under
    * every non-federated search mechanism.
    */
-  tier?: 1 | 2;
+  tier?: 1 | 2 | 3;
+  /**
+   * A row of a role next to the typed one read past the page for a Best match list (`relatedPreview` on the search,
+   * `RELATED_PREVIEW_LIMIT`, meilisearch.ts): listed only when it fits the résumé as Strong or Good
+   * (`keepsRelatedRow`, related-rows.ts), never in a list that is not ranked by fit, and not part of `total`.
+   */
+  relatedPreview?: true;
 }
 
 /**
@@ -428,6 +435,13 @@ export interface JobSearchParams {
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */
   withFacets?: boolean;
+  /**
+   * Server-internal (`searchMeili` sets it on its own count query, see
+   * `placeFreeCountQuery` in meilisearch.ts): run the search for these facets'
+   * counts alone. Every query it sends asks for no rows (`limit: 0`; a
+   * federated search reads one), and its hits and total are not read.
+   */
+  facetCountsOnly?: readonly FacetKey[];
   /** Restrict to jobs at companies on a curated board allowlist. */
   board?: BoardId;
   /** Restrict to jobs at a single company domain (exact match). */
@@ -453,6 +467,11 @@ export interface JobSearchParams {
    * (`shouldLogSearch`) so `search_events` never holds words from a résumé.
    */
   fromResume?: boolean;
+  /**
+   * A Best match first page: also read the first rows of the roles next to the typed title (`relatedRoleSpecs`), so
+   * the ones that fit the résumé can lead with the title matches (`PublicJob.relatedPreview`). Ignored past offset 0.
+   */
+  relatedPreview?: boolean;
   /**
    * Leave out roles that rank past Senior (Staff, Principal, Director, Head of, VP, Chief, or listed
    * Executive; `titlePastSenior`) before the list is cut to a page, so a résumé-built list fills with
@@ -555,6 +574,8 @@ export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured
 export interface JobSuggestions {
   titles: string[];
   companies: string[];
+  /** Roles next to what is typed (`relatedSuggestions`, title-neighbours.ts), listed after `titles`. */
+  related?: string[];
 }
 
 export interface JobSearchResult {
@@ -605,6 +626,11 @@ export interface JobSearchResult {
    * that reshuffled under an explicit sort. Absent on every other path.
    */
   tier1Total?: number;
+  /**
+   * The titles of the roles next to the typed one that this tiered result searched (`relatedRoleSpecs`,
+   * meilisearch.ts), strongest first; present only when at least one of its hits is one (`tier` 3).
+   */
+  relatedTitles?: string[];
   /**
    * Employer search with a place asked for: how many of the leading rows (of
    * `total`) sit in that place. The rows after them are the same employer

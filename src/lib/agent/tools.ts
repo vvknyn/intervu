@@ -18,6 +18,7 @@ import { canonicalFacetValues } from "../jobs/meilisearch";
 import { matchLabel, relevanceTerms, termAsWritten, type MatchScore } from "../match/score";
 import { latestCheckAt } from "../jobs/badges";
 import { fitFor } from "../jobs/for-you/fit";
+import { keepsRelatedRow } from "../jobs/related-rows";
 import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidate-signals";
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
@@ -369,11 +370,16 @@ export function toJobDetailFields(
 // (which reuses this SAME wire-allowlist mapping for get_company's embedded
 // jobs list) reads as its own concern rather than reaching for
 // `JobDetailFields` directly.
-export type SearchHit = JobDetailFields;
+export type SearchHit = JobDetailFields & {
+  /** A role next to the typed title rather than that title (`relatedRoleSpecs`, meilisearch.ts); listed after the title matches. */
+  related_role?: true;
+};
 
 export interface SearchOut {
   hits: SearchHit[];
   total: number;
+  /** The titles of the roles next to the typed one that the search also returned, strongest first. */
+  related_titles?: string[];
   unavailable?: boolean;
   note?: string;
   /** Opaque cursor for the next page — present only when more results exist
@@ -605,6 +611,9 @@ function nextCursorFor(offset: number, returned: number, total: number, limit: n
   return total > nextOffset && nextOffset < AGENT.SEARCH_DEPTH_CAP ? encodeCursor(nextOffset, limit) : undefined;
 }
 
+/** At most this many related roles that fit the résumé are added to a search_jobs first page (`keepsRelatedRow`). */
+export const RELATED_AGENT_CAP = 5;
+
 export async function toolSearchJobs(
   deps: ToolDeps,
   input: SearchJobsInput,
@@ -637,6 +646,8 @@ export async function toolSearchJobs(
     ...(input.visa_sponsorship_only ? { visaOnly: true } : {}),
     ...(input.sort ? { sort: input.sort } : {}),
     ...(input.years_experience ? { yearsExperience: input.years_experience } : {}),
+    // The first page also reads the roles next to a typed title; the ones that fit the résumé are added below.
+    ...(offset === 0 ? { relatedPreview: true } : {}),
   });
   // A backend failure must never read like a true zero-match — the MCP
   // response is the agent's only channel, so an empty `hits` here has to be
@@ -662,15 +673,26 @@ export async function toolSearchJobs(
   // Depth-cap truncation: the backend was asked for a full page (see the
   // limit comment above), but only `depthCapRemaining(offset)` of those hits
   // are ever handed back — 0 once `offset` has reached the cap.
-  const hits = result.hits.slice(0, depthCapRemaining(offset)).map((job) => toJobDetailFields(job, resume, signals));
+  const paged = result.hits.filter((job) => !job.relatedPreview).slice(0, depthCapRemaining(offset));
+  // The related rows read past the page that fit the résumé as Strong or Good (`keepsRelatedRow`, the site's Best
+  // match rule), up to RELATED_AGENT_CAP; none without a résumé.
+  const relatedFits = result.hits
+    .filter((job) => job.relatedPreview && keepsRelatedRow(job, fitFor(resume, job, signals)?.match))
+    .slice(0, RELATED_AGENT_CAP);
+  const hits: SearchHit[] = [...paged, ...relatedFits].map((job) => ({
+    ...toJobDetailFields(job, resume, signals),
+    ...(job.tier === 3 ? { related_role: true as const } : {}),
+  }));
   // Corpus-harvesting guardrail: meter the ACTUAL hits about to be returned
   // against the credential's daily record budget before handing them back.
   const budget = await deps.consumeRecordBudget(hits.length);
   if (!budget.ok) return { error: budget.error };
-  const nextCursor = nextCursorFor(offset, hits.length, result.total, limit);
+  // The added related rows are not in the search's paging: the next page starts after the page's own rows.
+  const nextCursor = nextCursorFor(offset, paged.length, result.total, limit);
   return {
     hits,
     total: result.total,
+    ...(result.relatedTitles?.length ? { related_titles: result.relatedTitles } : {}),
     ...(note ? { note } : {}),
     ...(nextCursor ? { next_cursor: nextCursor } : {}),
   };

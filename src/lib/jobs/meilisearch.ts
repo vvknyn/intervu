@@ -40,6 +40,7 @@ import { payPlace } from "./pay-place";
 import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause, hasUnknownRequestedFacet, salaryMinClause } from "./unknown-inclusive-facets";
 import { expandTitleQuery } from "./title-aliases";
+import { relatedSuggestions, relatedTitlesFor } from "./title-neighbours";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
@@ -956,13 +957,14 @@ export function buildSearchBody(
     // under any sort (Vivek 2026-10-26: every word, every sort).
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
-    facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
+    facets: p.withFacets ? [...(p.facetCountsOnly ?? REQUESTED_FACET_KEYS)] : undefined,
     // `limit`/`offset`, not `hitsPerPage`/`page` — page mode forces exhaustive
     // count pagination over the full match set (see `buildSuggestBody`).
     // Exact totals at 100k+ are recovered via `resolveCorpusCount` when
-    // `withFacets` returns an uncapped `ghost_badge` facet sum.
-    limit: p.limit ?? 40,
-    offset: p.offset ?? 0,
+    // `withFacets` returns an uncapped `ghost_badge` facet sum. A counts-only
+    // search (`facetCountsOnly`) asks for no rows, whatever window a lane set.
+    limit: p.facetCountsOnly ? 0 : (p.limit ?? 40),
+    offset: p.facetCountsOnly ? 0 : (p.offset ?? 0),
     sort: buildMeiliSort(p, legacy),
     ...(p.id ? {} : { attributesToRetrieve: [...JOB_LIST_ATTRIBUTES_TO_RETRIEVE] }),
     ...(opts?.rankingScoreDetails ? { showRankingScoreDetails: true } : {}),
@@ -972,6 +974,14 @@ export function buildSearchBody(
 /** Federation weight of a title-alias query: under tier 1 (100, any real match), over tier 2 (1, any partial match). */
 const TITLE_ALIAS_WEIGHT = 10;
 const TITLE_ALIAS_QUERY_CAP = 8;
+/**
+ * Relevance weight of a related-role query (`relatedRoleSpecs`): a band of its own under the typed title (100, or 50
+ * unknown-inclusive) and its other names (`TITLE_ALIAS_WEIGHT` 10, or 5), over the whole-document matches (1, or
+ * 0.5). Its unknown-inclusive pair (x `UNKNOWN_TIER_WEIGHT`) is 1.5, still over a whole-document hit's 1.
+ */
+const RELATED_ROLE_WEIGHT = 3;
+/** At most this many related titles are searched (two queries each when a filter admits un-derived rows). */
+export const RELATED_ROLE_QUERY_CAP = 4;
 
 /**
  * Title-only queries for the other names of the typed occupation ("speech therapist" -> "speech-language
@@ -990,6 +1000,25 @@ export function titleAliasSpecs(p: JobSearchParams) {
   return aliases.flatMap((alias) => {
     const known = query(alias, { knownOnly: true }, TITLE_ALIAS_WEIGHT);
     const inclusive = query(alias, {}, TITLE_ALIAS_WEIGHT * UNKNOWN_TIER_WEIGHT);
+    return JSON.stringify(inclusive.query.filter) !== JSON.stringify(known.query.filter) ? [known, inclusive] : [known];
+  });
+}
+
+/**
+ * Title-only queries for the roles next to the typed one ("technical account manager" -> "customer success manager",
+ * ...; `relatedTitlesFor`, read out of the title neighbour map). They are not the typed job, so they sit in their own
+ * band (tier 3) under every title match (the typed title and its other names) and over the whole-document matches,
+ * where the list labels them; under an explicit sort the band keeps that sort inside it. Known-value and unknown-inclusive variants pair as aliases do.
+ */
+export function relatedRoleSpecs(p: JobSearchParams, titles: string[] = relatedTitlesFor(p.q ?? "", RELATED_ROLE_QUERY_CAP)) {
+  const details = resolveEffectiveSort(p) === "relevance" ? { rankingScoreDetails: true } : {};
+  const query = (q: string, opts: BuildSearchBodyOpts, w: number) => {
+    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody({ ...p, q }, false, "all", { ...details, titleScoped: true, ...opts });
+    return { tier: 3 as const, title: q, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight: w } } };
+  };
+  return titles.flatMap((title) => {
+    const known = query(title, { knownOnly: true }, RELATED_ROLE_WEIGHT);
+    const inclusive = query(title, {}, RELATED_ROLE_WEIGHT * UNKNOWN_TIER_WEIGHT);
     return JSON.stringify(inclusive.query.filter) !== JSON.stringify(known.query.filter) ? [known, inclusive] : [known];
   });
 }
@@ -1213,10 +1242,11 @@ export function buildTieredQuerySpecs(p: JobSearchParams) {
     const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, "all", { ...details, ...opts });
     return { tier, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
   };
-  const specs = [query({ knownOnly: true }, 100, 1), query({ wholeDocument: true, knownOnly: true }, 1, 2)];
+  const specs: Array<{ tier: 1 | 2 | 3; title?: string; query: ReturnType<typeof query>["query"] }> = [query({ knownOnly: true }, 100, 1), query({ wholeDocument: true, knownOnly: true }, 1, 2)];
   const inclusive = [query({}, UNKNOWN_TIER_WEIGHT * 100, 1), query({ wholeDocument: true }, UNKNOWN_TIER_WEIGHT, 2)];
   if (JSON.stringify(inclusive[0].query.filter) !== JSON.stringify(specs[0].query.filter)) specs.push(...inclusive);
   specs.push(...titleAliasSpecs(p));
+  specs.push(...relatedRoleSpecs(p));
   return specs;
 }
 
@@ -1236,26 +1266,65 @@ function normalizePublicJobsForSearch(
   return normalizePublicJobs(filtered);
 }
 
+/**
+ * Rows of the roles next to the typed one that a Best match first page also reads (`JobSearchParams.relatedPreview`).
+ * The page then lists the ones that fit the résumé as Strong or Good among the title matches (`keepsRelatedRow`,
+ * related-rows.ts) and drops the rest. Without it a title with more postings than the page holds never reaches the
+ * related band (live index 2026-11-01: 21 of 23 titles).
+ */
+export const RELATED_PREVIEW_LIMIT = 40;
+
+type FederatedHit = PublicJob & { _federation?: { queriesPosition?: number } };
+
+/**
+ * The first `RELATED_PREVIEW_LIMIT` rows of the related-role queries alone, in their own order, with the title each
+ * came from. Never throws: the preview only adds rows, so a failure reads as none.
+ */
+async function fetchRelatedPreview(
+  h: string,
+  specs: ReadonlyArray<{ title?: string; query: unknown }>,
+): Promise<{ hits: FederatedHit[]; titles: string[] }> {
+  try {
+    const res = await meiliFetch(`${h}/multi-search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ federation: { limit: RELATED_PREVIEW_LIMIT, offset: 0 }, queries: specs.map((s) => s.query) }),
+    });
+    if (!res.ok) return { hits: [], titles: [] };
+    const hits = ((await res.json()) as { hits?: FederatedHit[] }).hits ?? [];
+    const titles = [...new Set(specs.flatMap((s, i) => (s.title && hits.some((hit) => hit._federation?.queriesPosition === i) ? [s.title] : [])))];
+    return { hits, titles };
+  } catch {
+    return { hits: [], titles: [] };
+  }
+}
+
 async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
   const specs = buildTieredQuerySpecs(p);
+  const previewSpecs = p.relatedPreview && !p.offset && !p.facetCountsOnly ? specs.filter((s) => s.tier === 3) : [];
 
   const federatedBody = {
     federation: {
-      limit: p.limit ?? 40,
-      offset: p.offset ?? 0,
-      ...(p.withFacets ? { facetsByIndex: { [JOBS_INDEX]: [...REQUESTED_FACET_KEYS] } } : {}),
+      // A counts-only search reads one row here, not none: a single search takes `limit: 0` (`runCountPass`),
+      // and one row costs nothing while a federation limit of 0 was never tried against the live engine.
+      limit: p.facetCountsOnly ? 1 : (p.limit ?? 40),
+      offset: p.facetCountsOnly ? 0 : (p.offset ?? 0),
+      ...(p.withFacets ? { facetsByIndex: { [JOBS_INDEX]: [...(p.facetCountsOnly ?? REQUESTED_FACET_KEYS)] } } : {}),
     },
     queries: specs.map((s) => s.query),
   };
 
-  const [fedRes, tier1Total] = await Promise.all([
+  const [fedRes, tier1Total, preview] = await Promise.all([
     meiliFetch(`${h}/multi-search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
       cache: "no-store",
       body: JSON.stringify(federatedBody),
     }),
-    runCountPass(h, p, {}),
+    // A counts-only search has no rows to place a seam between.
+    p.facetCountsOnly ? Promise.resolve(undefined) : runCountPass(h, p, {}),
+    previewSpecs.length > 0 ? fetchRelatedPreview(h, previewSpecs) : Promise.resolve({ hits: [], titles: [] as string[] }),
   ]);
 
   if (!fedRes.ok) {
@@ -1272,13 +1341,23 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
   // document) regardless of where a client-side filter later moves it in the
   // rendered list — see `PublicJob.tier` (types.ts) for why this beats
   // indexing into `hits` by `tier1Total`.
-  const hits = normalizePublicJobsForSearch(
+  const paged = normalizePublicJobsForSearch(
     (body.hits ?? []).map(({ _federation, ...hit }) => ({
       ...hit,
       tier: specs[_federation?.queriesPosition ?? -1]?.tier ?? 2,
     })),
     p,
   );
+  // The preview's rows the page does not already hold follow it, marked: they are not part of `total` or of the
+  // paging offset (the next page starts where this one's own rows end).
+  const pagedIds = new Set(paged.map((hit) => hit.id));
+  const previewRows = normalizePublicJobsForSearch(
+    preview.hits.filter((hit) => !pagedIds.has(hit.id)).map(({ _federation, ...hit }) => ({ ...hit, tier: 3 as const, relatedPreview: true as const })),
+    p,
+  );
+  const hits = [...paged, ...previewRows];
+  const pageRelated = specs.flatMap((s, i) => (s.title && (body.hits ?? []).some((hit) => hit._federation?.queriesPosition === i) ? [s.title] : []));
+  const relatedTitles = [...new Set([...pageRelated, ...(previewRows.length > 0 ? preview.titles : [])])];
   return {
     hits,
     total: body.estimatedTotalHits ?? body.hits?.length ?? 0,
@@ -1286,10 +1365,64 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
     configured: true,
     facetDistribution: body.facetsByIndex?.[JOBS_INDEX]?.distribution as FacetDistribution | undefined,
     tier1Total,
+    // The related titles this page holds rows for, in the order they were searched (strongest first).
+    ...(relatedTitles.length > 0 ? { relatedTitles } : {}),
   };
 }
 
+/**
+ * The Country counts answer "where does this search have roles?", not "which countries are in the place I'm already
+ * searching?". A search scoped to a place (the visitor's own country by IP default, a typed place, a picked country)
+ * used to count countries inside that place only: a signed-out "data scientist" search from Canada read
+ * "United States 1" (the one posting that lists Canada and the US), while the US held 8,958 such roles (live MCP
+ * search, 2026-11-01). A count must say what adding that country gives, so the Country counts come from the same
+ * search with no place in it. Every other filter (query, level, work mode, posted window, stale postings) stays.
+ *
+ * The count query for `p`, or null when `p` asks for no facets, names no place, or lists no rows: the ghost and
+ * beyond-window probes (run-search.ts, limit 1 and 0) read only their own count and never show Country counts.
+ */
+export function placeFreeCountQuery(p: JobSearchParams): JobSearchParams | null {
+  if (!p.withFacets || p.facetCountsOnly || p.id || (p.limit ?? 40) <= 1) return null;
+  const hasPlace = Boolean(p.places?.length) || LOCATION_FACET_FIELDS.some((field) => Boolean(p.facets?.[field]?.length));
+  if (!hasPlace) return null;
+  const facets = { ...p.facets };
+  for (const field of LOCATION_FACET_FIELDS) delete facets[field];
+  return { ...p, places: undefined, facets, facetCountsOnly: ["location_country"] };
+}
+
+/** `result` with its Country counts taken from the place-free count query (`placeFreeCountQuery`); unchanged when
+ *  that query returned none (it failed or ran out of time), so the counts never go missing. */
+export function withPlaceFreeCountryCounts(
+  result: JobSearchResult,
+  countryCounts: Record<string, number> | undefined,
+): JobSearchResult {
+  if (!countryCounts || !result.facetDistribution) return result;
+  return { ...result, facetDistribution: { ...result.facetDistribution, location_country: countryCounts } };
+}
+
+/** How long the list waits for the Country count query after its own rows are in. It asks for no rows, so it is
+ *  usually done first; past this the list keeps the in-place counts rather than wait. */
+export const PLACE_FREE_COUNT_GRACE_MS = 750;
+
 export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> {
+  const countQuery = placeFreeCountQuery(p);
+  if (!countQuery) return searchMeiliScoped(p);
+  const counts = searchMeiliScoped(countQuery).then(
+    (r) => r.facetDistribution?.location_country,
+    () => undefined,
+  );
+  const result = await searchMeiliScoped(p);
+  if (!result.facetDistribution) return result;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), PLACE_FREE_COUNT_GRACE_MS);
+  });
+  const countryCounts = await Promise.race([counts, late]);
+  clearTimeout(timer);
+  return withPlaceFreeCountryCounts(result, countryCounts);
+}
+
+async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
   const h = host();
   if (!h) {
     return {
@@ -1554,7 +1687,8 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   };
 
   const result = await runWithIntent(intent);
-  if ((intent.companyScoped || Boolean(intent.residualRoleQ)) && result.total === 0) {
+  // A counts-only search's lanes hold no rows, so their total is no sign the company reading found nothing.
+  if (!p.facetCountsOnly && (intent.companyScoped || Boolean(intent.residualRoleQ)) && result.total === 0) {
     const fallback = await runWithIntent({ companyScoped: false, companyDomains: [] });
     return {
       ...fallback,
@@ -2732,7 +2866,9 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
     const body = (await res.json()) as {
       hits?: Array<{ title?: string; company?: string | null; company_domain?: string | null }>;
     };
-    return dedupeJobSuggestionHits(body.hits ?? [], query);
+    const suggestions = dedupeJobSuggestionHits(body.hits ?? [], query);
+    const related = relatedSuggestions(query, suggestions.titles);
+    return related.length > 0 ? { ...suggestions, related } : suggestions;
   } catch {
     return EMPTY_SUGGESTIONS;
   }

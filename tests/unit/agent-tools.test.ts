@@ -1128,7 +1128,50 @@ describe('toolSearchJobs — filters (Task 12, source-derived mappings)', () => 
         employment_type: ['full_time'],
       },
       places: [{ any: [{ field: 'location_country', value: 'Canada' }] }],
+      relatedPreview: true,
     });
+  });
+});
+
+/** Fabricated candidate (no real person): a Toronto TAM, as the related-roles journey's (J-JOBS-167). */
+const TAM_RESUME: BaseResume = {
+  source: 'resume_data',
+  resume_data: {
+    profile: { name: 'Morgan Lee', profession: 'Technical Account Manager', yearsOfExperience: 9, location: 'Toronto, Ontario, Canada', email: '', phone: '' },
+    experience: [
+      { id: 'exp1', company: 'Northwind Cloud', role: 'Technical Account Manager', dates: '2019 - Present', description: 'Owned adoption, renewals and technical escalations for 40 enterprise accounts; worked with product managers on the roadmap.' },
+      { id: 'exp2', company: 'Maple Systems', role: 'Technical Support Engineer', dates: '2015 - 2019', description: 'Resolved API and integration issues for enterprise customers.' },
+    ],
+    competencies: [{ category: 'Skills', skills: ['Customer Success', 'Product Management', 'SQL', 'REST APIs', 'Salesforce'] }],
+    education: [],
+    generatedSummary: 'Technical Account Manager with nine years in customer success and product delivery for enterprise SaaS customers.',
+  },
+};
+
+describe('toolSearchJobs — the roles next to the query that fit the résumé (the site\'s Best match rule)', () => {
+  const toronto = { location: 'Toronto, ON', location_city: 'Toronto', location_state: 'Ontario', location_country: 'Canada', work_type: 'hybrid', experience_level: 'mid', tags: [], description: null };
+  const page = [makeJob({ ...toronto, id: 'tam-1', title: 'Technical Account Manager', tier: 1 })];
+  const preview = [
+    makeJob({ ...toronto, id: 'csm-1', title: 'Customer Success Manager', tier: 3, relatedPreview: true }),
+    makeJob({ ...toronto, id: 'ae-1', title: 'Account Executive', tier: 3, relatedPreview: true }),
+  ];
+
+  it('adds the related rows that fit as Strong or Good after the page, marked, outside the paging', async () => {
+    const { deps } = stubDeps([...page, ...preview], undefined, { total: 50 }, TEST_VOCAB, { baseResume: TAM_RESUME });
+    const out = await toolSearchJobs(deps, { query: 'technical account manager', limit: 1 });
+    if ('error' in out) throw new Error(out.error);
+    assert.deepEqual(out.hits.map((h) => [h.id, h.related_role ?? null]), [['tam-1', null], ['csm-1', true]]);
+    assert.deepEqual(JSON.parse(Buffer.from(out.next_cursor as string, 'base64url').toString('utf8')), { o: 1, l: 1 });
+  });
+
+  it('adds none without a résumé, and asks for none past the first page', async () => {
+    const { deps, searchCalls } = stubDeps([...page, ...preview], undefined, { total: 50 }, TEST_VOCAB, { baseResume: { source: 'none' } });
+    const out = await toolSearchJobs(deps, { query: 'technical account manager', limit: 1 });
+    if ('error' in out) throw new Error(out.error);
+    assert.deepEqual(out.hits.map((h) => h.id), ['tam-1']);
+    await toolSearchJobs(deps, { query: 'technical account manager', limit: 1, cursor: out.next_cursor });
+    assert.equal(searchCalls[0].relatedPreview, true);
+    assert.equal(searchCalls[1].relatedPreview, undefined);
   });
 });
 
