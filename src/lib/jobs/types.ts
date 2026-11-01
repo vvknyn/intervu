@@ -195,6 +195,12 @@ export interface PublicJob {
    * every non-federated search mechanism.
    */
   tier?: 1 | 2 | 3;
+  /**
+   * A row of a role next to the typed one read past the page for a Best match list (`relatedPreview` on the search,
+   * `RELATED_PREVIEW_LIMIT`, meilisearch.ts): listed only when it fits the résumé as Strong or Good
+   * (`keepsRelatedRow`, related-rows.ts), never in a list that is not ranked by fit, and not part of `total`.
+   */
+  relatedPreview?: true;
 }
 
 /**
@@ -455,6 +461,11 @@ export interface JobSearchParams {
    */
   fromResume?: boolean;
   /**
+   * A Best match first page: also read the first rows of the roles next to the typed title (`relatedRoleSpecs`), so
+   * the ones that fit the résumé can lead with the title matches (`PublicJob.relatedPreview`). Ignored past offset 0.
+   */
+  relatedPreview?: boolean;
+  /**
    * Leave out roles that rank past Senior (Staff, Principal, Director, Head of, VP, Chief, or listed
    * Executive; `titlePastSenior`) before the list is cut to a page, so a résumé-built list fills with
    * roles the person can take instead of spending its first rows on ones that are a rung above them
@@ -556,6 +567,8 @@ export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured
 export interface JobSuggestions {
   titles: string[];
   companies: string[];
+  /** Roles next to what is typed (`relatedSuggestions`, title-neighbours.ts), listed after `titles`. */
+  related?: string[];
 }
 
 export interface JobSearchResult {

@@ -13,6 +13,11 @@ export interface TitleNeighbourTable {
   generatedAt: string;
   /** Normalised posting title -> the posting titles next to it, strongest first. */
   titles: Record<string, string[]>;
+  /**
+   * The normalised titles Velai's postings use (the postings layer's titles): a title only a classification names
+   * ("Diet Cook") may have no open posting, so type-ahead suggests only these (`relatedSuggestions`).
+   */
+  postingTitles?: string[];
 }
 
 const DEFAULT_TABLE = tableJson as TitleNeighbourTable;
@@ -77,4 +82,22 @@ export function relatedTitlesFor(q: string, max = 4, table: TitleNeighbourTable 
     }
   }
   return out.slice(0, max);
+}
+
+/** At most this many related roles are suggested while typing. */
+export const SUGGEST_RELATED_CAP = 3;
+
+/**
+ * Type-ahead's related roles, read from the same table as the search's related band: those of what is typed, or,
+ * while it is not yet a whole title ("technical acc"), those of the first title suggested for it. Only titles
+ * Velai's postings use (`postingTitles`), so a pick always finds roles; a title already among `titles` is not
+ * repeated.
+ */
+export function relatedSuggestions(q: string, titles: readonly string[], max = SUGGEST_RELATED_CAP, table: TitleNeighbourTable = DEFAULT_TABLE): string[] {
+  const shown = new Set(titles.map((t) => normalizeTitleName(t)));
+  const posted = table.postingTitles ? new Set(table.postingTitles) : null;
+  const usable = (list: string[]) => list.filter((t) => !shown.has(normalizeTitleName(t)) && (!posted || posted.has(normalizeTitleName(t))));
+  const typed = usable(relatedTitlesFor(q, Number.MAX_SAFE_INTEGER, table));
+  const from = typed.length > 0 ? typed : titles[0] ? usable(relatedTitlesFor(titles[0], Number.MAX_SAFE_INTEGER, table)) : [];
+  return from.slice(0, max);
 }

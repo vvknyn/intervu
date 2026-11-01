@@ -139,7 +139,8 @@ export default function ConnectHelpPage() {
             Out of the box, this gets you search and tracking: ask your AI to find roles,
             sanity-check a posting, or save something to your tracker, and it can do that right
             away. A search for a job title also brings back the roles next to it, after the ones with
-            that title, and your AI is told which roles those are.
+            that title, and your AI is told which roles those are. With your résumé on file, the roles next to it
+            that fit you well come with the first results, and the search box suggests them as you type.
           </p>
           <p>
             It can also list the roles that fit your résumé. It matches on what each posting asks for before its

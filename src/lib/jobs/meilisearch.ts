@@ -40,7 +40,7 @@ import { payPlace } from "./pay-place";
 import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause, hasUnknownRequestedFacet, salaryMinClause } from "./unknown-inclusive-facets";
 import { expandTitleQuery } from "./title-aliases";
-import { relatedTitlesFor } from "./title-neighbours";
+import { relatedSuggestions, relatedTitlesFor } from "./title-neighbours";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
@@ -1265,8 +1265,43 @@ function normalizePublicJobsForSearch(
   return normalizePublicJobs(filtered);
 }
 
+/**
+ * Rows of the roles next to the typed one that a Best match first page also reads (`JobSearchParams.relatedPreview`).
+ * The page then lists the ones that fit the résumé as Strong or Good among the title matches (`keepsRelatedRow`,
+ * related-rows.ts) and drops the rest. Without it a title with more postings than the page holds never reaches the
+ * related band (live index 2026-11-01: 21 of 23 titles).
+ */
+export const RELATED_PREVIEW_LIMIT = 40;
+
+type FederatedHit = PublicJob & { _federation?: { queriesPosition?: number } };
+
+/**
+ * The first `RELATED_PREVIEW_LIMIT` rows of the related-role queries alone, in their own order, with the title each
+ * came from. Never throws: the preview only adds rows, so a failure reads as none.
+ */
+async function fetchRelatedPreview(
+  h: string,
+  specs: ReadonlyArray<{ title?: string; query: unknown }>,
+): Promise<{ hits: FederatedHit[]; titles: string[] }> {
+  try {
+    const res = await meiliFetch(`${h}/multi-search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ federation: { limit: RELATED_PREVIEW_LIMIT, offset: 0 }, queries: specs.map((s) => s.query) }),
+    });
+    if (!res.ok) return { hits: [], titles: [] };
+    const hits = ((await res.json()) as { hits?: FederatedHit[] }).hits ?? [];
+    const titles = [...new Set(specs.flatMap((s, i) => (s.title && hits.some((hit) => hit._federation?.queriesPosition === i) ? [s.title] : [])))];
+    return { hits, titles };
+  } catch {
+    return { hits: [], titles: [] };
+  }
+}
+
 async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
   const specs = buildTieredQuerySpecs(p);
+  const previewSpecs = p.relatedPreview && !p.offset ? specs.filter((s) => s.tier === 3) : [];
 
   const federatedBody = {
     federation: {
@@ -1277,7 +1312,7 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
     queries: specs.map((s) => s.query),
   };
 
-  const [fedRes, tier1Total] = await Promise.all([
+  const [fedRes, tier1Total, preview] = await Promise.all([
     meiliFetch(`${h}/multi-search`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
@@ -1285,6 +1320,7 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
       body: JSON.stringify(federatedBody),
     }),
     runCountPass(h, p, {}),
+    previewSpecs.length > 0 ? fetchRelatedPreview(h, previewSpecs) : Promise.resolve({ hits: [], titles: [] as string[] }),
   ]);
 
   if (!fedRes.ok) {
@@ -1301,13 +1337,23 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
   // document) regardless of where a client-side filter later moves it in the
   // rendered list — see `PublicJob.tier` (types.ts) for why this beats
   // indexing into `hits` by `tier1Total`.
-  const hits = normalizePublicJobsForSearch(
+  const paged = normalizePublicJobsForSearch(
     (body.hits ?? []).map(({ _federation, ...hit }) => ({
       ...hit,
       tier: specs[_federation?.queriesPosition ?? -1]?.tier ?? 2,
     })),
     p,
   );
+  // The preview's rows the page does not already hold follow it, marked: they are not part of `total` or of the
+  // paging offset (the next page starts where this one's own rows end).
+  const pagedIds = new Set(paged.map((hit) => hit.id));
+  const previewRows = normalizePublicJobsForSearch(
+    preview.hits.filter((hit) => !pagedIds.has(hit.id)).map(({ _federation, ...hit }) => ({ ...hit, tier: 3 as const, relatedPreview: true as const })),
+    p,
+  );
+  const hits = [...paged, ...previewRows];
+  const pageRelated = specs.flatMap((s, i) => (s.title && (body.hits ?? []).some((hit) => hit._federation?.queriesPosition === i) ? [s.title] : []));
+  const relatedTitles = [...new Set([...pageRelated, ...(previewRows.length > 0 ? preview.titles : [])])];
   return {
     hits,
     total: body.estimatedTotalHits ?? body.hits?.length ?? 0,
@@ -1316,15 +1362,7 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
     facetDistribution: body.facetsByIndex?.[JOBS_INDEX]?.distribution as FacetDistribution | undefined,
     tier1Total,
     // The related titles this page holds rows for, in the order they were searched (strongest first).
-    ...(hits.some((hit) => hit.tier === 3)
-      ? {
-          relatedTitles: [
-            ...new Set(
-              specs.flatMap((s, i) => (s.title && (body.hits ?? []).some((hit) => hit._federation?.queriesPosition === i) ? [s.title] : [])),
-            ),
-          ],
-        }
-      : {}),
+    ...(relatedTitles.length > 0 ? { relatedTitles } : {}),
   };
 }
 
@@ -2771,7 +2809,9 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
     const body = (await res.json()) as {
       hits?: Array<{ title?: string; company?: string | null; company_domain?: string | null }>;
     };
-    return dedupeJobSuggestionHits(body.hits ?? [], query);
+    const suggestions = dedupeJobSuggestionHits(body.hits ?? [], query);
+    const related = relatedSuggestions(query, suggestions.titles);
+    return related.length > 0 ? { ...suggestions, related } : suggestions;
   } catch {
     return EMPTY_SUGGESTIONS;
   }

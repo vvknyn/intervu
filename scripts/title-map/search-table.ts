@@ -174,5 +174,5 @@ export function searchNeighbourTable(
     const ranked = kept.map((target) => displayTitle(display.get(target) ?? target));
     if (ranked.length > 0) titles[key] = ranked;
   }
-  return { generatedAt, titles };
+  return { generatedAt, titles, postingTitles: [...postingKeys].sort() };
 }
