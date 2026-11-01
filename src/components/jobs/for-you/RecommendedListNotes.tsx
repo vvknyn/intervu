@@ -8,6 +8,7 @@ import {
     formatRankedLine,
     type DisclosureRow,
     listNoticeLine,
+    listNotesPresent,
 } from "@/lib/jobs/for-you/left-out-copy";
 
 /**
@@ -31,14 +32,14 @@ export function RecommendedListNotes({
     const kind = deckListKind(summary);
     const notice = listNoticeLine(kind);
     const line = formatRankedLine(summary);
-    if (!notice && !line && !languages) return null;
+    if (!listNotesPresent(summary, languages != null)) return null;
     const rows = disclosureRows(summary, employers);
     const act = (row: DisclosureRow) => {
         if (row.action?.kind === "jump") document.getElementById(RANKED_LOWER_ANCHOR)?.scrollIntoView({ behavior: "smooth", block: "start" });
         else if (row.action?.kind === "include") onInclude(row);
     };
     return (
-        <div data-testid="list-notes" className="mb-3 space-y-2 px-[var(--list-inset)] text-sm text-muted-foreground">
+        <div data-testid="list-notes" data-header-line="disclosure" className="mb-3 space-y-2 px-[var(--list-inset)] text-sm text-muted-foreground">
             {notice ? (
                 <p data-testid="list-notice" data-kind={kind}>
                     {notice.text}

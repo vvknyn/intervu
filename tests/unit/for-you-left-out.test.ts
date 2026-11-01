@@ -175,13 +175,19 @@ describe('real scores: the rule on the TAM résumé', () => {
 
 describe('listNoticeLine: one quiet line, never a paragraph', () => {
     const resume = { label: 'Résumé', href: '/resume' };
-    it('says only what the header lacks, with the résumé as the action when detail would help', () => {
+    it('says only what the header lacks, and only when there is something to do: add detail to the résumé', () => {
         assert.deepEqual(listNoticeLine('near'), { text: 'Add detail to your résumé for closer matches', action: resume });
-        assert.deepEqual(listNoticeLine('older'), { text: 'Some may already be filled · each card shows its age' });
-        assert.deepEqual(listNoticeLine('older-near'), { text: 'Some may already be filled · add detail to your résumé for closer matches', action: resume });
+        assert.deepEqual(listNoticeLine('older-near'), { text: 'Add detail to your résumé for closer matches', action: resume });
     });
-    it('has no line for a list of roles that fit', () => {
+    it('has no line for a list of roles that fit, or of fitting roles that are older (the count says "all posted over 30 days ago" and each card its age)', () => {
         assert.equal(listNoticeLine('fit'), null);
+        assert.equal(listNoticeLine('older'), null);
+    });
+    it('every notice is an action, never a restatement (the phone header said "some may already be filled" under "all posted over 30 days ago", 2026-11-01)', () => {
+        for (const kind of ['fit', 'near', 'older', 'older-near'] as const) {
+            const notice = listNoticeLine(kind);
+            if (notice) assert.ok(notice.action, kind);
+        }
     });
 });
 

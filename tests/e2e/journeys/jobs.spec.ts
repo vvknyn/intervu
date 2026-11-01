@@ -1022,12 +1022,15 @@ test("a guest's Search names the résumé it ranks against, and Remove forgets i
   // For you needs an account, so a guest's résumé opens Search on their top 3.
   await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
   const inUse = page.getByTestId("resume-read-strip");
-  await expect(inUse).toContainText("Ranked by your résumé");
+  // The status line says the list is ranked by the résumé; the strip on it names which one (its hover title) and offers Edit and Remove.
+  await expect(inUse).toContainText("Edit résumé");
+  await expect(inUse).toHaveAttribute("title", /Ranked by your résumé.*Sam_Rivera_Resume_V4\.pdf/);
 
   // Remove asks once; "Keep it" changes nothing.
   await inUse.getByTestId("jobs-remove-resume").click();
   await inUse.getByTestId("jobs-remove-resume-no").click();
-  await expect(inUse).toContainText("Sam_Rivera_Resume_V4.pdf");
+  await expect(inUse).toContainText("Edit résumé");
+  await expect(inUse).toHaveAttribute("title", /Sam_Rivera_Resume_V4\.pdf/);
 
   await inUse.getByTestId("jobs-remove-resume").click();
   await inUse.getByTestId("jobs-remove-resume-yes").click();

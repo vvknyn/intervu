@@ -10,12 +10,12 @@ describe("results panel top inset", () => {
         const panel = PAGE.match(/className="([^"]*rounded-panel bg-surface pt-3[^"]*xl:min-w-0)"/);
         assert.ok(panel, "list panel found");
         assert.match(panel[1], /(^| )pt-3( |$)/);
-        const firstRow = PAGE.indexOf('data-testid="resume-read-strip"');
-        assert.ok(PAGE.indexOf(panel[0]) < firstRow, "résumé strip renders inside the padded panel");
+        const firstRow = PAGE.indexOf('data-testid="list-header"');
+        assert.ok(PAGE.indexOf(panel[0]) < firstRow, "the header's band slot renders inside the padded panel");
     });
     it("the count line (first row when anonymous) adds no top padding of its own", () => {
-        const line = PAGE.match(/className="([^"]*)">\s*<div className="flex flex-wrap items-center gap-2">\s*<span\s+data-testid="result-line"/);
-        assert.ok(line, "count line container found");
+        const line = PAGE.match(/<div className="([^"]*)">\s*(?:\{\/\*[\s\S]*?\*\/\}\s*)?\{listHeader\.lines\.includes\("status"\) && \(\s*<p data-header-line="status"/);
+        assert.ok(line, "status row container found");
         assert.doesNotMatch(line[1], /(^| )(py-\d|pt-\d)/);
     });
 });

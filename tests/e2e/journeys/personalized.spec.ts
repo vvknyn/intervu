@@ -253,7 +253,9 @@ test("when no role from the last 30 days fits, the list holds the older roles th
   await answerResumeSearch(page, [oldest, older], "journey-pack-older");
   await openFitList(page);
 
-  await expect(page.getByTestId("list-notice")).toContainText("each card shows its age", { timeout: 60_000 });
+  // The count says "all posted over 30 days ago" and each card its age, so no second line says some may be filled.
+  await expect(page.getByTestId("result-line")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("list-notice")).toHaveCount(0);
   await expect(page.getByTestId("list-none-fit")).toHaveCount(0);
   await expect(page.getByTestId("job-row")).toHaveCount(2);
   // The row's age is the list's own, in months once a posting is a month old.
@@ -768,7 +770,7 @@ test("a list where only older roles are posted and none fits holds the closest o
   await answerResumeSearch(page, closeOld, "journey-closest-older");
   await openFitList(page);
 
-  await expect(page.getByTestId("list-notice")).toContainText("add detail to your résumé for closer matches", { timeout: 60_000 });
+  await expect(page.getByTestId("list-notice")).toContainText("Add detail to your résumé for closer matches", { timeout: 60_000 });
   await expect(page.getByTestId("list-none-fit")).toHaveCount(0);
   await expect(page.getByTestId("job-row")).toHaveCount(2);
   for (const row of await page.getByTestId("job-row").all()) {

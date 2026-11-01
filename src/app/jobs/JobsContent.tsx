@@ -123,7 +123,7 @@ import { RANKED_LOWER_ANCHOR } from "@/components/jobs/for-you/RankedListDisclos
 import { RecommendedListNotes } from "@/components/jobs/for-you/RecommendedListNotes";
 import { LanguagesControl, storedLanguages } from "@/components/jobs/LanguagesControl";
 import { useLanguageChoice } from "@/hooks/use-language-choice";
-import { formatHubFitLine, rankedLowerTotal, type DisclosureAction, type DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
+import { formatHubFitLine, listNotesPresent, rankedLowerTotal, type DisclosureAction, type DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
 import { rowReasonLine } from "@/lib/jobs/for-you/row-reason";
 import { JOBS_SESSION_FRAME_CLASS, JobsFitHoldShell, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
 import { ResumeRemove } from "@/components/jobs/ResumeInUse";
@@ -174,13 +174,15 @@ import { hasUnknownRequestedFacet } from "@/lib/jobs/unknown-inclusive-facets";
 import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, showResultsLabel, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { searchBoxFor } from "@/lib/jobs/search-copy";
-import { offersRankByFit, RESUME_READ_LABEL, resumeReadDetail, resumeReadLine } from "@/lib/jobs/resume-entry";
+import { offersRankByFit, resumeReadDetail, resumeReadLine } from "@/lib/jobs/resume-entry";
 import { frontDoorRegions, isAtRest } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { ExtensionTile } from "@/components/jobs/ExtensionTile";
 import { pickPromoBand } from "@/lib/jobs/promo-band";
+import { listHeaderPlan, pickHeaderBand, pickHeaderNote, type HeaderNote } from "@/lib/jobs/list-header";
+import { DotSeparated } from "@/components/ui/dot-separated";
 import { PRIVACY_HEADLINE, PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
 import { noteResumeOnFile } from "@/hooks/use-onboarding";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
@@ -405,11 +407,6 @@ const getDefaultBrowseActionGuarded = (suppressLocationDefault: boolean): Promis
     );
 
 /* ----------------------------- helpers ----------------------------- */
-
-/** A separator of the résumé strip: its own node so truncating text never eats it. */
-function StripDot() {
-    return <span aria-hidden className="shrink-0">·</span>;
-}
 
 /**
  * Real segmented control on the repo's squared chip primitive
@@ -5203,12 +5200,17 @@ export function JobsContent({
         </Link>
     );
 
-    // At most one promo band sits above the results header, never between rows (see promo-band.ts).
-    // The Chrome tile rides on a list already ranked against the résumé; at rest the résumé band is the one promo.
-    const promoBand = pickPromoBand({
+    // At most one band sits above the results header, never between rows (see promo-band.ts and list-header.ts): the
+    // account's address prompt when it shows, else one promo. The Chrome tile rides on a list already ranked against
+    // the résumé; at rest the résumé band is the one promo.
+    const emailPromptShown = emailNudgeOpen && Boolean(accountEmailState) && accountEmailState !== "reachable";
+    const headerBand = pickHeaderBand({
+        prompt: emailPromptShown && searchIntent,
         resume: atRest && frontDoor.band !== null,
         extension: recommendedReady && recommended != null,
+        visit: !fitActive,
     });
+    const promoBand = pickPromoBand({ resume: headerBand === "resume", extension: headerBand === "extension" });
     const resumeBandEl = promoBand === "resume" && (
         <FrontDoorResumeBand
             signedIn={Boolean(user)}
@@ -5216,6 +5218,58 @@ export function JobsContent({
             onSignInClick={() => openAuth("generic", "user")}
         />
     );
+
+    // What sits between the search controls and the first job card, decided once (`listHeaderPlan`, list-header.ts):
+    // one status line, one row of controls, at most one band, one note and one disclosure; a hero and the field
+    // directory only for someone with no list yet. The blocks below render on this plan, and tag themselves with it.
+    const headerNotes: HeaderNote[] = [];
+    if (!loading && degradedNote) headerNotes.push("degraded");
+    if (!loading && result?.widened) headerNotes.push("widened");
+    if (!loading && unmatchedNote) headerNotes.push("unmatched");
+    if (!loading && liveCaption) headerNotes.push("understood");
+    if (!loading && elsewhereNote) headerNotes.push("elsewhere");
+    if (pastSeniorLeftOut > 0) headerNotes.push("level");
+    const headerNote = pickHeaderNote(headerNotes);
+    const showResumeStrip = fitActive && Boolean(resumeReadText);
+    // The way to change the résumé a list is ranked by (and, for a guest, to forget it): inline text on the status line,
+    // or on a line of its own where the list's count is not shown (loading, empty, an error), so it is never out of reach.
+    const resumeStripEl = showResumeStrip ? (
+        <span data-testid="resume-read-strip" title={`${resumeReadText} · ${displayResumeLabel(resumeSourceLabel, resume)}`}>
+            <DotSeparated
+                items={[
+                    <Link
+                        key="edit"
+                        href="/resume"
+                        className="whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                    >
+                        Edit résumé
+                        <LinkPending />
+                    </Link>,
+                    !signedIn && guestResumeInBrowser && (
+                        <ResumeRemove
+                            key="remove"
+                            onRemove={removeGuestResume}
+                            testIdPrefix="jobs"
+                            className="whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                        />
+                    ),
+                ]}
+            />
+        </span>
+    ) : null;
+    const listPanelShown = resultsPanel === "list" && !isSerpAsk;
+    const listHeader = listHeaderPlan({
+        homeShown: showSearchHome,
+        atRest,
+        signedIn: Boolean(user),
+        ranked: fitActive,
+        rowsShown: searchIntent && showSearchHome,
+        band: headerBand,
+        status: showResumeStrip || (listPanelShown && (Boolean(resultCountLine) || listNew != null)),
+        scope: listPanelShown && (Boolean(companyDomain) || resultLineActionEl != null),
+        notes: headerNote ? [headerNote] : [],
+        disclosure: Boolean(listPanelShown && recommendedReady && recommended && listNotesPresent(recommended.summary, languagesPanelEl != null)),
+    });
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -5255,7 +5309,7 @@ export function JobsContent({
                                 below is the next thing, and a hairline between
                                 them read as one more divider in a stack of
                                 three on a phone (2026-10-02 polish pass). */}
-                            {atRest ? (
+                            {listHeader.hero ? (
                             <div className={cn(cappedContentClass, "pb-2.5 pt-1.5 text-center")}>
                                 <p className="mb-0.5 text-xs font-semibold text-live">
                                     Live from employer career pages
@@ -5661,7 +5715,7 @@ export function JobsContent({
                     — broader than the old `showLandingMarketing`-only
                     pristine gate — so the rest of the centered hero can't
                     disagree with this piece about whether it's showing. */}
-                {atRest && showSearchHome && (
+                {listHeader.fieldChips && (
                     <div className={cappedContentClass}>
                         <FrontDoorFieldLinks onSelectQuery={submitSearch} />
                     </div>
@@ -5816,51 +5870,18 @@ export function JobsContent({
                                     banners sit flush with the panel's rounded corner instead
                                     of restating px-4 (see globals.css's `--list-inset`
                                     comment for the full adopter list). */}
-                                <div className="px-[var(--list-inset)]">
-                                {/* The new-since line leads the group and stays for the
-                                    visit. Alerts for this search are the switch on the
-                                    results line below it. A résumé-ranked list says its
-                                    own on the results line (`listNew`): a count of the
-                                    whole board above it would be another list's number. */}
+                                <div data-testid="list-header" className="px-[var(--list-inset)]">
+                                {/* The band slot: ONE of the address prompt, the résumé invite, the Chrome tile or the
+                                    board's "new since you were here" (`pickHeaderBand`, list-header.ts), in that order.
+                                    A résumé-ranked list says what is new on its own status line (`listNew`): a count of
+                                    the whole board above it would be another list's number. Alerts for this search are
+                                    the switch on the status row below. */}
                                 {resumeBandEl}
                                 {promoBand === "extension" && <ExtensionTile className="mb-3" />}
-                                {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
-                                {fitActive && resumeReadText && (
-                                    <div
-                                        data-testid="resume-read-strip"
-                                        title={displayResumeLabel(resumeSourceLabel, resume)}
-                                        className="mb-3 flex items-baseline gap-x-2 text-sm text-muted-foreground"
-                                    >
-                                        <span className="shrink-0">{RESUME_READ_LABEL}</span>
-                                        {resumeReadDetailText && (
-                                            <>
-                                                <StripDot />
-                                                <span data-testid="resume-read-detail" title={resumeReadDetailText} className="min-w-0 truncate">{resumeReadDetailText}</span>
-                                            </>
-                                        )}
-                                        <StripDot />
-                                        <Link
-                                            href="/resume"
-                                            className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                        >
-                                            Edit
-                                            <LinkPending />
-                                        </Link>
-                                        {!signedIn && guestResumeInBrowser && (
-                                            <>
-                                                <StripDot />
-                                                <ResumeRemove
-                                                    onRemove={removeGuestResume}
-                                                    testIdPrefix="jobs"
-                                                    className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                                />
-                                            </>
-                                        )}
-                                    </div>
-                                )}
+                                {headerBand === "visit" && <BoardVisitBanner resultCount={hits.length} />}
 
                                 {/* Asks someone signed in for an address we can reach. */}
-                                {emailNudgeOpen && accountEmailState && accountEmailState !== "reachable" && (
+                                {headerBand === "prompt" && accountEmailState && (
                                     <AccountEmailPrompt
                                         state={accountEmailState}
                                         pendingEmail={accountPendingEmail}
@@ -5887,33 +5908,44 @@ export function JobsContent({
                             counts word-dropped matches — a number that doesn't describe
                             the query the user actually typed. */}
                         <div className="px-[var(--list-inset)]">
-                            {!loading && result?.widened && (
-                                <p data-testid="widened-note" className="mb-3 text-sm text-muted-foreground">
+                            {/* ONE note, the highest priority (`pickHeaderNote`, list-header.ts): the others
+                                explain the same difference from what was typed, so they wait their turn rather than
+                                stack. */}
+                            {headerNote === "widened" && (
+                                <p data-testid="widened-note" data-header-line="note" className="mb-3 text-sm text-muted-foreground">
                                     Nothing matches every word of that — showing the closest matches.
                                 </p>
                             )}
 
-                            {!loading && degradedNote && (
-                                <p data-testid="degraded-note" className="mb-3 text-sm text-muted-foreground">
+                            {headerNote === "degraded" && (
+                                <p data-testid="degraded-note" data-header-line="note" className="mb-3 text-sm text-muted-foreground">
                                     {degradedNote}
                                 </p>
                             )}
 
-                            {!loading && liveCaption && (
-                                <p data-testid="understood-note" className="mb-3 text-sm text-muted-foreground">
+                            {headerNote === "understood" && liveCaption && (
+                                <p data-testid="understood-note" data-header-line="note" className="mb-3 text-sm text-muted-foreground">
                                     {liveCaption.line}
                                 </p>
                             )}
 
-                            {!loading && unmatchedNote && (
-                                <p data-testid="unmatched-note" className="mb-3 text-sm text-muted-foreground">
+                            {headerNote === "unmatched" && (
+                                <p data-testid="unmatched-note" data-header-line="note" className="mb-3 text-sm text-muted-foreground">
                                     {unmatchedNote}
                                 </p>
                             )}
 
-                            {!loading && elsewhereNote && (
-                                <p data-testid="employer-elsewhere-note" className="mb-3 text-sm text-muted-foreground">
+                            {headerNote === "elsewhere" && (
+                                <p data-testid="employer-elsewhere-note" data-header-line="note" className="mb-3 text-sm text-muted-foreground">
                                     {elsewhereNote}
+                                </p>
+                            )}
+
+                            {/* Where the list's own status line is not shown (loading, empty, an error), the résumé's
+                                Edit link stands alone: the way to change the résumé is never out of reach. */}
+                            {resumeStripEl && !listPanelShown && (
+                                <p data-header-line="status" className="mb-3 text-sm text-muted-foreground">
+                                    {resumeStripEl}
                                 </p>
                             )}
 
@@ -6070,37 +6102,49 @@ export function JobsContent({
                                         <>
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <span
-                                                        data-testid="result-line"
-                                                        className="font-semibold text-foreground tabular-nums"
-                                                    >
-                                                        {resultCountLine}
-                                                    </span>
-                                                    {listNew && (
-                                                        <span className="flex items-center gap-2">
-                                                            <span className="size-2 shrink-0 rounded-pill bg-brand" aria-hidden />
-                                                            <span data-testid="list-new-since" className="text-foreground">
-                                                                {listNew.text}
-                                                            </span>
-                                                        </span>
-                                                    )}
-                                                    {beyondWindow.show && (
-                                                        <span className="flex items-center gap-1.5">
-                                                            {beyondWindowText}
-                                                            <span aria-hidden>·</span>
-                                                            <button
-                                                                type="button"
-                                                                data-testid="beyond-window-show-all"
-                                                                onClick={() => panelPostedBucket(undefined)}
-                                                                className="text-foreground underline-offset-2 hover:underline"
-                                                            >
-                                                                Show all
-                                                            </button>
-                                                        </span>
-                                                    )}
-                                                </div>
+                                            {(listHeader.lines.includes("status") || listHeader.lines.includes("scope")) && (
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-2 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground">
+                                                {/* The ONE status line (list-header.ts), plain inline text so it wraps
+                                                    like a sentence: the count, what is new, the window, and the way
+                                                    to change the résumé it ranks by. */}
+                                                {listHeader.lines.includes("status") && (
+                                                <p data-header-line="status" className="min-w-0">
+                                                    <DotSeparated
+                                                        items={[
+                                                            resultCountLine && (
+                                                                <span data-testid="result-line" className="font-semibold text-foreground tabular-nums">
+                                                                    {resultCountLine}
+                                                                </span>
+                                                            ),
+                                                            listNew && (
+                                                                <span data-testid="list-new-since" className="text-foreground">
+                                                                    <span className="mr-1.5 inline-block size-2 rounded-pill bg-brand align-baseline" aria-hidden />
+                                                                    {listNew.text}
+                                                                </span>
+                                                            ),
+                                                            beyondWindow.show && (
+                                                                <span>
+                                                                    <DotSeparated
+                                                                        items={[
+                                                                            beyondWindowText,
+                                                                            <button
+                                                                                key="show-all"
+                                                                                type="button"
+                                                                                data-testid="beyond-window-show-all"
+                                                                                onClick={() => panelPostedBucket(undefined)}
+                                                                                className="text-foreground underline-offset-2 hover:underline"
+                                                                            >
+                                                                                Show all
+                                                                            </button>,
+                                                                        ]}
+                                                                    />
+                                                                </span>
+                                                            ),
+                                                            resumeStripEl,
+                                                        ]}
+                                                    />
+                                                </p>
+                                                )}
                                                 {/* Employer-scope disclosure — the standard removable
                                                     filter-token pattern. Mounted OUTSIDE the
                                                     query/filter row below because the scope arrives from
@@ -6112,8 +6156,8 @@ export function JobsContent({
                                                     applies — not a display name derived from the hits,
                                                     which would be absent in the one state where this
                                                     disclosure matters most (zero results). */}
-                                                {(companyDomain || resultLineActionEl) && (
-                                                    <div className="flex flex-wrap items-center gap-3">
+                                                {listHeader.lines.includes("scope") && (
+                                                    <div data-header-line="scope" className="flex flex-wrap items-center gap-3">
                                                         {companyDomain && (
                                                             <span data-testid="company-scope-chip" className="flex items-center gap-2">
                                                                 <span className="whitespace-nowrap font-semibold text-foreground">
@@ -6143,10 +6187,12 @@ export function JobsContent({
                                                     of `data-testid="results-clear-filters"`. What is left
                                                     here only reports: the count, the window, the scope. */}
                                             </div>
-                                            {/* A résumé-ranked list says what it left out and why, in the words the
-                                                daily picks and the MCP tools use (left-out-copy.ts). */}
-                                            {pastSeniorLeftOut > 0 && (
-                                                <p className="mb-2 px-[var(--list-inset)] text-xs text-muted-foreground" data-testid="level-left-out">
+                                            )}
+                                            {/* A plain search with a level picked in Settings says what that left out; a résumé-ranked
+                                                list says it in its disclosure below (left-out-copy.ts, the words the daily picks and
+                                                the MCP tools use). One note at a time (`headerNote`). */}
+                                            {headerNote === "level" && (
+                                                <p className="mb-2 px-[var(--list-inset)] text-xs text-muted-foreground" data-testid="level-left-out" data-header-line="note">
                                                     {pastSeniorLeftOut} {pastSeniorLeftOut === 1 ? "role" : "roles"} past Senior left out, as your Experience level in Settings asks.
                                                 </p>
                                             )}
