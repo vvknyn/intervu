@@ -1,0 +1,799 @@
+{
+  "generatedAt": "2026-11-01T05:32:24.486Z",
+  "cases": [
+    {
+      "name": "accountant-ca",
+      "q": "Senior Accountant",
+      "related": [
+        {
+          "title": "Accounting Analyst",
+          "postings": 564
+        },
+        {
+          "title": "Accounting Manager",
+          "postings": 2039
+        },
+        {
+          "title": "Financial Controller",
+          "postings": 467
+        },
+        {
+          "title": "Accounts Executive",
+          "postings": 15911
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "admin-us",
+      "q": "Administrative Assistant",
+      "related": [
+        {
+          "title": "Administrative Specialist",
+          "postings": 546
+        },
+        {
+          "title": "Executive Assistant",
+          "postings": 2684
+        },
+        {
+          "title": "Administrative Coordinator",
+          "postings": 496
+        },
+        {
+          "title": "Office Administrator",
+          "postings": 482
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "barista-ca",
+      "q": "Shift Supervisor",
+      "related": [],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "chef-ca",
+      "q": "Sous Chef",
+      "related": [
+        {
+          "title": "Grill Cook",
+          "postings": 0
+        },
+        {
+          "title": "Diet Cook",
+          "postings": 0
+        },
+        {
+          "title": "Fish Cook",
+          "postings": 0
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "civil-ae",
+      "q": "Civil Engineer",
+      "related": [
+        {
+          "title": "Water/Wastewater Engineer",
+          "postings": 573
+        },
+        {
+          "title": "Project Manager",
+          "postings": 23523
+        },
+        {
+          "title": "Civil Designer",
+          "postings": 286
+        },
+        {
+          "title": "Graduate Engineer",
+          "postings": 1098
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "csr-ph",
+      "q": "Customer Service Representative",
+      "related": [
+        {
+          "title": "Customer Support Representative",
+          "postings": 264
+        },
+        {
+          "title": "Customer Service Coordinator",
+          "postings": 200
+        },
+        {
+          "title": "Support Specialist",
+          "postings": 4587
+        },
+        {
+          "title": "Customer Service Specialist",
+          "postings": 624
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "datasci-de",
+      "q": "Data Scientist",
+      "related": [
+        {
+          "title": "Machine Learning Engineer",
+          "postings": 4691
+        },
+        {
+          "title": "Research Scientist",
+          "postings": 1410
+        },
+        {
+          "title": "Applied Scientist",
+          "postings": 909
+        },
+        {
+          "title": "Data Science Consultant",
+          "postings": 151
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "designer-br",
+      "q": "Graphic Designer",
+      "related": [
+        {
+          "title": "Art Director",
+          "postings": 524
+        },
+        {
+          "title": "Creative Designer",
+          "postings": 208
+        },
+        {
+          "title": "Brand Designer",
+          "postings": 386
+        },
+        {
+          "title": "Creative Director",
+          "postings": 530
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "driver-us",
+      "q": "CDL-A Truck Driver",
+      "related": [],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "electrician-au",
+      "q": "Licensed Electrician",
+      "related": [
+        {
+          "title": "Lighting Technician",
+          "postings": 102
+        },
+        {
+          "title": "Solar Photovoltaic Installer",
+          "postings": 0
+        },
+        {
+          "title": "Solar Energy Installation Manager",
+          "postings": 0
+        },
+        {
+          "title": "Electrical Supervisor",
+          "postings": 220
+        }
+      ],
+      "top40": 0,
+      "top100": 11,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 11,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 1,
+        "Stretch": 10,
+        "none": 0
+      },
+      "sampleAdded": [
+        "Lighting Technician",
+        "Lighting Technician",
+        "Lighting Technician",
+        "Lighting Technician",
+        "Lighting Technician"
+      ]
+    },
+    {
+      "name": "hr-ie",
+      "q": "HR Generalist",
+      "related": [
+        {
+          "title": "HR Specialist",
+          "postings": 811
+        },
+        {
+          "title": "HR Administrator",
+          "postings": 160
+        },
+        {
+          "title": "Human Resources Coordinator",
+          "postings": 490
+        },
+        {
+          "title": "Human Resources Manager",
+          "postings": 1609
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "lawyer-us",
+      "q": "Corporate Associate",
+      "related": [],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "marketing-ng",
+      "q": "Marketing Manager",
+      "related": [
+        {
+          "title": "Marketing Specialist",
+          "postings": 2137
+        },
+        {
+          "title": "Marketing Director",
+          "postings": 1603
+        },
+        {
+          "title": "Marketing Officer",
+          "postings": 184
+        },
+        {
+          "title": "Content Manager",
+          "postings": 1416
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "mecheng-ca",
+      "q": "Mechanical Engineer",
+      "related": [
+        {
+          "title": "Manufacturing Engineer",
+          "postings": 5350
+        },
+        {
+          "title": "Mechanical Project Manager",
+          "postings": 207
+        },
+        {
+          "title": "Mechanical Engineering Manager",
+          "postings": 159
+        },
+        {
+          "title": "Development Engineer",
+          "postings": 6782
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "nurse-ca",
+      "q": "Registered Nurse",
+      "related": [
+        {
+          "title": "Acute Care Nurse",
+          "postings": 1
+        },
+        {
+          "title": "Clinical Nurse Specialist",
+          "postings": 0
+        },
+        {
+          "title": "Critical Care Nurse",
+          "postings": 1
+        },
+        {
+          "title": "Emergency Medical Technician",
+          "postings": 0
+        }
+      ],
+      "top40": 2,
+      "top100": 2,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 2,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 2,
+        "none": 0
+      },
+      "sampleAdded": [
+        "Senior Research Fellow Acute Care Nursing",
+        "Complex Adult Health – Critical Care Part-Time Clinical Nursing Faculty"
+      ]
+    },
+    {
+      "name": "pharmacist-ca",
+      "q": "Pharmacist",
+      "related": [
+        {
+          "title": "Pharmacy Assistant",
+          "postings": 20
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "pm-us",
+      "q": "Senior Product Manager",
+      "related": [
+        {
+          "title": "Solution Engineer",
+          "postings": 4300
+        },
+        {
+          "title": "Product Sales Specialist",
+          "postings": 122
+        },
+        {
+          "title": "Product Engineer",
+          "postings": 6039
+        },
+        {
+          "title": "Director of Product",
+          "postings": 2061
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "swe-in",
+      "q": "Senior Software Engineer",
+      "related": [
+        {
+          "title": "Software Engineering Manager",
+          "postings": 1273
+        },
+        {
+          "title": "Backend Engineer",
+          "postings": 4189
+        },
+        {
+          "title": "Fullstack Developer",
+          "postings": 3754
+        },
+        {
+          "title": "Head of Engineering",
+          "postings": 439
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "teacher-uk",
+      "q": "Primary School Teacher",
+      "related": [
+        {
+          "title": "Steiner School Teacher",
+          "postings": 0
+        },
+        {
+          "title": "Primary School Teaching Assistant",
+          "postings": 0
+        },
+        {
+          "title": "Early Years Teacher",
+          "postings": 0
+        },
+        {
+          "title": "Freinet School Teacher",
+          "postings": 0
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "warehouse-ca",
+      "q": "Warehouse Associate",
+      "related": [],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "vivek-tam",
+      "q": "Technical Account Manager",
+      "related": [
+        {
+          "title": "Account Manager",
+          "postings": 16184
+        },
+        {
+          "title": "Customer Success Executive",
+          "postings": 125
+        },
+        {
+          "title": "Technical Advisor",
+          "postings": 349
+        },
+        {
+          "title": "Customer Success Manager",
+          "postings": 3227
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "vivek-csm",
+      "q": "Customer Success Manager",
+      "related": [
+        {
+          "title": "Customer Success Executive",
+          "postings": 125
+        },
+        {
+          "title": "Solution Engineer",
+          "postings": 4300
+        },
+        {
+          "title": "Account Manager",
+          "postings": 16184
+        },
+        {
+          "title": "Solutions Consultant",
+          "postings": 1776
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    },
+    {
+      "name": "vivek-pm",
+      "q": "Product Manager",
+      "related": [
+        {
+          "title": "Solution Engineer",
+          "postings": 4300
+        },
+        {
+          "title": "Product Sales Specialist",
+          "postings": 122
+        },
+        {
+          "title": "Product Engineer",
+          "postings": 6039
+        },
+        {
+          "title": "Director of Product",
+          "postings": 2061
+        }
+      ],
+      "top40": 0,
+      "top100": 0,
+      "added": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "pushedOut": {
+        "Strong": 0,
+        "Good": 0,
+        "Stretch": 0,
+        "none": 0
+      },
+      "sampleAdded": []
+    }
+  ],
+  "sums": {
+    "related": 72,
+    "withPostings": 61,
+    "top40": 2,
+    "top100": 13,
+    "added": {
+      "Strong": 0,
+      "Good": 0,
+      "Stretch": 13,
+      "none": 0
+    },
+    "pushedOut": {
+      "Strong": 0,
+      "Good": 1,
+      "Stretch": 12,
+      "none": 0
+    }
+  }
+}
