@@ -257,3 +257,35 @@ describe("searchMeili — Country counts of a place-scoped search (the reported 
         assert.ok(calls.some((c) => JSON.stringify(c.body.filter).includes("Canada") && c.body.limit === 1000), "the list's lanes keep their read");
     });
 });
+
+describe("searchJobs — the signed-out path end to end (IP default, query understanding, search)", () => {
+    it("a Canadian visitor's 'data scientist' list stays Canada's, and its Country counts are place-free", async () => {
+        const { clearSearchCacheForTests } = await import("../../src/lib/jobs/search-cache");
+        const { searchJobs } = await import("../../src/lib/jobs/search");
+        clearSearchCacheForTests();
+        const calls: Call[] = [];
+        mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body ?? "{}"));
+            calls.push({ url: String(url), body });
+            // The IP default checks the corpus holds its country (real bundled gazetteer).
+            if (String(url).includes("/facet-search")) return jsonResponse(200, { facetHits: [{ value: body.facetQuery, count: 1000 }] });
+            if (String(url).endsWith("/multi-search")) {
+                const distribution = isCountQuery(body) ? PLACE_FREE : SCOPED;
+                return jsonResponse(200, { hits: [], estimatedTotalHits: isCountQuery(body) ? 15519 : 1229, facetsByIndex: { jobs: { distribution } } });
+            }
+            return jsonResponse(200, { hits: [], totalHits: 0, estimatedTotalHits: 0 });
+        });
+
+        const result = await searchJobs(
+            { q: "data scientist", withFacets: true, limit: 20, offset: 0 },
+            { clientIp: "1.2.3.4", countryLookup: async () => "CA" },
+        );
+
+        assert.equal(result.defaultedLocation, "CA", "the IP default applied");
+        assert.equal(result.total, 1229, "the list is the Canada default's");
+        assert.equal(result.facetDistribution?.location_country?.["United States"], 8958);
+        const fed = calls.filter((c) => c.url.endsWith("/multi-search"));
+        assert.ok(fed.some((c) => !isCountQuery(c.body) && JSON.stringify(c.body.queries[0].filter).includes("Canada")));
+        assert.ok(fed.some((c) => isCountQuery(c.body) && !JSON.stringify(c.body.queries).includes("Canada")));
+    });
+});
