@@ -18,4 +18,6 @@ This file uses the ESCO classification of the European Commission. ESCO may be r
 
 ## Velai postings
 
-Not in this build. When `scripts/title-map/learn-from-postings.ts` output is passed to the builder, the file adds titles and links learned from Velai's own job index (titles, counts and links only; no posting text or company names).
+In this build: `scripts/title-map/data/postings-links.json`, written by `scripts/title-map/learn-from-postings.ts` from Velai's own job index (read-only), adds the commonest posting titles and the links learned from what their postings ask for. It holds titles, counts and links only: no posting text and no company names. Posting links weigh cosine / sqrt(strongest link of each title to another job) x postingsWeightScale, from postingsMinCosine up.
+
+`title-neighbours.json` (the search's "roles next to this one" table) is read out of this map by `scripts/title-map/search-table.ts` and carries the same attribution.
