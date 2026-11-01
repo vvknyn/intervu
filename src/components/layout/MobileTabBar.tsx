@@ -18,9 +18,11 @@ import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
  *  The AI pairing at /connect is reachable from Settings. */
 const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
 
-/** The iOS tab bar in house paint: a floating glass capsule (`material-float`)
- *  inset 16px from the screen's sides and lifted off the bottom edge by
- *  `--mobile-bottom-gap`, not a strip stuck to it. 56px tall with 4px of
+/** The iOS tab bar in house paint: the lowest capsule of the phone dock
+ *  (`dock-capsule`, globals.css: a floating glass capsule inset 16px from the
+ *  screen's sides) lifted off the bottom edge by `--mobile-bottom-gap`, not a
+ *  strip stuck to it. Anything else pinned at the bottom of a phone screen is
+ *  the same capsule stacked above this one. 56px tall with 4px of
  *  padding, so each tab's hit area is 48px tall (HIG/Material minimum touch
  *  target is 44px); 20px icons (the one documented "icon sits in a stretched
  *  control" exception to the 16px site-wide default); the active tab is a
@@ -48,7 +50,7 @@ export function MobileTabBar() {
             data-testid="mobile-tabbar"
             aria-label="Primary"
             style={{ gridTemplateColumns: `repeat(${MOBILE_TABS.length}, minmax(0, 1fr))` }}
-            className="fixed inset-x-4 bottom-[var(--mobile-bottom-gap)] z-50 mx-auto grid h-14 max-w-md items-center rounded-pill p-1 material-float lg:hidden"
+            className="dock-capsule fixed inset-x-0 bottom-[var(--mobile-bottom-gap)] z-50 grid h-14 items-center p-1 lg:hidden"
         >
             {MOBILE_TABS.map((tab) => {
                 const active = tab.match(pathname);
@@ -72,7 +74,7 @@ export function MobileTabBar() {
                         className={cn(
                             "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-pill text-xs transition-colors duration-100",
                             CHROME_FOCUS_VISIBLE,
-                            active ? "bg-surface-2 text-foreground font-semibold" : "text-muted-foreground font-normal",
+                            active ? "bg-background text-foreground font-semibold" : "text-muted-foreground font-normal",
                         )}
                     >
                         {Icon && <Icon />}

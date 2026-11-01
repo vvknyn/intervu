@@ -105,9 +105,9 @@ describe("header nav", () => {
         assert.match(src, /data-tour=\{tab\.tourSelector\}/);
     });
 
-    it("MobileTabBar paints glass material (the floating capsule's `material-float`), not ink siteChrome", () => {
+    it("MobileTabBar paints glass material (the dock's floating `dock-capsule`), not ink siteChrome", () => {
         const src = readFileSync(MOBILE_TABBAR, "utf8");
-        assert.match(src, /material-float/);
+        assert.match(src, /dock-capsule/);
         assert.doesNotMatch(src, /siteChrome/);
         assert.doesNotMatch(src, /bg-chrome/);
     });
