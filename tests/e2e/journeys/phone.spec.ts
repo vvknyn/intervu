@@ -514,3 +514,83 @@ test("on a phone the leading search icon is painted over the field's fill: commu
     expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
     expect(diagnostics.pageErrors.filter((e) => !e.startsWith("Hydration failed"))).toEqual([]);
 });
+
+/** The bar's box plus the paint that makes it glass, as the browser computed it. */
+const tabBarGlass = (page: Page) =>
+    page.getByTestId("mobile-tabbar").evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const alpha = Number(cs.backgroundColor.match(/,\s*([\d.]+)\)$/)?.[1] ?? 1);
+        return {
+            left: r.left,
+            right: window.innerWidth - r.right,
+            bottom: window.innerHeight - r.bottom,
+            top: r.top,
+            height: r.height,
+            radius: parseFloat(cs.borderTopLeftRadius),
+            blur: cs.backdropFilter,
+            alpha,
+        };
+    });
+
+for (const width of [390, 320]) {
+    test(`on a ${width}px phone the tab bar is a floating glass capsule: inset from the edges, off the bottom, translucent, clear of the page's last line`, { tag: ["@J-MOB-30"] }, async ({ page, diagnostics }, testInfo) => {
+        test.skip(testInfo.project.name !== "mobile", "a phone width");
+        await page.setViewportSize({ width, height: 800 });
+        await returningVisitor(page);
+        await page.goto("/pricing");
+        const bar = page.getByTestId("mobile-tabbar");
+        await expect(bar).toBeVisible({ timeout: 15_000 });
+        await testInfo.attach("tabbar-top", { body: await page.screenshot(), contentType: "image/png" });
+        const glass = await tabBarGlass(page);
+        // It sat flush on the screen's bottom edge, full width, in the very place the home indicator draws (2026-11-01).
+        expect(glass.left).toBeGreaterThanOrEqual(12);
+        expect(glass.right).toBeGreaterThanOrEqual(12);
+        expect(Math.abs(glass.left - glass.right)).toBeLessThanOrEqual(1);
+        expect(glass.bottom).toBeGreaterThanOrEqual(19);
+        // A capsule: the radius is at least half the height. Glass: a blur, and a fill you can see through.
+        expect(glass.radius).toBeGreaterThanOrEqual(glass.height / 2);
+        expect(glass.blur).toContain("blur");
+        expect(glass.alpha).toBeGreaterThan(0.5);
+        expect(glass.alpha).toBeLessThan(1);
+        await expect(bar.getByTestId("mobile-topbar-jobs")).toBeVisible();
+        // At the end of the page the footer's last line sits above the bar, not under it.
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        await expect
+            .poll(async () => {
+                const top = (await tabBarGlass(page)).top;
+                return page.evaluate((barTop) => {
+                    const leaves = [...document.querySelectorAll("footer *")].filter((n) => n.children.length === 0 && (n.textContent ?? "").trim());
+                    const lowest = Math.max(...leaves.map((n) => n.getBoundingClientRect().bottom));
+                    return barTop - lowest;
+                }, top);
+            })
+            .toBeGreaterThanOrEqual(0);
+        await testInfo.attach("tabbar-end-of-page", { body: await page.screenshot(), contentType: "image/png" });
+        expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0);
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
+}
+
+test("on a phone the opened job's Apply bar is lifted off the bottom edge, the same distance as the tab bar", { tag: ["@J-MOB-30"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    await page.goto("/jobs?q=engineer");
+    test.skip(!(await rowsIfAny(page)), "this server lists no jobs (no search backend), so there is no job to open");
+    await page.getByTestId("job-row").first().click();
+    const sheet = page.getByRole("dialog");
+    const bar = sheet.getByTestId("job-detail-action-bar");
+    await expect(bar).toBeVisible({ timeout: 15_000 });
+    // The sheet slides up as it opens, so read the gap once its bar stops moving.
+    await expect
+        .poll(async () => {
+            const apply = await box(bar.getByRole("button").first());
+            return Math.round(page.viewportSize()!.height - (apply.y + apply.height));
+        })
+        .toBeGreaterThanOrEqual(19);
+    // The button is padded inside the bar too: the bar's own bottom is the screen's, the button is not.
+    const b = await box(bar);
+    expect(Math.round(page.viewportSize()!.height - (b.y + b.height))).toBeLessThanOrEqual(1);
+    await testInfo.attach("job-sheet-bar", { body: await page.screenshot(), contentType: "image/png" });
+    expect(diagnostics.pageErrors).toEqual([]);
+});

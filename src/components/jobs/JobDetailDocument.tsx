@@ -634,16 +634,17 @@ export function JobDetailDocument({
             {/* Sticky mobile action bar (rulebook "sticky mobile action
                 bar"): the same chokepoint the SERP Sheet's mobile detail
                 already mounts (JobDetail.tsx doc comment), stacked
-                `bottom-12` — above the sitewide `MobileTabBar`'s 48px
-                base height — since this document scrolls the real page,
+                `--mobile-bottom-gap + 4rem` up — above the sitewide
+                floating `MobileTabBar` (3.5rem tall plus 0.5rem of air)
+                — since this document scrolls the real page,
                 unlike the Sheet's own `overflow-y-auto` container that
                 paints over the tab bar. `max-lg:pb-12` above gives the last
                 in-flow content the same clearance so nothing sits under
                 either bar at full scroll. Closed jobs keep their own
                 "See open roles" card inline — this bar doesn't model
                 that state. It's `sticky` (base class in JobDetail.tsx),
-                overridden here to `bottom-12`: it sticks 48px above the
-                viewport bottom — above MobileTabBar — while the document
+                overridden here: it sticks above the viewport bottom —
+                clear of the floating MobileTabBar — while the document
                 is in view. Mounted after the padded two-column container,
                 so its rest position at full scroll sits directly above
                 the Footer, and that container's `max-lg:pb-12` is what
@@ -659,7 +660,7 @@ export function JobDetailDocument({
                     onGoAfter={onGoAfter}
                     pursuit={pursuit}
                     saveSuccessPulse={saveSuccessPulse}
-                    className="bottom-12 lg:hidden"
+                    className="bottom-[calc(var(--mobile-bottom-gap)+4rem)] pb-2 lg:hidden"
                 />
             )}
         </div>

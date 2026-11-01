@@ -1356,7 +1356,11 @@ test('no user-facing string in src spells the auth verb "log in" — canonical i
     );
 });
 
-test("calm pass R4: backdrop-filter exists only in the one `material-bar` utility", () => {
+const GLASS_UTILITIES = ["material-bar", "material-float"] as const;
+const utilityBlock = (css: string, name: string): string =>
+    css.match(new RegExp(`@utility ${name}\\s*\\{[\\s\\S]*?\\n\\}`))?.[0] ?? "";
+
+test("calm pass R4: backdrop-filter exists only in the `material-bar` and `material-float` utilities", () => {
     const walk = (dir: string): string[] =>
         readdirSync(dir).flatMap((name) => {
             const full = path.join(dir, name);
@@ -1371,24 +1375,36 @@ test("calm pass R4: backdrop-filter exists only in the one `material-bar` utilit
 
     const css = GLOBALS.replace(/\/\*[\s\S]*?\*\//g, "");
     const uses = [...css.matchAll(/backdrop-filter/g)].length;
-    const util = css.match(/@utility material-bar\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
-    assert.ok(util, "@utility material-bar missing from globals.css");
-    const inUtil = [...util.matchAll(/backdrop-filter/g)].length;
-    // 2 sets + the @supports probe: every occurrence must live inside the utility.
-    assert.equal(uses, inUtil, "backdrop-filter appears in globals.css outside @utility material-bar");
-    assert.match(util, /@supports not \(backdrop-filter: blur\(1px\)\)/, "material-bar needs an opaque fallback");
+    let inUtilities = 0;
+    for (const name of GLASS_UTILITIES) {
+        const util = utilityBlock(css, name);
+        assert.ok(util, `@utility ${name} missing from globals.css`);
+        // 2 sets + the @supports probe: every occurrence must live inside a glass utility.
+        inUtilities += [...util.matchAll(/backdrop-filter/g)].length;
+        assert.match(util, /@supports not \(backdrop-filter: blur\(1px\)\)/, `${name} needs an opaque fallback`);
+    }
+    assert.equal(uses, inUtilities, "backdrop-filter appears in globals.css outside the glass utilities");
 });
 
-test("material-bar fill hides content without the blur (alpha floor + reduced-transparency)", () => {
-    const util = GLOBALS.replace(/\/\*[\s\S]*?\*\//g, "").match(/@utility material-bar\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
-    const alpha = Number(util.match(/^\s{2}background-color:\s*rgb\(var\(--background\) \/ ([\d.]+)\)/m)?.[1]);
-    // 0.94 keeps white text under the bar at 1.13:1 against the fill; 0.85 leaves 1.48:1 (readable).
-    assert.ok(alpha >= 0.94, `material-bar fill alpha ${alpha} is below the 0.94 legibility floor`);
-    assert.match(
-        util,
-        /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*background-color: rgb\(var\(--background\)\);/,
-        "material-bar must be fully opaque under prefers-reduced-transparency",
-    );
+test("glass fills hide content without the blur (alpha floors + reduced-transparency)", () => {
+    // 0.94 keeps white text under a flush bar at 1.13:1 against the fill; 0.85 leaves 1.48:1 (readable).
+    // The floating phone bar holds only short labels and is the iOS look, so it may be more translucent: 0.82 is 1.65:1.
+    const floors = { "material-bar": 0.94, "material-float": 0.8 } as const;
+    for (const name of GLASS_UTILITIES) {
+        const util = utilityBlock(GLOBALS.replace(/\/\*[\s\S]*?\*\//g, ""), name);
+        const alpha = Number(util.match(/^\s{2}background-color:\s*rgb\(var\(--background\) \/ ([\d.]+)\)/m)?.[1]);
+        assert.ok(alpha >= floors[name], `${name} fill alpha ${alpha} is below its ${floors[name]} legibility floor`);
+        assert.match(
+            util,
+            /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*background-color: rgb\(var\(--background\)\);/,
+            `${name} must be fully opaque under prefers-reduced-transparency`,
+        );
+    }
+});
+
+test("material-float has one consumer: the phone tab bar", () => {
+    const users = findOffenders(path.join(ROOT, "src"), /\bmaterial-float\b/).map((o) => o.split(":")[0]);
+    assert.deepEqual([...new Set(users)], ["src/components/layout/MobileTabBar.tsx"]);
 });
 
 /**
