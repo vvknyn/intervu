@@ -957,13 +957,14 @@ export function buildSearchBody(
     // under any sort (Vivek 2026-10-26: every word, every sort).
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
-    facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
+    facets: p.withFacets ? [...(p.facetCountsOnly ?? REQUESTED_FACET_KEYS)] : undefined,
     // `limit`/`offset`, not `hitsPerPage`/`page` — page mode forces exhaustive
     // count pagination over the full match set (see `buildSuggestBody`).
     // Exact totals at 100k+ are recovered via `resolveCorpusCount` when
-    // `withFacets` returns an uncapped `ghost_badge` facet sum.
-    limit: p.limit ?? 40,
-    offset: p.offset ?? 0,
+    // `withFacets` returns an uncapped `ghost_badge` facet sum. A counts-only
+    // search (`facetCountsOnly`) asks for no rows, whatever window a lane set.
+    limit: p.facetCountsOnly ? 0 : (p.limit ?? 40),
+    offset: p.facetCountsOnly ? 0 : (p.offset ?? 0),
     sort: buildMeiliSort(p, legacy),
     ...(p.id ? {} : { attributesToRetrieve: [...JOB_LIST_ATTRIBUTES_TO_RETRIEVE] }),
     ...(opts?.rankingScoreDetails ? { showRankingScoreDetails: true } : {}),
@@ -1305,9 +1306,11 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
 
   const federatedBody = {
     federation: {
-      limit: p.limit ?? 40,
-      offset: p.offset ?? 0,
-      ...(p.withFacets ? { facetsByIndex: { [JOBS_INDEX]: [...REQUESTED_FACET_KEYS] } } : {}),
+      // A counts-only search reads one row here, not none: a single search takes `limit: 0` (`runCountPass`),
+      // and one row costs nothing while a federation limit of 0 was never tried against the live engine.
+      limit: p.facetCountsOnly ? 1 : (p.limit ?? 40),
+      offset: p.facetCountsOnly ? 0 : (p.offset ?? 0),
+      ...(p.withFacets ? { facetsByIndex: { [JOBS_INDEX]: [...(p.facetCountsOnly ?? REQUESTED_FACET_KEYS)] } } : {}),
     },
     queries: specs.map((s) => s.query),
   };
@@ -1319,7 +1322,8 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
       cache: "no-store",
       body: JSON.stringify(federatedBody),
     }),
-    runCountPass(h, p, {}),
+    // A counts-only search has no rows to place a seam between.
+    p.facetCountsOnly ? Promise.resolve(undefined) : runCountPass(h, p, {}),
     previewSpecs.length > 0 ? fetchRelatedPreview(h, previewSpecs) : Promise.resolve({ hits: [], titles: [] as string[] }),
   ]);
 
@@ -1366,7 +1370,59 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
   };
 }
 
+/**
+ * The Country counts answer "where does this search have roles?", not "which countries are in the place I'm already
+ * searching?". A search scoped to a place (the visitor's own country by IP default, a typed place, a picked country)
+ * used to count countries inside that place only: a signed-out "data scientist" search from Canada read
+ * "United States 1" (the one posting that lists Canada and the US), while the US held 8,958 such roles (live MCP
+ * search, 2026-11-01). A count must say what adding that country gives, so the Country counts come from the same
+ * search with no place in it. Every other filter (query, level, work mode, posted window, stale postings) stays.
+ *
+ * The count query for `p`, or null when `p` asks for no facets, names no place, or lists no rows: the ghost and
+ * beyond-window probes (run-search.ts, limit 1 and 0) read only their own count and never show Country counts.
+ */
+export function placeFreeCountQuery(p: JobSearchParams): JobSearchParams | null {
+  if (!p.withFacets || p.facetCountsOnly || p.id || (p.limit ?? 40) <= 1) return null;
+  const hasPlace = Boolean(p.places?.length) || LOCATION_FACET_FIELDS.some((field) => Boolean(p.facets?.[field]?.length));
+  if (!hasPlace) return null;
+  const facets = { ...p.facets };
+  for (const field of LOCATION_FACET_FIELDS) delete facets[field];
+  return { ...p, places: undefined, facets, facetCountsOnly: ["location_country"] };
+}
+
+/** `result` with its Country counts taken from the place-free count query (`placeFreeCountQuery`); unchanged when
+ *  that query returned none (it failed or ran out of time), so the counts never go missing. */
+export function withPlaceFreeCountryCounts(
+  result: JobSearchResult,
+  countryCounts: Record<string, number> | undefined,
+): JobSearchResult {
+  if (!countryCounts || !result.facetDistribution) return result;
+  return { ...result, facetDistribution: { ...result.facetDistribution, location_country: countryCounts } };
+}
+
+/** How long the list waits for the Country count query after its own rows are in. It asks for no rows, so it is
+ *  usually done first; past this the list keeps the in-place counts rather than wait. */
+export const PLACE_FREE_COUNT_GRACE_MS = 750;
+
 export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> {
+  const countQuery = placeFreeCountQuery(p);
+  if (!countQuery) return searchMeiliScoped(p);
+  const counts = searchMeiliScoped(countQuery).then(
+    (r) => r.facetDistribution?.location_country,
+    () => undefined,
+  );
+  const result = await searchMeiliScoped(p);
+  if (!result.facetDistribution) return result;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), PLACE_FREE_COUNT_GRACE_MS);
+  });
+  const countryCounts = await Promise.race([counts, late]);
+  clearTimeout(timer);
+  return withPlaceFreeCountryCounts(result, countryCounts);
+}
+
+async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
   const h = host();
   if (!h) {
     return {
@@ -1631,7 +1687,8 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
   };
 
   const result = await runWithIntent(intent);
-  if ((intent.companyScoped || Boolean(intent.residualRoleQ)) && result.total === 0) {
+  // A counts-only search's lanes hold no rows, so their total is no sign the company reading found nothing.
+  if (!p.facetCountsOnly && (intent.companyScoped || Boolean(intent.residualRoleQ)) && result.total === 0) {
     const fallback = await runWithIntent({ companyScoped: false, companyDomains: [] });
     return {
       ...fallback,

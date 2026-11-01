@@ -435,6 +435,13 @@ export interface JobSearchParams {
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */
   withFacets?: boolean;
+  /**
+   * Server-internal (`searchMeili` sets it on its own count query, see
+   * `placeFreeCountQuery` in meilisearch.ts): run the search for these facets'
+   * counts alone. Every query it sends asks for no rows (`limit: 0`; a
+   * federated search reads one), and its hits and total are not read.
+   */
+  facetCountsOnly?: readonly FacetKey[];
   /** Restrict to jobs at companies on a curated board allowlist. */
   board?: BoardId;
   /** Restrict to jobs at a single company domain (exact match). */
