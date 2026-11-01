@@ -246,14 +246,17 @@ export function JobDetailActionBar({
     /** Merged over the base classes (rulebook item a's `cn()` override
      *  pattern) — the only caller that needs this today is the standalone
      *  `/jobs/[slug]` document, which stacks this bar above the sitewide
-     *  `MobileTabBar` (`bottom-12` instead of the Sheet caller's `bottom-0`,
-     *  since that Sheet paints over the tab bar and this document doesn't). */
+     *  `MobileTabBar` (a `bottom-*` above it instead of the Sheet caller's `bottom-0`,
+     *  since that Sheet paints over the tab bar and this document doesn't).
+     *  By default the bar sits at the bottom of its sheet, so it lifts its
+     *  button off the screen edge by `--mobile-bottom-gap`; a caller that
+     *  stacks it above the tab bar overrides that padding. */
     className?: string;
 }) {
     return (
         <div
             data-testid="job-detail-action-bar"
-            className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 material-bar px-4", className)}
+            className={cn("sticky bottom-0 z-20 flex items-center gap-2 material-bar px-4 pt-2 pb-[var(--mobile-bottom-gap)] xl:h-12 xl:py-0", className)}
         >
             {job.apply_url && (
                 <Button size={jobActionSize} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand transition-colors" onClick={onOpenPosting}>
