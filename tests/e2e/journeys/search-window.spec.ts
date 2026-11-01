@@ -10,7 +10,7 @@ import { rollupCountryDistribution } from "../../../src/lib/jobs/country-classif
  * Journeys for what a typed search reaches and in what order (2026-09-30):
  * the 90-day posted default (J-JOBS-04, J-FILT-02, J-FILT-25, J-FILT-26), the
  * IP-country default's remote-anywhere rule (J-SRCH-22) and its Country
- * counts (J-SRCH-41), newer first among
+ * counts (J-SRCH-42), newer first among
  * equally matching roles (J-SRCH-23), an entry-level title such as "Sales
  * Associate" listing that title (J-SRCH-34), and the job page's "checked"
  * date (J-DETAIL-40). See tests/journeys/CATALOG.md. Read-only.
@@ -251,7 +251,7 @@ test("the country default leaves out a remote role with a city but no country, a
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("with the visitor's own country applied, the Country counts name every country the search has roles in, and a count says what picking it lists", { tag: ["@J-SRCH-41"] }, async ({ page, diagnostics }) => {
+test("with the visitor's own country applied, the Country counts name every country the search has roles in, and a count says what picking it lists", { tag: ["@J-SRCH-42"] }, async ({ page, diagnostics }) => {
   // 2026-11-01: from Canada, signed out, "data scientist" read "United States 1" (the one posting listing both
   // countries) while the US held 8,958 such roles: the counts were taken inside the visitor's own country.
   const results = await collectSearchResults(page);
