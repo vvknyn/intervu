@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { expectDockFrame, expectDockInline, pinnedBottomBars } from "./dock-frame";
+import { expectDockFrame, expectDockInline, expectEveryTabGlyphCentred, minimizedTabGlyphs, pinnedBottomBars } from "./dock-frame";
 import { expect, test } from "./fixtures";
 import { isLocalOrigin, mockSignIn, SIGNED_IN_SKIP_REASON } from "./signed-in";
 
@@ -643,6 +643,8 @@ for (const width of [390, 320]) {
         // Transitions run ~200ms: read the pair once it holds still.
         await page.waitForTimeout(500);
         expectDockInline(await pinnedBottomBars(page, undefined, 40));
+        // Whichever tab stays in the circle, its icon is in the middle of it.
+        expectEveryTabGlyphCentred(await minimizedTabGlyphs(page));
         await testInfo.attach("dock-minimized", { body: await page.screenshot(), contentType: "image/png" });
         // A short scroll up restores the stack.
         await page.evaluate(() => window.scrollBy(0, -60));

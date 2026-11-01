@@ -136,3 +136,15 @@ test("the dock minimizes like Apple's tab bar: <html data-dock> from scroll, dra
     assert.match(tabBar, /data-dock-current=/, "and marks the tab that stays");
     assert.match(tabBar, /onClickCapture=\{expandIfMinimized\}/, "a tap on the round button expands it instead of navigating");
 });
+
+test("the tab bar's columns come from the tabs that are showing, so one tab left fills the circle", () => {
+    // 2026-11-01: an inline `repeat(4, 1fr)` kept four columns when three tabs were hidden, and the collapsed
+    // button's icon sat in the first of them, 17px left of the middle. Inline style also outranks every
+    // stylesheet rule, so the minimized state could not have overridden it.
+    const tabBar = readFileSync(path.join(SRC, "components/layout/MobileTabBar.tsx"), "utf8");
+    const nav = tabBar.slice(tabBar.indexOf("<nav"), tabBar.indexOf(">", tabBar.indexOf("className=\"dock-capsule")));
+    assert.doesNotMatch(nav, /\bstyle=/, "no inline style on the tab bar: a column count there cannot be overridden when tabs hide");
+    assert.doesNotMatch(tabBar, /gridTemplateColumns/, "no fixed column count");
+    assert.match(nav, /\bgrid-flow-col\b/, "tabs flow into columns");
+    assert.match(nav, /\bauto-cols-fr\b/, "each showing tab takes an equal share, and a lone one takes it all");
+});

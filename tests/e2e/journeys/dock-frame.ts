@@ -24,6 +24,13 @@ export type PinnedBar = {
   blur: string;
   /** The fill's alpha: 1 is a slab, near 0 is nothing. */
   alpha: number;
+  /**
+   * For a round button (as wide as it is tall): how far the farthest icon inside
+   * is from the button's middle, px, across and down. 0 for a wider bar. The
+   * collapsed magnifier sat 17px left of the middle (2026-11-01).
+   */
+  glyphDx: number;
+  glyphDy: number;
 };
 
 /**
@@ -49,7 +56,20 @@ export async function pinnedBottomBars(page: Page, root?: Locator, minWidth?: nu
           r.top >= vh * 0.5 &&
           r.bottom <= vh + 1,
       )
-      .map(({ el, cs, r }) => ({
+      .map(({ el, cs, r }) => {
+        // Icons shown inside a round button must sit in its middle.
+        const round = r.width <= r.height * 1.2;
+        const glyphs = round ? [...el.querySelectorAll("svg")].map((g) => g.getBoundingClientRect()).filter((g) => g.width > 0) : [];
+        const drift = (axis: "x" | "y") =>
+          glyphs.reduce(
+            (max, g) =>
+              Math.max(
+                max,
+                axis === "x" ? Math.abs(g.left + g.width / 2 - (r.left + r.width / 2)) : Math.abs(g.top + g.height / 2 - (r.top + r.height / 2)),
+              ),
+            0,
+          );
+        return {
         name: el.getAttribute("data-testid") ?? `${el.tagName.toLowerCase()}.${el.className.toString().split(/\s+/)[0] ?? ""}`,
         left: r.left,
         right: vw - r.right,
@@ -59,7 +79,10 @@ export async function pinnedBottomBars(page: Page, root?: Locator, minWidth?: nu
         radius: parseFloat(cs.borderTopLeftRadius),
         blur: cs.backdropFilter || (cs as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter || "none",
         alpha: Number(cs.backgroundColor.match(/,\s*([\d.]+)\)$/)?.[1] ?? 1),
-      }))
+        glyphDx: drift("x"),
+        glyphDy: drift("y"),
+        };
+      })
       .sort((a, b) => a.bottom - b.bottom);
   };
   return page.evaluate(read, { scope: root ? ((await root.elementHandle()) ?? undefined) : undefined, minWidth });
@@ -109,6 +132,9 @@ export function expectDockInline(bars: PinnedBar[]) {
   expect(Math.abs(tab.width - tab.height), `round button ${at}`).toBeLessThanOrEqual(2);
   expect(tab.radius).toBeGreaterThanOrEqual(tab.height / 2);
   expect(tab.blur).toContain("blur");
+  // The icon is in the middle of the circle, not left in the first of the bar's four columns (2026-11-01: 17px off).
+  expect(tab.glyphDx, `icon across the button ${at}`).toBeLessThanOrEqual(1);
+  expect(tab.glyphDy, `icon down the button ${at}`).toBeLessThanOrEqual(1);
   // Same row: the same lift off the bottom edge, level with each other.
   expect(tab.bottom, `lifted ${at}`).toBeGreaterThanOrEqual(19);
   expect(Math.abs(tab.bottom - accessory.bottom), `same row ${at}`).toBeLessThanOrEqual(1);
@@ -124,4 +150,47 @@ export function expectDockInline(bars: PinnedBar[]) {
   expect(accessory.blur).toContain("blur");
   expect(accessory.alpha).toBeGreaterThan(0.3);
   expect(accessory.alpha).toBeLessThan(0.9);
+}
+
+/**
+ * Every tab, as the one that stays when the tab bar is minimized. Which tab
+ * stays depends on the page (Jobs on a job page, Résumé on /resume), so the
+ * check does not trust the one a given page happens to show: it moves the
+ * `data-dock-current` marker over each tab in turn and reads where that tab's
+ * icon lands in the round button, then puts the marker back. Call it with the
+ * dock minimized.
+ */
+export async function minimizedTabGlyphs(page: Page): Promise<{ tab: string; dx: number; dy: number; linkDx: number; shown: number }[]> {
+  return page.evaluate(() => {
+    const nav = document.querySelector<HTMLElement>("[data-mobile-tabbar]")!;
+    const tabs = [...nav.querySelectorAll<HTMLElement>(":scope > [data-testid]")];
+    const original = tabs.find((t) => t.hasAttribute("data-dock-current"));
+    const middle = (r: DOMRect) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    const out = tabs.map((tab) => {
+      for (const t of tabs) t.toggleAttribute("data-dock-current", t === tab);
+      const n = middle(nav.getBoundingClientRect());
+      const link = middle(tab.getBoundingClientRect());
+      const glyphs = [...tab.querySelectorAll("svg")].map((g) => middle(g.getBoundingClientRect()));
+      return {
+        tab: tab.getAttribute("data-testid") ?? "",
+        dx: Math.max(0, ...glyphs.map((g) => Math.abs(g.x - n.x))),
+        dy: Math.max(0, ...glyphs.map((g) => Math.abs(g.y - n.y))),
+        linkDx: Math.abs(link.x - n.x),
+        shown: tabs.filter((t) => t.getBoundingClientRect().width > 0).length,
+      };
+    });
+    for (const t of tabs) t.toggleAttribute("data-dock-current", t === original);
+    return out;
+  });
+}
+
+export function expectEveryTabGlyphCentred(glyphs: Awaited<ReturnType<typeof minimizedTabGlyphs>>) {
+  expect(glyphs.length, "tabs in the tab bar").toBeGreaterThanOrEqual(3);
+  for (const g of glyphs) {
+    const at = JSON.stringify(g);
+    expect(g.shown, `only the current tab shows in the round button ${at}`).toBe(1);
+    expect(g.linkDx, `the tab's touch target is centred ${at}`).toBeLessThanOrEqual(1);
+    expect(g.dx, `icon across ${at}`).toBeLessThanOrEqual(1);
+    expect(g.dy, `icon down ${at}`).toBeLessThanOrEqual(1);
+  }
 }

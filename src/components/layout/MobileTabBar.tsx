@@ -30,7 +30,9 @@ const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
  *  filled pill, the rest are secondary text — no counts/dots (that's TopBar's
  *  desktop menu list's own affordance, not this bar's). The space it takes is
  *  `--mobile-tabbar-h` (globals.css), which everything fixed at the bottom or
- *  padded for the bar reads. */
+ *  padded for the bar reads. The columns follow the tabs that are showing
+ *  (`auto-cols-fr`), never a fixed count in an inline style: minimized, one tab
+ *  is left and it must fill the whole round button. */
 export function MobileTabBar() {
     const pathname = usePathname();
     const prefetchOnIntent = usePrefetchOnIntent();
@@ -90,9 +92,8 @@ export function MobileTabBar() {
             data-mobile-tabbar
             data-testid="mobile-tabbar"
             aria-label="Primary"
-            style={{ gridTemplateColumns: `repeat(${MOBILE_TABS.length}, minmax(0, 1fr))` }}
             onClickCapture={expandIfMinimized}
-            className="dock-capsule fixed left-[calc((100vw-var(--dock-w))/2)] bottom-[var(--mobile-bottom-gap)] z-50 grid h-14 items-center p-1 lg:hidden"
+            className="dock-capsule fixed left-[calc((100vw-var(--dock-w))/2)] bottom-[var(--mobile-bottom-gap)] z-50 grid h-14 grid-flow-col auto-cols-fr items-center p-1 lg:hidden"
         >
             {MOBILE_TABS.map((tab) => {
                 const active = tab.match(pathname);
