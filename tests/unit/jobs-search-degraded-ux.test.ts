@@ -7,7 +7,9 @@ import {
   isOperatorSearchNote,
   isSearchUnhealthy,
   jobsNotConnectedPanelCopy,
+  rateLimitedSearchResult,
   userFacingSearchErrorMessage,
+  SEARCH_RATE_LIMITED_MESSAGE,
   SEARCH_UNAVAILABLE_MESSAGE,
 } from "../../src/lib/jobs/result-state";
 import { shouldShowSearchAlertCapture } from "../../src/lib/jobs/search-alert-capture";
@@ -99,5 +101,25 @@ describe("jobs page wiring", () => {
     assert.doesNotMatch(notConnected, /border-foreground/);
     assert.doesNotMatch(notConnected, /\bvelai\b/);
     assert.match(src, /variant="link"[\s\S]*Try again/);
+  });
+});
+
+describe("a search the per-IP limit turns away says so", () => {
+  // R70 prod checks: the limit answered with the outage note, so a person who tripped it read the site as down.
+  it("keeps the outage shape every caller handles, with its own note shown as written", () => {
+    const r = rateLimitedSearchResult("meilisearch", "s1");
+    assert.deepEqual(r, { hits: [], total: 0, backend: "meilisearch", configured: true, unavailable: true, note: SEARCH_RATE_LIMITED_MESSAGE, searchId: "s1" });
+    assert.notEqual(SEARCH_RATE_LIMITED_MESSAGE, SEARCH_UNAVAILABLE_MESSAGE);
+    assert.ok(!/unavailable/i.test(SEARCH_RATE_LIMITED_MESSAGE));
+    assert.equal(userFacingSearchErrorMessage(r.note), SEARCH_RATE_LIMITED_MESSAGE);
+    assert.equal(isSearchUnhealthy({ searchError: null, result: r }), true);
+  });
+
+  it("searchJobsAction answers a turned-away search with it (the action needs a request scope, so its source is read)", () => {
+    const src = readFileSync(join(__dirname, "..", "..", "src", "actions", "jobs.ts"), "utf8");
+    const action = src.slice(src.indexOf("export async function searchJobsAction"));
+    const branch = action.slice(action.indexOf("if (!allowSearchRequest(ip))"), action.indexOf("const user = await getServerUser()"));
+    assert.match(branch, /return rateLimitedSearchResult\(backendStatus\.backend, searchId\);/);
+    assert.doesNotMatch(branch, /SEARCH_UNAVAILABLE_MESSAGE/);
   });
 });

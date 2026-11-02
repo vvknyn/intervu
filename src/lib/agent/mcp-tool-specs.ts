@@ -281,7 +281,8 @@ export const MCP_TOOL_SPECS = {
             `NARROW that filter, never widen it — no overlap between the two is an input error, never a ` +
             `silent empty page) — all AND ` +
             `together and with query. A job title as the query also returns roles next to it (searching ` +
-            `"technical account manager" also finds customer success roles), listed after the postings ` +
+            `"technical account manager" also finds customer success roles; a title the map does not know returns none ` +
+            `rather than the roles of a shorter title it ends in), listed after the postings ` +
             `titled with the query: those hits carry related_role:true and the response names them in ` +
             `related_titles. On the first page, when the user's résumé is on file, up to ${RELATED_AGENT_CAP} of those ` +
             `roles that fit the résumé as Strong or Good follow the page's hits even when the query's own postings fill ` +

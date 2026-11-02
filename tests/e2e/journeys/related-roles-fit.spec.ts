@@ -2,11 +2,11 @@ import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
-import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
+import { SEARCH_RATE_LIMITED_MESSAGE, SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
 import { answerListSearch, isListSearch } from "./list-search";
 
 /**
- * Journeys for the roles next to a typed title - see tests/journeys/CATALOG.md (J-JOBS-167, J-SRCH-41). Read-only:
+ * Journeys for the roles next to a typed title - see tests/journeys/CATALOG.md (J-JOBS-167, J-SRCH-41, J-SRCH-43, J-SRCH-44). Read-only:
  * the resume lives in localStorage and the answers are replaced in the browser.
  *
  * Vivek, 2026-11-01: "this needs to be used intelligently to appropriately adjust the search results...and also use
@@ -138,10 +138,28 @@ test("a search for a title ending in a word a plain object already holds ('bridg
   const answered = page.waitForResponse((res) => isListSearch(res.request()), { timeout: 45_000 });
   await page.goto("/jobs?q=bridge%20constructor");
   const res = await answered;
-  const body = (await res.json()) as { configured?: boolean; unavailable?: boolean };
+  const body = (await res.json()) as { configured?: boolean; unavailable?: boolean; note?: string };
   test.skip(body.configured === false, "no search backend behind this server");
+  test.skip(body.note === SEARCH_RATE_LIMITED_MESSAGE, "turned away by the per-connection search limit (other journeys from this machine), not what this checks");
   expect(res.status()).toBe(200);
-  expect(body.unavailable ?? false, "the search ran rather than failing").toBe(false);
+  expect(body.unavailable ?? false, `the search ran rather than failing (${body.note ?? ""})`).toBe(false);
   await expect(page.getByText(SEARCH_UNAVAILABLE_MESSAGE)).toHaveCount(0);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("a title the map doesn't know gets no roles-next-to line borrowed from a shorter title it ends in ('customer success architect')", { tag: ["@J-SRCH-44"] }, async ({ page, diagnostics }) => {
+  // R69 prod: "customer success architect" was shown "Roles next to customer success architect: Architectural Designer,
+  // Design Manager and Construction Engineer" (read as "architect"). This runs the real list search, unmocked.
+  await returningVisitor(page);
+  const answered = page.waitForResponse((res) => isListSearch(res.request()), { timeout: 45_000 });
+  await page.goto("/jobs?q=customer%20success%20architect&sort=relevance");
+  const res = await answered;
+  const body = (await res.json()) as { configured?: boolean; unavailable?: boolean; note?: string; relatedTitles?: string[]; hits?: Array<{ tier?: number }> };
+  test.skip(body.configured === false, "no search backend behind this server");
+  test.skip(body.note === SEARCH_RATE_LIMITED_MESSAGE, "turned away by the per-connection search limit (other journeys from this machine), not what this checks");
+  expect(body.unavailable ?? false, `the search ran (${body.note ?? ""})`).toBe(false);
+  expect(body.relatedTitles ?? [], "no related roles named").toEqual([]);
+  expect((body.hits ?? []).filter((h) => h.tier === 3), "no related-role rows").toEqual([]);
+  await expect(page.getByText(/Roles next to customer success architect/i)).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });

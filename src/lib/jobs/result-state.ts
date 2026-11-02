@@ -22,6 +22,22 @@ import type { JobSearchResult, PublicJob } from "./types";
 export const SEARCH_UNAVAILABLE_MESSAGE =
     "Search is temporarily unavailable — this usually clears within a minute. Try again in a moment.";
 
+/**
+ * A search turned away by the per-IP limit (`allowSearchRequest`). Says what happened instead of reading as an
+ * outage: a person who browses fast, or shares a connection with others, would otherwise take the site for down.
+ */
+export const SEARCH_RATE_LIMITED_MESSAGE =
+    "Too many searches from this connection in the last minute. Wait a few seconds and try again.";
+
+/**
+ * What `searchJobsAction` answers when the per-IP limit turns a search away: the outage shape (`configured: true`,
+ * `unavailable: true`, no hits), so every caller already handles it, with the rate-limit note in place of the
+ * outage one.
+ */
+export function rateLimitedSearchResult(backend: JobSearchResult["backend"], searchId: string) {
+    return { hits: [], total: 0, backend, configured: true, unavailable: true, note: SEARCH_RATE_LIMITED_MESSAGE, searchId } satisfies JobSearchResult & { searchId: string };
+}
+
 /** Signed-out / unconfigured backend panel — production uses degraded-search tone (#618). */
 export function jobsNotConnectedPanelCopy(input: {
     isDev: boolean;
