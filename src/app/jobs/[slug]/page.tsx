@@ -96,7 +96,7 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
                 segments only: back to /jobs, then the current job title as
                 plain text — there is no sourced taxonomy field to put a third
                 segment on, so none is invented. */}
-            <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground max-lg:hidden">
                 <Link href="/jobs" className="inline-flex items-center gap-1 hover:text-foreground hover:underline">
                     <ArrowLeft size={16} weight="bold" aria-hidden />
                     All jobs

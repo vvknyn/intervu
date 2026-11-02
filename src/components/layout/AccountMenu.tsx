@@ -105,7 +105,7 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                         ) : null}
                     </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64 border-border bg-surface-2 shadow-[var(--shadow-overlay)]">
+                <DropdownMenuContent align="end" className="w-64">
                     {setupLeft > 0 || newAtFollowed > 0 ? (
                         <>
                             {setupLeft > 0 ? (

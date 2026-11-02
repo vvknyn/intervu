@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { MOBILE_ACCOUNT_TAB, NAV_TABS, RESUME_TAB, mobilePrimaryTabs } from "@/components/layout/nav-tabs";
-import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
+import { MOBILE_ACCOUNT_TAB, NAV_TABS, mobilePrimaryTabs } from "@/components/layout/nav-tabs";
 import { initialDockState, stepDock, type DockState } from "@/components/layout/dock-minimize";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
@@ -36,14 +34,6 @@ const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
 export function MobileTabBar() {
     const pathname = usePathname();
     const prefetchOnIntent = usePrefetchOnIntent();
-    const [user, setUser] = useState<User | null | undefined>(undefined);
-    const resumeLabel = useResumeTabLabel(user?.uid ?? null, user !== undefined);
-
-    useEffect(() => {
-        const unsubscribe = onAuthChange((nextUser) => setUser(nextUser));
-        return () => unsubscribe();
-    }, []);
-
     // The minimize state lives on <html data-dock>; globals.css draws it, and only
     // when an accessory capsule is mounted (see dock-minimize.ts).
     const dock = useRef<DockState>(initialDockState());
@@ -98,7 +88,9 @@ export function MobileTabBar() {
             {MOBILE_TABS.map((tab) => {
                 const active = tab.match(pathname);
                 const Icon = tab.icon;
-                const label = tab.href === RESUME_TAB.href ? resumeLabel : tab.shortLabel;
+                // One word that never changes under the user (HIG Tab bars: "Use single words whenever
+                // possible"); the résumé tab said "Add résumé" until a résumé existed.
+                const label = tab.shortLabel;
                 return (
                     <Link
                         key={tab.href + tab.label}
@@ -113,12 +105,15 @@ export function MobileTabBar() {
                         // resolve to 2 elements.
                         data-testid={`mobile-${tab.testId}`}
                         data-tour={tab.tourSelector}
+                        // The tab's name for VoiceOver, held on the link itself: minimized, the bar is one round
+                        // button whose visible label is hidden, and it was announced as a link with no name.
+                        aria-label={label}
                         aria-current={active ? "page" : undefined}
                         data-dock-current={tab === currentTab ? "" : undefined}
                         className={cn(
                             "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-pill text-xs transition-colors duration-100",
                             CHROME_FOCUS_VISIBLE,
-                            active ? "bg-background text-foreground font-semibold" : "text-muted-foreground font-normal",
+                            active ? "glass-selected text-foreground font-semibold" : "text-muted-foreground font-normal",
                         )}
                     >
                         {Icon && <Icon />}

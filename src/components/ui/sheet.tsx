@@ -18,6 +18,9 @@ const TAP_SLOP_PX = 8
 
 const SheetDismissContext = React.createContext<(() => void) | null>(null)
 
+/** Media query for the compact width where a Dialog is drawn as a bottom sheet (`max-sm:`). */
+export const COMPACT_SHEET_QUERY = "(max-width: 639.98px)"
+
 function findScrollContainer(target: EventTarget | null, root: HTMLElement): HTMLElement | null {
     const marked = root.querySelector("[data-testid=mobile-detail-scroller]")
     if (marked instanceof HTMLElement) return marked
@@ -37,18 +40,11 @@ function findScrollContainer(target: EventTarget | null, root: HTMLElement): HTM
     return null
 }
 
-function isCenteredBottomSheet(el: HTMLElement): boolean {
-    return el.classList.contains("-translate-x-1/2")
-}
-
+/** The drag moves the sheet with `transform` only. A centred sheet's `-translate-x-1/2` is the separate
+ *  `translate` property (Tailwind v4), so it stays as it is and is never restated here: restating it added a
+ *  second -50% and threw a centred sheet half off the screen while it was dragged. */
 function applyDragOffset(el: HTMLElement, offsetY: number) {
-    if (offsetY <= 0) {
-        el.style.transform = ""
-        return
-    }
-    el.style.transform = isCenteredBottomSheet(el)
-        ? `translate(-50%, ${offsetY}px)`
-        : `translateY(${offsetY}px)`
+    el.style.transform = offsetY <= 0 ? "" : `translateY(${offsetY}px)`
 }
 
 function clearDragOffset(el: HTMLElement | null) {
@@ -76,7 +72,7 @@ interface BottomDragState {
  * page loads (all of them but a shared job link's) had no swipe in a
  * production build; dev StrictMode's second effect run hid it (2026-10-03).
  */
-function useBottomSheetSwipeDismiss(enabled: boolean, dismiss: () => void, el: HTMLElement | null) {
+export function useBottomSheetSwipeDismiss(enabled: boolean, dismiss: () => void, el: HTMLElement | null) {
     const dragRef = React.useRef<BottomDragState | null>(null)
     const dismissRef = React.useRef(dismiss)
     React.useEffect(() => {
@@ -272,7 +268,7 @@ SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
  *  existing size (e.g. the tracker sheets' h-1 w-9) rather than
  *  hand-copying a hex fill on every sheet that needs one. */
 const SheetHandle = ({ className }: { className?: string }) => (
-    <span aria-hidden="true" className={cn("h-1.5 w-10 rounded-pill bg-border", className)} />
+    <span aria-hidden="true" data-sheet-handle="" className={cn("h-1.5 w-10 rounded-pill bg-border", className)} />
 )
 SheetHandle.displayName = "SheetHandle"
 
@@ -319,13 +315,16 @@ const SheetBar = ({
 SheetBar.displayName = "SheetBar"
 
 const sheetVariants = cva(
-    "fixed z-[150] flex flex-col overflow-y-auto overscroll-contain gap-4 bg-background border border-border text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+    "fixed z-[150] flex flex-col overflow-y-auto overscroll-contain gap-4 material-glass text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
     {
         variants: {
             side: {
                 top: "inset-x-0 top-0 max-h-[var(--overlay-max-h)] rounded-b-panel data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+                // On a phone a bottom sheet floats the way iOS 26's do (HIG Sheets, Liquid Glass): inset
+                // from the sides and the bottom edge, every corner rounded. The `max-sm:` geometry wins
+                // over a call site's own width/centring/corner classes, so no sheet opts out by accident.
                 bottom:
-                    "inset-x-0 bottom-0 max-h-[var(--overlay-max-h)] touch-pan-y rounded-t-panel data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+                    "inset-x-0 bottom-0 max-h-[var(--overlay-max-h)] touch-pan-y rounded-t-panel data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom max-sm:left-[var(--sheet-inset)] max-sm:right-[var(--sheet-inset)] max-sm:bottom-[var(--sheet-inset)] max-sm:w-auto max-sm:max-w-none max-sm:translate-x-0 max-sm:max-h-[calc(var(--overlay-max-h)-var(--sheet-inset))] max-sm:rounded-[var(--radius-sheet)] max-sm:border-b",
                 left: "inset-y-0 left-0 h-full w-3/4 rounded-r-panel data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
                 right:
                     "inset-y-0 right-0 h-full w-full rounded-l-panel data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-xl lg:max-w-2xl",

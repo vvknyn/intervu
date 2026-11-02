@@ -1059,7 +1059,8 @@ function isPageColorStop(stop: string): boolean {
         /^#fff(?:fff)?\b/i.test(stop) ||
         /^rgba?\(\s*255[,\s]+255[,\s]+255\s*[,/]/i.test(stop) ||
         /^var\(--(?:background|card)\)/.test(stop) ||
-        /^rgb\(\s*var\(--(?:background|card)\)\s*\)/.test(stop)
+        // the page or card colour faded by an alpha is still a fade (the phone top bar's scroll edge)
+        /^rgb\(\s*var\(--(?:background|card)\)\s*(?:\/\s*[\d.]+\s*)?\)/.test(stop)
     );
 }
 
@@ -1356,7 +1357,11 @@ test('no user-facing string in src spells the auth verb "log in" — canonical i
     );
 });
 
-const GLASS_UTILITIES = ["material-bar", "material-float"] as const;
+/** Every utility that may set backdrop-filter: the flat bar, the capsules' glass, the overlay layer's glass
+ *  (sheets, dialogs, menus) and the phone top bar's scroll edge (Liquid Glass, 2026-11-02). */
+const GLASS_UTILITIES = ["material-bar", "material-float", "material-glass", "scroll-edge"] as const;
+/** The glass utilities painted with a translucent fill, and the floor/ceiling of that fill's alpha. */
+const GLASS_FILLS = ["material-bar", "material-float", "material-glass"] as const;
 const utilityBlock = (css: string, name: string): string =>
     css.match(new RegExp(`@utility ${name}\\s*\\{[\\s\\S]*?\\n\\}`))?.[0] ?? "";
 
@@ -1392,9 +1397,11 @@ test("glass fills hide content without the blur (alpha floors + reduced-transpar
     // "where is our transparency"): 0.6 of the lifted surface keeps worst-case white text under them at 3.9:1.
     // Below the floor the capsule's own labels stop being legible when WebKit reports backdrop-filter and does not
     // blur; above 0.9 it is a slab again (journey J-MOB-31 measures the same window on the rendered capsule).
-    const floors = { "material-bar": 0.94, "material-float": 0.6 } as const;
-    const ceilings = { "material-bar": 1, "material-float": 0.9 } as const;
-    for (const name of GLASS_UTILITIES) {
+    // The overlay layer (sheets, dialogs, menus) holds text: HIG's regular variant, "more opaque in larger
+    // elements", so its floor is 0.8 and a page under a dimmed scrim stays a ghost behind its text.
+    const floors = { "material-bar": 0.94, "material-float": 0.6, "material-glass": 0.8 } as const;
+    const ceilings = { "material-bar": 1, "material-float": 0.9, "material-glass": 0.92 } as const;
+    for (const name of GLASS_FILLS) {
         const util = utilityBlock(GLOBALS.replace(/\/\*[\s\S]*?\*\//g, ""), name);
         const fill = util.match(/^\s{2}background-color:\s*rgb\(var\((--[a-z0-9-]+)\) \/ ([\d.]+)\)/m);
         const alpha = Number(fill?.[2]);
@@ -1405,6 +1412,17 @@ test("glass fills hide content without the blur (alpha floors + reduced-transpar
             new RegExp(`@media \\(prefers-reduced-transparency: reduce\\)\\s*\\{\\s*background-color: rgb\\(var\\(${fill?.[1]}\\)\\);`),
             `${name} must be fully opaque under prefers-reduced-transparency`,
         );
+    }
+});
+
+test("the phone top bar's scroll edge stays near-opaque where its controls sit and is solid without the blur", () => {
+    const util = utilityBlock(GLOBALS.replace(/\/\*[\s\S]*?\*\//g, ""), "scroll-edge");
+    const stops = [...util.matchAll(/rgb\(var\(--background\) \/ ([\d.]+)\) (\d+)%/g)].map((m) => ({ alpha: Number(m[1]), at: Number(m[2]) }));
+    assert.ok(stops.length >= 3, "scroll-edge is a gradient of the page colour");
+    // Down to 75% of the bar (the wordmark and the control capsule) the fill alone hides what scrolls under it.
+    for (const stop of stops.filter((s) => s.at <= 75)) assert.ok(stop.alpha >= 0.94, `stop at ${stop.at}% is ${stop.alpha}, below 0.94`);
+    for (const query of ["@supports not \\(backdrop-filter: blur\\(1px\\)\\)", "@media \\(prefers-reduced-transparency: reduce\\)", "@media \\(prefers-contrast: more\\)"]) {
+        assert.match(util, new RegExp(`${query}\\s*\\{[^}]*background-color: rgb\\(var\\(--background\\)\\);`), `${query} paints the bar solid`);
     }
 });
 

@@ -14,7 +14,7 @@ interface ContextModalProps {
 export function ContextModal({ isOpen, onClose, context, setContext, onSave }: ContextModalProps) {
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-lg bg-background">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
                     <DialogTitle className="text-lg font-semibold">Tweak Interview Context</DialogTitle>
                 </DialogHeader>

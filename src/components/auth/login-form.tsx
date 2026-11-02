@@ -359,7 +359,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         the dashboard — not an app-side name, and not validated
                         here, because WorkOS is the authority on which
                         providers an environment actually has. */}
-                    <Button ref={googleButtonRef} variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                    <Button ref={googleButtonRef} variant="outline" size="touch" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
                             <InlineSpinner size={16} className="mr-2" />
                         ) : (
@@ -373,6 +373,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         provider here means WorkOS shows whichever methods are
                         enabled for the environment. */}
                     <Button
+                        size="touch"
                         variant="outline"
                         type="button"
                         className="w-full"
@@ -387,7 +388,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         Use a passkey or email code
                     </Button>
                     {onGuestAccess && (
-                        <Button variant="outline" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
+                        <Button variant="outline" size="touch" type="button" className="w-full" disabled={isPending} onClick={onGuestAccess}>
                             Continue as Guest
                         </Button>
                     )}
@@ -483,6 +484,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                             )}
                             <Button
                                 type="submit"
+                                size="touch"
                                 data-testid="auth-submit-button"
                                 disabled={isPending}
                                 className="w-full"

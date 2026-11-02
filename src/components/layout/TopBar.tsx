@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
-import { MagnifyingGlass } from "@phosphor-icons/react";
+import { CaretLeft, MagnifyingGlass } from "@phosphor-icons/react";
 import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
@@ -19,6 +19,7 @@ import { NAV_TABS, RESUME_TAB } from "@/components/layout/nav-tabs";
 import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
 import { BrandHomeLink } from "@/components/brand/BrandMark";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { backTarget, canGoBackInApp, notePathname, type BackTarget } from "@/components/layout/back-target";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
@@ -60,6 +61,11 @@ export function TopBar() {
     });
     const resumeLabel = useResumeTabLabel(user?.uid ?? null, user !== undefined);
 
+    useEffect(() => {
+        notePathname(pathname);
+    }, [pathname]);
+    const back = backTarget(pathname);
+
     const hideNav = shouldHideSiteChrome(pathname);
     if (hideNav) return null;
 
@@ -80,7 +86,10 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-[var(--z-topbar)] shrink-0 material-bar pt-[env(safe-area-inset-top,0px)] transition-colors"
+            // Below lg the bar is Liquid Glass's navigation layer (HIG Toolbars): no slab of its own, a scroll
+            // edge that fades content out under it, and its controls on glass capsules. From lg it keeps the
+            // flat bar the docked filter band shares.
+            className="sticky top-0 z-[var(--z-topbar)] shrink-0 max-lg:scroll-edge lg:material-bar pt-[env(safe-area-inset-top,0px)] transition-colors"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -96,13 +105,16 @@ export function TopBar() {
                 data-region="header"
                 className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6"
             >
-                <BrandHomeLink
-                    href="/"
-                    prefetch={false}
-                    {...prefetchOnIntent("/")}
-                    markClassName="h-8 w-8"
-                    data-testid="topbar-logo"
-                />
+                <div className="flex shrink-0 items-center gap-2">
+                    {back && <BackButton target={back} />}
+                    <BrandHomeLink
+                        href="/"
+                        prefetch={false}
+                        {...prefetchOnIntent("/")}
+                        markClassName="h-8 w-8"
+                        data-testid="topbar-logo"
+                    />
+                </div>
 
                 {/* `flex-1` so the row's leftover width lands HERE rather than
                     as a gap in the middle of the bar. `justify-end` keeps the
@@ -160,7 +172,10 @@ export function TopBar() {
                             </button>
                         </form>
                     )}
-                    <div className="flex shrink-0 items-center gap-3">
+                    {/* Below lg the account controls are one group on one glass capsule (HIG Toolbars: group
+                        items, "the system also applies the Liquid Glass appearance to toolbar buttons"). Not
+                        while auth is unresolved: an empty capsule would float there. */}
+                    <div className={cn("flex shrink-0 items-center gap-3", authChrome !== "pending" && "max-lg:glass-group max-lg:gap-1 max-lg:px-1")}>
                     <TabNav aria-label="Primary" className="hidden lg:flex">
                         {navTabs.map((tab) => {
                             const active = tab.match(pathname);
@@ -291,5 +306,29 @@ export function TopBar() {
             {/* The one mount for every signed-in page: TopBar is rendered once by the root layout. */}
             {authChrome === "authenticated" && user ? <PlanEndingNotice /> : null}
         </header>
+    );
+}
+
+/** The phone top bar's Back (HIG Toolbars: the standard Back button, a chevron on a glass circle as
+ *  iOS 26 draws it). Returns to the previous screen when the visitor got here inside the app, and
+ *  to the section's own page when they arrived cold (a shared link). Phone only: from lg the page's
+ *  own links and the browser's Back do it. */
+function BackButton({ target }: { target: BackTarget }) {
+    const router = useRouter();
+    return (
+        <Link
+            href={target.href}
+            prefetch={false}
+            data-testid="topbar-back"
+            aria-label={`Back to ${target.label}`}
+            onClick={(event) => {
+                if (!canGoBackInApp()) return;
+                event.preventDefault();
+                router.back();
+            }}
+            className={cn("glass-group text-foreground lg:hidden", CHROME_FOCUS_VISIBLE)}
+        >
+            <CaretLeft size={20} weight="bold" aria-hidden />
+        </Link>
     );
 }

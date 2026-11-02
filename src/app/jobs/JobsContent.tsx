@@ -6001,8 +6001,13 @@ export function JobsContent({
                                    one goes through the exact same `submitSearch`
                                    chokepoint a typed Enter/suggestion-pick uses, so
                                    the URL write and recent-searches recording can't
-                                   drift from a real search. Styled like SerpFilters'
-                                   own `Affordance` grammar — no pills, no buttons. */
+                                   drift from a real search. Drawn as the same chip
+                                   BrowseSeedRow uses for the same seeds: a tappable
+                                   shape (HIG Buttons: "Prefer buttons that have a
+                                   discernible background shape"), 32px with 12px
+                                   between rows so each 44pt tap area is its own, and
+                                   the clip on an inner span (a clipping button cut
+                                   its own 44pt area to its 16px text). */
                                 <div className="px-[var(--list-inset)] text-left" data-testid="serp-ask">
                                     <p className="text-xs text-faint">
                                         Suggested roles
@@ -6010,7 +6015,7 @@ export function JobsContent({
                                     <p className="mt-1 text-xs text-muted-foreground">
                                         Tap one to search — your filters stay on
                                     </p>
-                                    <div className="wrap-row pt-3.5 [--wrap-gap-x:1rem] [--wrap-gap-y:0.625rem]" role="list" aria-label="Suggested roles">
+                                    <div className="wrap-row pt-3.5 [--wrap-gap-x:0.5rem] [--wrap-gap-y:0.75rem]" role="list" aria-label="Suggested roles">
                                         {searchSeeds.map((seed) => (
                                             <button
                                                 key={seed}
@@ -6018,9 +6023,10 @@ export function JobsContent({
                                                 data-testid="serp-ask-seed"
                                                 title={`Search for ${seed}`}
                                                 onClick={() => submitSearch(seed)}
-                                                className="inline-block max-w-[min(100%,14rem)] truncate text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                                // control-type-allow: a seed suggestion chip keeps the chip pill; its type still comes from the step
+                                                className="ctl-md ctl-button max-w-[min(100%,14rem)] items-center rounded-pill bg-surface-2 px-2.5 text-left text-foreground transition-colors hover:bg-border"
                                             >
-                                                {seed}
+                                                <span className="min-w-0 truncate">{seed}</span>
                                             </button>
                                         ))}
                                     </div>

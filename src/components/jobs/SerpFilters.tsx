@@ -330,7 +330,7 @@ function SearchPillsFacetSection({
                 </div>
 
                 {selected.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-x-1.5 gap-y-3">
                         {selected.map((value) => {
                             const n = countMap.get(value) ?? 0;
                             return (
@@ -357,7 +357,7 @@ function SearchPillsFacetSection({
                 )}
 
                 {visibleSuggestions.length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-3">
                         {visibleSuggestions.map(([value, n]) => (
                             <label
                                 key={value}

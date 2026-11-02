@@ -88,7 +88,7 @@ function ComboboxPopover({ className, ...props }: Omit<PopoverProps, "className"
       placement="bottom start"
       offset={8}
       className={cn(
-        "z-[var(--z-dropdown)] w-(--trigger-width) overflow-hidden rounded-ctl border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1",
+        "z-[var(--z-dropdown)] w-(--trigger-width) overflow-hidden rounded-ctl material-glass animate-in fade-in slide-in-from-top-1",
         className,
       )}
       {...props}
