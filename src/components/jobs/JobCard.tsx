@@ -192,8 +192,9 @@ export function JobCard({
                 // them starts at the title's x, not the tile's.
                 "group grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] bg-transparent text-left transition-colors duration-[var(--transition-base)] focus-visible:inset-outline-2 focus-visible:outline-live gap-x-3 pt-4",
                 // A standalone row is a `list-row`: its hover, press and selection are a rounded lens inset from
-                // the list's edges (Apple's list highlight). An employer group's rows stay one flush block on
-                // its own fill, so they keep square corners and the full width.
+                // the list's edges (Apple's list highlight).
+                // rounded-none: KEEP — an employer group's rows stay one flush block on its own fill, so they
+                // keep square corners and the full width.
                 group ? "w-full rounded-none px-[var(--list-inset)]" : "list-row active:bg-surface-hover",
                 // No stripe. hover = --surface-hover (Tailwind v4 gates `hover:` behind
                 // @media (hover:hover), so touch never sticks it). The open row = the brand
