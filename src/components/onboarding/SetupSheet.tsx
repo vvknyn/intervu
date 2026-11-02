@@ -30,7 +30,7 @@ export function SetupSheet() {
                 side="bottom"
                 hideCloseButton
                 data-testid="setup-sheet"
-                className="mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[640px] gap-0 rounded-t-panel border-b-0 p-0 max-sm:h-[var(--overlay-max-h)]"
+                className="mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[640px] gap-0 p-0 max-sm:h-[var(--overlay-max-h)]"
             >
                 <SheetBar title="Set up Velai" description="Three steps. Skip any of them. Settings › Preferences keeps the same answers." />
                 <SheetBody className="px-4 py-4 pb-7">

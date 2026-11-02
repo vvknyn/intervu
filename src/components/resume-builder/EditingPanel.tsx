@@ -279,7 +279,7 @@ export function EditingPanel({
                             <button
                                 type="button"
                                 onClick={resetSectionOrder}
-                                className="text-xs text-live hover:underline"
+                                className="text-xs text-action"
                             >
                                 Reset to Auto
                             </button>

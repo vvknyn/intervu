@@ -69,7 +69,7 @@ export function FollowAlertsDialog({
                     acknowledge();
                     close();
                   }}
-                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition-colors hover:text-brand"
+                  className="list-row flex items-center justify-between gap-3 py-3 text-sm transition-colors hover:bg-surface-hover"
                 >
                   <div className="min-w-0">
                     <div className="truncate">{titleCaseDisplay(decodeText(job.title))}</div>

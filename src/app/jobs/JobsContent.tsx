@@ -11,7 +11,6 @@ import {
     WarningCircle,
     Compass,
     CaretDown,
-    X,
     Check,
     Question,
     LockSimple,
@@ -31,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
-import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBar, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
@@ -6550,37 +6549,14 @@ export function JobsContent({
                 <SheetContent
                     side="bottom"
                     hideCloseButton
-                    className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                    className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden p-0"
                 >
-                    <div className="shrink-0">
-                        <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-                            <SheetHandle />
-                        </div>
-                        <div className="flex items-center gap-2 px-4 pb-3">
-                            <div className="min-w-0 flex-1">
-                                {detailJob ? (
-                                    <>
-                                        <p className="truncate text-base font-semibold text-foreground">
-                                            {decodeText(detailJob.title)}
-                                        </p>
-                                        <p className="truncate text-meta text-muted-foreground">
-                                            {displayCompanyBrand(detailJob.company, detailJob.company_domain, detailJob.title)}
-                                        </p>
-                                    </>
-                                ) : (
-                                    <p className="truncate text-base font-semibold text-foreground">Job details</p>
-                                )}
-                            </div>
-                            <button
-                                type="button"
-                                aria-label="Close"
-                                onClick={closeDetail}
-                                className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
-                            >
-                                <X size={16} aria-hidden />
-                            </button>
-                        </div>
-                    </div>
+                    <SheetBar
+                        labelled={false}
+                        onClose={closeDetail}
+                        title={detailJob ? decodeText(detailJob.title) : "Job details"}
+                        description={detailJob ? displayCompanyBrand(detailJob.company, detailJob.company_domain, detailJob.title) : undefined}
+                    />
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${displayCompanyBrand(detailJob.company, detailJob.company_domain, detailJob.title)}` : "Job details"}
                     </SheetTitle>

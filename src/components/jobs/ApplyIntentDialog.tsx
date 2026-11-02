@@ -113,7 +113,7 @@ export function ApplyIntentDialog({
                 growing the whole dialog past `max-h` and pushing the footer
                 off screen — that was the bug: the exit lived inside the same
                 scrolling block as content that can run long. */}
-            <DialogContent className="rounded-panel p-0 sm:max-w-lg">
+            <DialogContent className="p-0 sm:max-w-lg">
                 <div className="shrink-0 px-6 pt-6 pr-12">
                     <DialogHeader className="text-left">
                         <DialogTitle className="text-title">Tailor your résumé with your own agent</DialogTitle>

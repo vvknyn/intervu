@@ -288,7 +288,6 @@ export function SettingsContainer() {
                     }}
                 >
                     <AlertDialogContent
-                        className="rounded-panel"
                         onCloseAutoFocus={(event) => {
                             event.preventDefault();
                             deleteTriggerRef.current?.focus();

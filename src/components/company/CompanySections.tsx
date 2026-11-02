@@ -49,7 +49,7 @@ function BucketList({ d, linkValues = false }: { d: Distribution; linkValues?: b
       items={d.buckets.map((b) => {
         const hub = linkValues ? careerHubPathFor(b.value) : null;
         const label = hub ? (
-          <Link key={b.value} href={hub} className="text-brand hover:underline">
+          <Link key={b.value} href={hub} className="text-action">
             {b.value}
           </Link>
         ) : (
@@ -89,11 +89,11 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
         <div className="mt-2 break-words text-sm text-muted-foreground">
           <DotSeparated
             items={[
-              <a key="d" href={`https://${i.domain}`} target="_blank" rel="noopener noreferrer nofollow" className="text-brand hover:underline">
+              <a key="d" href={`https://${i.domain}`} target="_blank" rel="noopener noreferrer nofollow" className="text-action">
                 {i.domain}
               </a>,
               i.careersUrl && (
-                <a key="c" href={i.careersUrl} target="_blank" rel="noopener noreferrer nofollow" className="text-brand hover:underline">
+                <a key="c" href={i.careersUrl} target="_blank" rel="noopener noreferrer nofollow" className="text-action">
                   Careers page
                 </a>
               ),
@@ -216,7 +216,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
       <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
         {related.companies.map((c) => (
           <li key={c.domain} className="min-w-0 truncate">
-            <a href={companyBoardPath(c.domain)} className="text-brand hover:underline">{c.name}</a>
+            <a href={companyBoardPath(c.domain)} className="text-action">{c.name}</a>
             {c.openCount && <span className="text-muted-foreground">{` · ${openCountLabel(c.openCount)} open`}</span>}
           </li>
         ))}

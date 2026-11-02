@@ -29,8 +29,15 @@ import { authCardCopy, PERSONAL_EMAIL_HINT, SIGNUP_SUBCOPY } from '@/lib/auth/au
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BrandHomeLink } from '@/components/brand/BrandMark'
 import { PageTitle } from '@/components/ui/heading'
+import { dialogTitleClass } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 interface LoginFormProps {
+    /**
+     * Drawn inside a dialog or sheet: the title takes the overlay's header row (16px, beside its ×, Interaction §9)
+     * and the brand lockup stays on the page version. On the /login page the card keeps its own masthead.
+     */
+    inOverlay?: boolean;
     onSuccess?: () => void;
     onGuestAccess?: () => void;
     /** Initial tab when the form mounts — signup for apply gates, login otherwise. */
@@ -98,7 +105,7 @@ export const TURNSTILE_PENDING_MESSAGE =
 export const TURNSTILE_FAILED_MESSAGE =
     "The security check couldn't run, so this form can't be sent. Use Continue with Google or the email code below."
 
-export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", headline }: LoginFormProps = {}) {
+export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", headline, inOverlay = false }: LoginFormProps = {}) {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
     const [username, setUsername] = useState('')
@@ -308,10 +315,18 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                     {/* A dead end otherwise — this card had no wordmark/home link
                         back to the rest of the site. Reuses TopBar's own lockup
                         (BrandMark.tsx) rather than a second copy of the mark. */}
-                    <BrandHomeLink href="/jobs" />
-                    <PageTitle>
-                        {headline?.title ?? copy.title}
-                    </PageTitle>
+                    {inOverlay ? (
+                        <p data-slot="overlay-title" className={cn(dialogTitleClass, "flex min-h-8 items-center pr-10 text-foreground")}>
+                            {headline?.title ?? copy.title}
+                        </p>
+                    ) : (
+                        <>
+                            <BrandHomeLink href="/jobs" />
+                            <PageTitle>
+                                {headline?.title ?? copy.title}
+                            </PageTitle>
+                        </>
+                    )}
                     {headline ? (
                         <p className="whitespace-pre-line text-xs text-muted-foreground">{headline.body}</p>
                     ) : (
@@ -502,7 +517,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                             <button
                                 type="button"
                                 onClick={() => setShowForgotPassword(true)}
-                                className="text-xs text-brand hover:underline"
+                                className="text-xs text-action"
                             >
                                 Forgot password?
                             </button>

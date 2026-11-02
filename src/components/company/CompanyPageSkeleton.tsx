@@ -23,7 +23,7 @@ export function CompanyPageSkeleton() {
                 breadcrumb doesn't change height or colour on arrival. */}
             <div className="border-b border-border">
                 <nav className="shell-row flex h-10 items-center text-sm text-muted-foreground">
-                    <Link href="/jobs" className="text-brand hover:underline">
+                    <Link href="/jobs" className="text-action">
                         Find jobs
                     </Link>
                 </nav>

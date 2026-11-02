@@ -77,7 +77,7 @@ export default function ConnectHelpPage() {
         agent you install on your own Mac. If an install failed and sent you here, find the
         section it named below — each one covers what happened, why, and what to do next. Start
         at{" "}
-        <Link href="/connect" className="text-live underline-offset-4 hover:underline">
+        <Link href="/connect" className="text-action">
           /connect
         </Link>{" "}
         if you haven&apos;t begun yet.
@@ -92,7 +92,7 @@ export default function ConnectHelpPage() {
         <ol className="mt-3 grid gap-x-6 gap-y-0 text-sm sm:grid-cols-2 lg:gap-y-1.5">
           {SECTIONS.map((s) => (
             <li key={s.id}>
-              <a href={`#${s.id}`} className="inline-flex min-h-11 items-center text-live underline-offset-4 hover:underline lg:min-h-0">
+              <a href={`#${s.id}`} className="inline-flex min-h-11 items-center text-action lg:min-h-0">
                 {s.label}
               </a>
             </li>
@@ -115,11 +115,11 @@ export default function ConnectHelpPage() {
           </p>
           <p>
             If you&apos;re not sure, use the connector first — jump to{" "}
-            <a href="#connector" className="text-live underline-offset-4 hover:underline">
+            <a href="#connector" className="text-action">
               The Claude connector
             </a>
             . On Windows, the local agent isn&apos;t available yet; see{" "}
-            <a href="#windows" className="text-live underline-offset-4 hover:underline">
+            <a href="#windows" className="text-action">
               Windows
             </a>
             .
@@ -219,7 +219,7 @@ export default function ConnectHelpPage() {
           </p>
           <p>
             If you specifically want the local agent, the OpenClaw tab on{" "}
-            <Link href="/connect" className="text-live underline-offset-4 hover:underline">
+            <Link href="/connect" className="text-action">
               /connect
             </Link>{" "}
             has a &ldquo;tell me when Windows is ready&rdquo; signup — that list is what tells us
@@ -268,7 +268,7 @@ export default function ConnectHelpPage() {
           <p>
             The fix is simple: just re-run the install command. It now brings its own current
             runtime (see{" "}
-            <a href="#install-node" className="text-live underline-offset-4 hover:underline">
+            <a href="#install-node" className="text-action">
               Setting up the runtime automatically
             </a>
             ) instead of trusting whatever was already on your Mac, so this shouldn&apos;t happen
@@ -351,7 +351,7 @@ export default function ConnectHelpPage() {
           </p>
           <p>
             See{" "}
-            <a href="#node-version" className="text-live underline-offset-4 hover:underline">
+            <a href="#node-version" className="text-action">
               An old runtime quietly gave you an outdated OpenClaw
             </a>{" "}
             and re-run the install command — it now brings a current runtime, which fixes this in
@@ -385,12 +385,12 @@ export default function ConnectHelpPage() {
         <HelpSection id="stuck" title={SECTIONS[11].label}>
           <p>
             If none of the above covers it, use the{" "}
-            <Link href="/contact" className="text-live underline-offset-4 hover:underline">
+            <Link href="/contact" className="text-action">
               contact page
             </Link>{" "}
             — we read everything that comes through there. It helps to mention which step you were
             on and what the terminal or Claude showed you. You can also go back to{" "}
-            <Link href="/connect" className="text-live underline-offset-4 hover:underline">
+            <Link href="/connect" className="text-action">
               /connect
             </Link>{" "}
             and try the other path — the connector needs nothing installed at all.

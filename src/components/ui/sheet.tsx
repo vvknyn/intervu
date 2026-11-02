@@ -254,7 +254,7 @@ const SheetOverlay = React.forwardRef<
     <SheetPrimitive.Overlay
         className={cn(
             // dialog-primitive-exempt: this IS the sheet primitive
-            "fixed inset-0 z-[150] bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+            "fixed inset-0 z-[150] bg-black/50 motion-modal data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             className
         )}
         {...props}
@@ -272,50 +272,69 @@ const SheetHandle = ({ className }: { className?: string }) => (
 )
 SheetHandle.displayName = "SheetHandle"
 
+/** The close × of every sheet and dialog: one size, one colour, one place (the
+ *  top-right of the header row). ui/dialog.tsx draws its × with this too. */
+export const overlayCloseClass =
+    "ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80 press-fill"
+
 /** The one bottom-sheet header: grab handle, title, an optional line under
- *  it, the ×, and a hairline below, kept out of the sheet's scroll region so
- *  the × never sits on top of scrolled content. The job sheets drew this by
- *  hand; the filter and location sheets had none (a bare × floating over the
- *  list, which scrolled under it) and the tracker sheets their own (a thinner
- *  handle, an 18px title, a "×" glyph) — four headers for one kind of sheet
- *  (2026-10-02). Pass `hideCloseButton` to the `SheetContent` it heads. */
+ *  it, and the ×, kept out of the sheet's scroll region so the × never sits on
+ *  top of scrolled content. The job sheets drew this by hand; the filter and
+ *  location sheets had none (a bare × floating over the list, which scrolled
+ *  under it) and the tracker sheets their own (a thinner handle, an 18px title,
+ *  a "×" glyph) — four headers for one kind of sheet (2026-10-02). No hairline
+ *  under it (2026-11-02): the phone Dialog's header has none, and Apple's and
+ *  Claude's sheets have none; the bar is outside the scroll, so nothing slides
+ *  under it to separate from. Pass `hideCloseButton` to the `SheetContent` it
+ *  heads. A sheet that names itself elsewhere (an sr-only SheetTitle with more
+ *  words) passes `labelled={false}`; one whose close does more than close
+ *  passes `onClose`. */
 const SheetBar = ({
     title,
     description,
     className,
+    labelled = true,
+    onClose,
 }: {
     title: React.ReactNode
     description?: React.ReactNode
     className?: string
-}) => (
-    <div className={cn("shrink-0 border-b border-border", className)}>
-        <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-            <SheetHandle />
-        </div>
-        <div className="flex items-center gap-2 px-4 pb-3">
-            <div className="min-w-0 flex-1">
-                <SheetPrimitive.Title className="line-clamp-2 text-base font-semibold leading-snug text-foreground">
-                    {title}
-                </SheetPrimitive.Title>
-                {description && (
-                    <SheetPrimitive.Description className="line-clamp-2 text-sm text-muted-foreground">
-                        {description}
-                    </SheetPrimitive.Description>
+    labelled?: boolean
+    onClose?: () => void
+}) => {
+    const Title = labelled ? SheetPrimitive.Title : "p"
+    const Description = labelled ? SheetPrimitive.Description : "p"
+    return (
+        <div data-slot="sheet-bar" className={cn("shrink-0", className)}>
+            <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
+                <SheetHandle />
+            </div>
+            {/* The × keeps its place (20px down, 16px in) however many lines the title takes: the row aligns to
+                its top and a one-line title centres on the ×'s 32px, as in a Dialog's header. */}
+            <div className="flex items-start gap-2 px-4 pb-3">
+                <div className="flex min-h-8 min-w-0 flex-1 flex-col justify-center">
+                    <Title className="line-clamp-2 text-base font-semibold leading-snug text-foreground">{title}</Title>
+                    {description && (
+                        <Description className="line-clamp-2 text-sm text-muted-foreground">{description}</Description>
+                    )}
+                </div>
+                {onClose ? (
+                    <button type="button" aria-label="Close" onClick={onClose} className={overlayCloseClass}>
+                        <X size={16} aria-hidden />
+                    </button>
+                ) : (
+                    <SheetPrimitive.Close aria-label="Close" className={overlayCloseClass}>
+                        <X size={16} aria-hidden />
+                    </SheetPrimitive.Close>
                 )}
             </div>
-            <SheetPrimitive.Close
-                aria-label="Close"
-                className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
-            >
-                <X size={16} aria-hidden />
-            </SheetPrimitive.Close>
         </div>
-    </div>
-)
+    )
+}
 SheetBar.displayName = "SheetBar"
 
 const sheetVariants = cva(
-    "fixed z-[150] flex flex-col overflow-y-auto overscroll-contain gap-4 material-glass text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+    "fixed z-[150] flex flex-col overflow-y-auto overscroll-contain gap-4 material-glass text-foreground p-6 motion-modal data-[state=open]:animate-in data-[state=closed]:animate-out",
     {
         variants: {
             side: {
@@ -378,9 +397,8 @@ const SheetContent = React.forwardRef<
             >
                 {children}
                 {!hideCloseButton && (
-                    <SheetPrimitive.Close className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-ctl p-0 opacity-80 ring-offset-background transition-all hover:bg-muted hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-                        <X size={20} />
-                        <span className="sr-only">Close</span>
+                    <SheetPrimitive.Close aria-label="Close" className={cn(overlayCloseClass, "absolute right-4 top-5 z-10")}>
+                        <X size={16} aria-hidden />
                     </SheetPrimitive.Close>
                 )}
             </SheetPrimitive.Content>

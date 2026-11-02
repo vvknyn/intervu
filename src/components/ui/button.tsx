@@ -34,13 +34,16 @@ const buttonVariants = cva(
         destructive: "bg-danger-text text-white hover:opacity-90",
         outline: TERTIARY_BUTTON_CLASSES,
         secondary: "bg-brand-wash text-brand hover:bg-brand-wash-hover",
-        ghost: "text-brand hover:bg-muted",
-        link: "text-brand underline-offset-4 hover:underline",
+        // One tertiary look (Interaction §9): ghost, outline and quiet were three names for green text on
+        // no fill, with two different hover fills. They now share it.
+        ghost: TERTIARY_BUTTON_CLASSES,
+        link: "text-action",
         // Alias of tertiary — not in the rulebook's own variant set, kept
         // because CompletenessMock.tsx (outside this change's scope) still
         // references it.
         quiet: TERTIARY_BUTTON_CLASSES,
-        accent: "bg-brand text-brand-foreground hover:brightness-110 border-transparent",
+        // One filled look: accent was the primary with a brightness hover of its own.
+        accent: "bg-brand text-brand-foreground hover:bg-brand-hover",
       },
       // Heights come ONLY from the control scale (globals.css `.ctl-*`); the
       // coarse-pointer hit area is added by the same class, never by a taller

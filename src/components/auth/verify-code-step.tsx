@@ -72,7 +72,7 @@ export function VerifyCodeStep({ pendingAuthenticationToken, email, onVerified, 
                 .
             </p>
             <p className="text-center text-sm">
-                <button type="button" onClick={onBack} className="text-brand hover:underline">
+                <button type="button" onClick={onBack} className="text-action">
                     Use a different account
                 </button>
             </p>

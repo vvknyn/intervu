@@ -44,7 +44,7 @@ export function FrontDoorWeekCount({
                 type="button"
                 data-testid="front-door-week-count"
                 onClick={onShow}
-                className="inline-flex items-center gap-1.5 mono-data text-xs font-semibold text-brand underline-offset-4 hover:underline"
+                className="inline-flex items-center gap-1.5 mono-data text-xs text-action"
             >
                 <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-live" />
                 {line}

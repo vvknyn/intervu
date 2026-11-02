@@ -60,7 +60,7 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
       </Prose>
 
       <nav aria-label="Related career topics" className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-        <Link href={jobsHref} rel="nofollow" data-testid="career-hub-search" className="font-semibold text-brand hover:underline">
+        <Link href={jobsHref} rel="nofollow" data-testid="career-hub-search" className="text-action">
           {hub.searchLabel}
         </Link>
         {otherCareerHubs(hub.slug).map((other) => (

@@ -87,11 +87,11 @@ async function CompanyPageContent({ slug }: { slug: string }) {
       />
       <div className="border-b border-border">
         <nav className="shell-row flex h-10 items-center text-sm text-muted-foreground">
-          <Link href="/jobs" className="text-brand hover:underline">
+          <Link href="/jobs" className="text-action">
             Jobs
           </Link>
           <span className="mx-1.5" aria-hidden>/</span>
-          <Link href="/co" className="text-brand hover:underline">
+          <Link href="/co" className="text-action">
             Companies
           </Link>
           <span className="mx-1.5" aria-hidden>/</span>

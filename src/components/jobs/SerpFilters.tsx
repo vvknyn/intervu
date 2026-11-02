@@ -384,7 +384,7 @@ function SearchPillsFacetSection({
                             <button
                                 type="button"
                                 onClick={() => setExpanded((prev) => !prev)}
-                                className="px-1.5 text-xs font-semibold text-brand hover:underline"
+                                className="px-1.5 text-xs text-action"
                             >
                                 {expanded ? "Show less" : `+${hiddenCount} more`}
                             </button>

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
-import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBar, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { toast } from "@/lib/toast";
@@ -619,10 +619,8 @@ export default function PursuitDetailPage() {
             </div>
 
             <Sheet open={detail.open} onOpenChange={(open) => setDetail((d) => ({ ...d, open }))}>
-                <SheetContent side="bottom" className="custom-scrollbar rounded-t-panel p-0">
-                    <div className="flex shrink-0 justify-center pb-1 pt-2.5" aria-hidden="true">
-                        <SheetHandle />
-                    </div>
+                <SheetContent side="bottom" hideCloseButton className="custom-scrollbar p-0">
+                    <SheetBar labelled={false} title={pursuit.position} description={companyName} />
                     <SheetTitle className="sr-only">
                         {pursuit.position} at {companyName}
                     </SheetTitle>

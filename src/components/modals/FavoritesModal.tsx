@@ -63,7 +63,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent showCloseButton={false} className="gap-0 rounded-none p-0 sm:max-w-3xl">
+            <DialogContent showCloseButton={false} className="gap-0 p-0 sm:max-w-3xl">
                     {/* Header */}
                     <div className="p-6 border-b border-border flex items-center justify-between">
                         <div className="flex items-center gap-3">

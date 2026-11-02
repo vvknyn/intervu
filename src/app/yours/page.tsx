@@ -127,7 +127,7 @@ function TrackerEmptyState({
                         <button
                             type="button"
                             onClick={onLoginClick}
-                            className="font-semibold text-live underline-offset-4 hover:underline"
+                            className="text-action"
                         >
                             {AUTH_CTA_LABEL}
                         </button>{" "}

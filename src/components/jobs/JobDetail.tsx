@@ -321,8 +321,8 @@ export function fetchRelatedJobs(seedKey: string): Promise<RelatedJobs> {
 // inner block, aligned with the text. Two lines of text, so it sizes to them:
 // a `.ctl-*` step pins a single-line height (32px), which squeezed both lines
 // flush against the hairlines and clipped their descenders (2026-09-30).
-// rounded-none: KEEP — a full-bleed list row, like JobCard's, not a discrete control.
-const RELATED_ROW_CLASS = "group block w-full cursor-pointer rounded-none bg-transparent text-left poster-list-inset-x transition-colors duration-150 hover:bg-surface-hover focus-visible:inset-outline-2 focus-visible:outline-live";
+// One list row everywhere (Interaction §9): the rounded, inset lens for hover, press and focus.
+const RELATED_ROW_CLASS = "list-row group block cursor-pointer bg-transparent text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:inset-outline-2 focus-visible:outline-live";
 
 /**
  * A2 — "More like this" row (Curiosity / Serial Positioning Effect). Not a
@@ -954,7 +954,7 @@ export function JobDetail({
                                             <button
                                                 type="button"
                                                 onClick={() => setLocationExpanded((v) => !v)}
-                                                className="text-left text-xs text-brand hover:underline cursor-pointer"
+                                                className="text-left text-xs text-action cursor-pointer"
                                             >
                                                 {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
                                             </button>
@@ -1125,7 +1125,7 @@ export function JobDetail({
                                     <button
                                         type="button"
                                         onClick={onRetryDescription}
-                                        className="text-brand hover:underline cursor-pointer"
+                                        className="text-action cursor-pointer"
                                     >
                                         try again
                                     </button>
@@ -1261,7 +1261,7 @@ export function JobDetail({
                                                             ? buildCompanyJobsUrl({ domain: validCompanyDomain })
                                                             : jobCompanyHref(cleanedCompany, job.company_domain)
                                                     }
-                                                    className="text-sm text-brand hover:underline"
+                                                    className="text-sm text-action"
                                                 >
                                                     All jobs at {companyBrand || cleanedCompany}
                                                 </Link>
@@ -1273,7 +1273,7 @@ export function JobDetail({
                                                 {validCompanyDomain && (
                                                     <Link
                                                         href={jobCompanyHref(cleanedCompany, validCompanyDomain)}
-                                                        className="text-sm text-brand hover:underline"
+                                                        className="text-sm text-action"
                                                     >
                                                         {companyBrand || cleanedCompany} company page
                                                     </Link>

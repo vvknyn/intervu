@@ -166,9 +166,8 @@
   --sheet-inset: 0.5rem;
   --radius-sheet: 2rem;
   /* A list row's highlight (hover, press, selection) is a rounded lens inset
-     this far from the list's edges (`list-row`). */
+     this far from the list's edges (`list-row`), on the control corner. */
   --lens-inset: 0.375rem;
-  --radius-lens: 0.75rem;
   /* The sticky header's height. TopBar SETS its own height from this, so the
      token can't drift from the bar it describes, and anything that has to
      clear the header — a scroll target's `scroll-margin-top`, an
@@ -332,6 +331,14 @@
   --transition-deck: 220ms;
   --transition-page: 180ms;
   --transition-stack: 600ms;
+  /* Overlay motion — two pairs, one per kind (Interaction §9). A modal surface
+     (sheet, dialog, alert, toast) slides or fades in over 280ms and out over
+     180ms; a popover surface (menu, select, popover, combobox, tooltip) over
+     150ms and 100ms. Entering eases out, leaving eases in. */
+  --transition-modal-in: 280ms;
+  --transition-modal-out: 180ms;
+  --transition-pop-in: 150ms;
+  --transition-pop-out: 100ms;
   --motion-press-scale: 0.98;
   --motion-lift-y: -1px;
   --motion-deck-shift: 12%;
@@ -988,8 +995,98 @@ body:has([data-shell="bleed"]) {
    ring take the rounded corners. Journey J-HIG-10. */
 @utility list-row {
   margin-inline: var(--lens-inset);
+  /* A <button> row does not stretch to its line on its own: fill it, less the two insets. */
+  width: calc(100% - 2 * var(--lens-inset));
   padding-inline: calc(var(--list-inset) - var(--lens-inset));
-  border-radius: var(--radius-lens);
+  border-radius: var(--radius-ctl);
+  /* Press: the same lens, lit while the finger is down (touch has no hover). */
+  &:active {
+    background-color: rgb(var(--surface-hover));
+  }
+}
+
+/* PRESS — the one press feedback for anything tapped that is not a Button
+   (Buttons scale through .designed-press): a chip, a tab, a tab-bar item, a
+   disclosure or accordion row. The item lights with the hover fill while the
+   finger is down, on its own corner. Claude's apps and Apple's both answer
+   every tap; before this a touch on a chip or a row showed nothing. */
+@utility press-fill {
+  &:active:not(:disabled):not([aria-disabled="true"]) {
+    background-color: rgb(var(--surface-hover));
+  }
+}
+
+/* INLINE ACTION — a text button or link that sits in a line of text or a
+   toolbar ("Show details", "try again", "Sign in", "How MCP works"). One look:
+   the brand colour, the weight of the text around it, underlined on a touch
+   screen (no hover to discover it) and on hover elsewhere. There were three:
+   text-brand, text-live and text-foreground, underlined always, on hover, or
+   never, at 400 or 600. */
+@utility text-action {
+  color: rgb(var(--brand));
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  @media (hover: none) {
+    text-decoration-line: underline;
+    text-decoration-color: rgb(var(--brand) / 0.5);
+  }
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-line: underline;
+    }
+  }
+}
+
+/* OVERLAY MOTION — every overlay moves with one of two timings (Interaction
+   §9, tokens above). The primitives put these on their content and scrim; a
+   call site's own `duration-*`/`ease-*` loses to them (!important: the
+   tailwindcss-animate `animate-in`/`duration-*` utilities write the same
+   properties at the same specificity). Reduced motion still wins: it zeroes
+   the tokens. Before: the Filters sheet opened in 500ms, the job sheet in
+   150ms, the sign-in sheet in 150ms, the combobox never animated out. Radix
+   marks state with data-state (a tooltip's open state is "delayed-open" /
+   "instant-open"); react-aria with data-entering / data-exiting. */
+@utility motion-modal {
+  &:is([data-state="open"], [data-entering]) {
+    animation-duration: var(--transition-modal-in) !important;
+    animation-timing-function: var(--ease-enter) !important;
+  }
+  &:is([data-state="closed"], [data-exiting]) {
+    animation-duration: var(--transition-modal-out) !important;
+    animation-timing-function: var(--ease-out-exit) !important;
+  }
+}
+@utility motion-pop {
+  &:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"], [data-entering]) {
+    animation-duration: var(--transition-pop-in) !important;
+    animation-timing-function: var(--ease-enter) !important;
+  }
+  &:is([data-state="closed"], [data-exiting]) {
+    animation-duration: var(--transition-pop-out) !important;
+    animation-timing-function: var(--ease-out-exit) !important;
+  }
+}
+/* EXPAND — an accordion panel and a <details> disclosure open and close the
+   same way: height over --transition-panel, easing in and out. The disclosure
+   used to snap open while the accordion slid. */
+@utility motion-expand {
+  animation-duration: var(--transition-panel) !important;
+  animation-timing-function: var(--ease-standard) !important;
+}
+@supports selector(::details-content) {
+  details[data-slot="disclosure"] {
+    interpolate-size: allow-keywords;
+  }
+  details[data-slot="disclosure"]::details-content {
+    block-size: 0;
+    overflow-y: clip;
+    transition:
+      block-size var(--transition-panel) var(--ease-standard),
+      content-visibility var(--transition-panel) allow-discrete;
+  }
+  details[data-slot="disclosure"][open]::details-content {
+    block-size: auto;
+  }
 }
 
 /* The selected item on a glass bar: a lighter lens of the glass, not an opaque
@@ -2189,6 +2286,10 @@ select {
     --transition-deck: 0ms;
     --transition-page: 0ms;
     --transition-stack: 0ms;
+    --transition-modal-in: 0ms;
+    --transition-modal-out: 0ms;
+    --transition-pop-in: 0ms;
+    --transition-pop-out: 0ms;
   }
 
   .designed-press:active:not(:disabled),

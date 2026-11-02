@@ -52,7 +52,7 @@ export function PostingCheckSummary({
                     aria-expanded={open}
                     aria-controls={id}
                     onClick={() => setOpen((v) => !v)}
-                    className="text-xs text-brand hover:underline"
+                    className="text-xs text-action"
                 >
                     {open ? "Hide details" : "Show details"}
                 </button>

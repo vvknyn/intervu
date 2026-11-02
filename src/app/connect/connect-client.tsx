@@ -145,7 +145,7 @@ export function ConnectClient({
             <button
               type="button"
               onClick={() => setFilm("mcp")}
-              className="text-xs font-semibold text-live hover:underline underline-offset-4"
+              className="text-xs text-action"
             >
               How MCP works
             </button>
@@ -259,7 +259,7 @@ export function ConnectClient({
               <button
                 type="button"
                 onClick={() => setFilm("claw")}
-                className="text-xs font-semibold text-live hover:underline underline-offset-4"
+                className="text-xs text-action"
               >
                 Watch the demo
               </button>

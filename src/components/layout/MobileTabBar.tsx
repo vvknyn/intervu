@@ -111,7 +111,7 @@ export function MobileTabBar() {
                         aria-current={active ? "page" : undefined}
                         data-dock-current={tab === currentTab ? "" : undefined}
                         className={cn(
-                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-pill text-xs transition-colors duration-100",
+                            "flex h-full flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-pill text-xs transition-colors duration-100 press-fill",
                             CHROME_FOCUS_VISIBLE,
                             active ? "glass-selected text-foreground font-semibold" : "text-muted-foreground font-normal",
                         )}

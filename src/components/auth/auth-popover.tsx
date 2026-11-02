@@ -189,11 +189,11 @@ export function AuthPopover({
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
                 <DialogContent
-                    className="sm:max-w-105 max-h-[min(640px,var(--overlay-max-h))] p-5 pt-7 sm:p-6 sm:pt-8"
+                    className="sm:max-w-105 max-h-[min(640px,var(--overlay-max-h))]"
                     onCloseAutoFocus={handleDialogCloseAutoFocus}
                 >
                     <DialogTitle className="sr-only">{headline?.title ?? "Authentication"}</DialogTitle>
-                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />
+                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} inOverlay />
                 </DialogContent>
             </Dialog>
         );
