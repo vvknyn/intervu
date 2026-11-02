@@ -102,7 +102,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           <ul className="mt-3 space-y-3">
             {morePosts.map((other) => (
               <li key={other.slug}>
-                <Link href={blogPostPath(other.slug)} className="font-semibold hover:underline">
+                <Link href={blogPostPath(other.slug)} className="font-semibold name-link">
                   {other.title}
                 </Link>
                 <time dateTime={other.datePublished} className="mt-0.5 block text-xs text-muted-foreground">

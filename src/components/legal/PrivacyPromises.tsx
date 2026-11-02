@@ -43,7 +43,7 @@ export function PrivacyPromises({
                 {showPolicyLink && (
                     <Link
                         href={`/privacy#${PRIVACY_RESUME_SECTION_ID}`}
-                        className="text-sm font-semibold text-brand underline underline-offset-4 hover:text-brand"
+                        className="text-sm text-action"
                     >
                         {PRIVACY_LINK_LABEL}
                     </Link>

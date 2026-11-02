@@ -218,7 +218,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     {embedded ? "Job search" : "Your agent's answers"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
+                    <button onClick={onLoginClick} className="text-foreground text-link">
                         {AUTH_CTA_LABEL}
                     </button>{" "}
                     to see and edit what your AI fills into applications for you.

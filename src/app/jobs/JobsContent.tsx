@@ -768,7 +768,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={clearFiltersTestId}
                     onClick={onClearFilters}
-                    className="font-semibold text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-foreground transition-colors duration-100 hover:text-foreground text-link"
                 >
                     Clear filters
                 </button>
@@ -778,7 +778,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={clearQueryTestId}
                     onClick={onClearQuery}
-                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="transition-colors duration-100 hover:text-foreground text-link"
                 >
                     ✕ clear search
                 </button>
@@ -789,7 +789,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={() => onClearEntry(entry)}
-                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left transition-colors duration-100 hover:text-foreground text-link"
                 >
                     ✕ clear {entry.label}
                 </button>
@@ -799,7 +799,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={locationDefault.onClear}
-                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left transition-colors duration-100 hover:text-foreground text-link"
                 >
                     ✕ clear {locationDefault.label}
                 </button>
@@ -879,7 +879,7 @@ function EmptyResults({
                 <button
                     type="button"
                     onClick={onRevealGhosts}
-                    className="mt-2 w-full text-center text-xs text-foreground underline underline-offset-2"
+                    className="mt-2 w-full text-center text-xs text-foreground text-link"
                 >
                     {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
                 </button>
@@ -905,7 +905,7 @@ function RankMore({ count, loading, onClick }: { count: number; loading: boolean
                 data-testid="rank-more"
                 disabled={loading}
                 onClick={onClick}
-                className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                className="text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground text-link"
             >
                 {loading ? "Ranking more roles…" : `Rank ${count.toLocaleString()} more`}
             </button>
@@ -5239,7 +5239,7 @@ export function JobsContent({
                     <Link
                         key="edit"
                         href="/resume"
-                        className="whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                        className="whitespace-nowrap text-foreground transition-opacity duration-100 text-link"
                     >
                         Edit résumé
                         <LinkPending />
@@ -5249,7 +5249,7 @@ export function JobsContent({
                             key="remove"
                             onRemove={removeGuestResume}
                             testIdPrefix="jobs"
-                            className="whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                            className="whitespace-nowrap text-foreground transition-opacity duration-100 text-link"
                         />
                     ),
                 ]}
@@ -5324,7 +5324,7 @@ export function JobsContent({
                                     {PRIVACY_HEADLINE}{" "}
                                     <Link
                                         href={`/privacy#${PRIVACY_RESUME_SECTION_ID}`}
-                                        className="font-semibold text-brand underline underline-offset-4 hover:text-brand"
+                                        className="text-action"
                                     >
                                         How
                                     </Link>
@@ -5557,7 +5557,7 @@ export function JobsContent({
                                     <button
                                         type="button"
                                         onClick={handleClearSearch}
-                                        className="ctl-md ctl-button -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
+                                        className="ctl-md ctl-button -my-1.5 transition-colors hover:text-foreground text-link"
                                     >
                                         clear ✕
                                     </button>
@@ -5957,7 +5957,7 @@ export function JobsContent({
                             {backgroundError && displaySearchError && (
                                 <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-l-2 border-verdict-risk pl-3 text-xs text-verdict-risk">
                                     <span>{displaySearchError}</span>
-                                    <button onClick={retrySearch} className="underline underline-offset-2">
+                                    <button onClick={retrySearch} className="text-link">
                                         Retry
                                     </button>
                                 </div>
@@ -6137,7 +6137,7 @@ export function JobsContent({
                                                                                 type="button"
                                                                                 data-testid="beyond-window-show-all"
                                                                                 onClick={() => panelPostedBucket(undefined)}
-                                                                                className="text-foreground underline-offset-2 hover:underline"
+                                                                                className="text-foreground name-link"
                                                                             >
                                                                                 Show all
                                                                             </button>,
@@ -6416,7 +6416,7 @@ export function JobsContent({
                                                     type="button"
                                                     onClick={() => void loadMore()}
                                                     data-testid="jobs-load-more"
-                                                    className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                                    className="text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground text-link"
                                                 >
                                                     Show {Math.min(PAGE, Math.max(total - hits.length, 0)) || PAGE} more ↓
                                                 </button>

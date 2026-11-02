@@ -8,7 +8,8 @@ import { expect, test } from "./fixtures";
  * replaced in the browser, so no backend is needed.
  *
  * Measured before (2026-11-02, 390px): the sign-in, Filters and job drawers opened in 150ms, 500ms and 150ms, with
- * three header layouts (a 28px page title under a lone ×, a 16px bar title, a hand-built bar), three different ×s.
+ * three header layouts (a 28px page title under a lone ×, a 16px bar title, a hand-built bar), three different ×s,
+ * and two edges (the glass rim on sign-in, a solid border on Filters and the job sheet).
  */
 
 const returningVisitor = (page: Page) =>
@@ -42,7 +43,7 @@ async function stubbedList(page: Page) {
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 45_000 });
 }
 
-type Drawer = { enterMs: number; radius: string; left: number; bottomGap: number; titleLeft: number; titleType: string; closeTop: number; closeRight: number; closeSize: string };
+type Drawer = { enterMs: number; radius: string; edge: string; left: number; bottomGap: number; titleLeft: number; titleType: string; closeTop: number; closeRight: number; closeSize: string };
 
 /** Clicks `trigger`, reads the motion as the overlay starts, then its header once it has settled. */
 async function openAndRead(page: Page, trigger: Locator): Promise<{ drawer: Drawer; dialog: Locator }> {
@@ -68,6 +69,7 @@ async function openAndRead(page: Page, trigger: Locator): Promise<{ drawer: Draw
     return {
       enterMs: enter,
       radius: getComputedStyle(el).borderTopLeftRadius,
+      edge: `${getComputedStyle(el).borderTopWidth} ${getComputedStyle(el).borderTopColor}`,
       left: Math.round(s.left),
       bottomGap: Math.round(innerHeight - s.bottom),
       titleLeft: title ? Math.round(textRect(title).left - s.left) : -1,
@@ -107,6 +109,7 @@ test("on a phone every drawer is one drawer: same motion, inset, corner, header 
     expect(d.left, `${name} floats 8px off the side`).toBe(8);
     expect(d.bottomGap, `${name} floats 8px off the bottom`).toBe(8);
     expect(d.radius, `${name}'s corner`).toBe(first.radius);
+    expect(d.edge, `${name}'s rim (Filters painted its own solid border over the glass rim)`).toBe(first.edge);
     expect(Math.abs(d.titleLeft - first.titleLeft), `${name}'s title edge: ${JSON.stringify(read)}`).toBeLessThanOrEqual(1);
     expect(Math.abs(d.closeTop - first.closeTop), `${name}'s × from the top: ${JSON.stringify(read)}`).toBeLessThanOrEqual(1);
     expect(Math.abs(d.closeRight - first.closeRight), `${name}'s × from the side: ${JSON.stringify(read)}`).toBeLessThanOrEqual(1);
@@ -188,9 +191,13 @@ test("a list row and a tab-bar item answer a press with a fill; an inline action
     });
   expect(await pressFills(page.getByTestId("job-row").nth(1)), "a pressed list row lights").not.toEqual([]);
   expect(await pressFills(page.locator("[data-mobile-tabbar] a").first()), "a pressed tab-bar item lights").not.toEqual([]);
-  // An inline action carries an underline where there is no hover to find it.
-  const action = page.locator(".text-action:visible").first();
-  if (await action.count()) {
-    expect(await action.evaluate((el) => getComputedStyle(el).textDecorationLine)).toContain("underline");
+  // An inline action carries an underline where there is no hover to find it, on the one offset every link shares.
+  for (const kind of [".text-action", ".text-link"]) {
+    const link = page.locator(`${kind}:visible`).first();
+    if (await link.count()) {
+      const deco = await link.evaluate((el) => ({ line: getComputedStyle(el).textDecorationLine, offset: getComputedStyle(el).textUnderlineOffset }));
+      expect(deco.line, `${kind} is underlined on a touch screen`).toContain("underline");
+      expect(deco.offset, `${kind}'s underline offset`).toBe("4px");
+    }
   }
 });

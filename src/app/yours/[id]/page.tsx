@@ -84,7 +84,7 @@ function AppliedResumeRow({ pursuit, copy, onRemove }: { pursuit: Pursuit; copy:
                         <button
                             type="button"
                             onClick={() => setConfirming(true)}
-                            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-destructive"
+                            className="text-xs text-muted-foreground hover:text-destructive text-link"
                         >
                             Remove résumé
                         </button>
@@ -142,7 +142,7 @@ function ResumeUsedCard({
                 <button
                     type="button"
                     onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    className="text-xs text-muted-foreground hover:text-foreground text-link"
                 >
                     .md
                 </button>
@@ -680,7 +680,7 @@ export default function PursuitDetailPage() {
                                     <button
                                         type="button"
                                         onClick={() => gatedOpenPosting(httpUrlOrNull(pursuit.job_url)!)}
-                                        className="mt-3 text-sm text-live underline underline-offset-2"
+                                        className="mt-3 text-sm text-action"
                                     >
                                         Open posting
                                     </button>

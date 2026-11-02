@@ -338,7 +338,7 @@ export function CompanyRoleSearch({
             </SubTitle>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
               Screened for{" "}
-              <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+              <Link href={GHOST_RESEARCH_HREF} className="hover:text-foreground text-link">
                 postings that aren&apos;t really hiring
               </Link>
               , plus freshness and verified salary transparency.

@@ -115,7 +115,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
               <Fragment key={s.name}>
                 {n > 0 && ", "}
                 {s.url ? (
-                  <a href={s.url} target="_blank" rel="noopener noreferrer nofollow" className="hover:underline">
+                  <a href={s.url} target="_blank" rel="noopener noreferrer nofollow" className="name-link">
                     {s.name}
                   </a>
                 ) : (

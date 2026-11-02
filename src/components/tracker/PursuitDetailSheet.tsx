@@ -155,7 +155,7 @@ function PursuitDetailBody({
                                     <button
                                         type="button"
                                         onClick={() => setConfirmingResumeRemove(true)}
-                                        className="mt-1 block text-xs text-muted-foreground underline underline-offset-2 hover:text-destructive"
+                                        className="mt-1 block text-xs text-muted-foreground hover:text-destructive text-link"
                                     >
                                         Remove résumé
                                     </button>

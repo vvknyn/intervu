@@ -195,7 +195,7 @@ export function LocalCustomizePanel({
                                             type="button"
                                             aria-expanded={sealedHowOpen}
                                             onClick={() => setSealedHowOpen((open) => !open)}
-                                            className="shrink-0 underline underline-offset-2"
+                                            className="shrink-0 text-link"
                                         >
                                             How
                                         </button>
@@ -217,7 +217,7 @@ export function LocalCustomizePanel({
                                     <button
                                         type="button"
                                         onClick={onSignInToSync}
-                                        className="text-left text-xs font-semibold text-foreground underline underline-offset-2 transition-colors hover:text-brand"
+                                        className="text-left text-xs text-foreground transition-colors text-link"
                                     >
                                         {SIGN_IN_TO_SYNC_LABEL}
                                     </button>

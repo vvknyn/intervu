@@ -141,7 +141,7 @@ export default function OpenclawPage() {
           <p className="mt-8 text-xs text-muted-foreground">
             <Check size={16} weight="bold" className="mr-1 inline text-brand" aria-hidden="true" />
             Already using velai&apos;s search?{" "}
-            <Link href="/" className="text-foreground underline underline-offset-2">
+            <Link href="/" className="text-foreground text-link">
               Back to jobs
             </Link>
           </p>

@@ -361,7 +361,7 @@ export function JobDetailDocument({
                     )}
                     <div className="mt-2 text-sm text-muted-foreground">
                         {cleanedCompany ? (
-                            <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
+                            <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground name-link">
                                 {companyBrand}
                             </Link>
                         ) : (

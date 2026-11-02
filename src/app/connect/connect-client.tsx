@@ -355,7 +355,7 @@ export function ConnectClient({
                     <span className="text-live font-semibold">✓</span>
                     <span>
                       <span className="font-semibold text-foreground">Your data:</span> {CONNECT_PRIVACY_LINE}{" "}
-                      <Link href="/privacy#your-resume" className="underline underline-offset-2 hover:text-foreground">
+                      <Link href="/privacy#your-resume" className="hover:text-foreground text-link">
                         How Velai keeps it private
                       </Link>
                     </span>

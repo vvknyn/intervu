@@ -770,7 +770,7 @@ export function JobDetail({
                         {cleanedCompany && job.company_domain && (
                             <Link
                                 href={jobCompanyHref(cleanedCompany, job.company_domain)}
-                                className="block truncate text-sm text-muted-foreground hover:underline"
+                                className="block truncate text-sm text-muted-foreground name-link"
                             >
                                 {job.company_domain}
                             </Link>
@@ -1154,7 +1154,7 @@ export function JobDetail({
                                             <button
                                                 type="button"
                                                 onClick={() => setDescExpanded((v) => !v)}
-                                                className="mt-2 text-sm text-foreground underline underline-offset-2 cursor-pointer"
+                                                className="mt-2 text-sm text-foreground cursor-pointer text-link"
                                             >
                                                 {descExpanded ? "Show less" : "Show full description"}
                                             </button>

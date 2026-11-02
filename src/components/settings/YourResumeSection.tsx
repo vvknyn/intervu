@@ -180,7 +180,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
             <section className={embedded ? undefined : "pt-6 border-t border-border"}>
                 <h2 className="text-base font-semibold leading-snug mb-1">Your résumé</h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
+                    <button onClick={onLoginClick} className="text-foreground text-link">
                         {AUTH_CTA_LABEL}
                     </button>{" "}
                     to see the resume your agent has on file.
@@ -340,7 +340,7 @@ function ResumeSummaryBody({
                     <Button size="sm" asChild className="w-full gap-1.5 sm:w-auto">
                         <Link href={PRICING_HREF}>See pricing</Link>
                     </Button>
-                    <button type="button" onClick={onReplace} className="text-xs text-foreground underline underline-offset-2 hover:underline">
+                    <button type="button" onClick={onReplace} className="text-xs text-foreground text-link">
                         or upload a PDF or Word file to use on this device
                     </button>
                     {deleteControl}
@@ -370,7 +370,7 @@ function ResumeSummaryBody({
                     <Button size="sm" onClick={onOpenEditor} className="w-full gap-1.5 sm:w-auto">
                         <PencilSimple /> Edit template
                     </Button>
-                    <button type="button" onClick={onReplace} className="text-xs text-foreground underline underline-offset-2 hover:underline">
+                    <button type="button" onClick={onReplace} className="text-xs text-foreground text-link">
                         or upload a PDF or Word file
                     </button>
                 </div>
@@ -415,7 +415,7 @@ function ResumeSummaryBody({
             {summary.accountCopyLocked && (
                 <p data-testid="settings-resume-also-locked" className="text-xs text-muted-foreground">
                     Your account also holds a saved copy. Opening it needs a paid month.{" "}
-                    <Link href={PRICING_HREF} className="text-foreground underline underline-offset-2">
+                    <Link href={PRICING_HREF} className="text-foreground text-link">
                         See pricing
                     </Link>
                 </p>
@@ -429,7 +429,7 @@ function ResumeSummaryBody({
             <p data-testid="settings-resume-privacy" className="text-xs text-muted-foreground">
                 <LockSimple weight="bold" aria-hidden className="mr-1 inline align-text-bottom text-live" />
                 {SETTINGS_RESUME_PRIVACY_LINE}{" "}
-                <Link href="/privacy#your-resume" className="text-foreground underline underline-offset-2">
+                <Link href="/privacy#your-resume" className="text-foreground text-link">
                     How Velai keeps it private
                 </Link>
             </p>
@@ -547,7 +547,7 @@ function ResumeUploadForm({
                     {paywalled && (
                         <>
                             {" "}
-                            <a href={PRICING_HREF} className="underline underline-offset-2">
+                            <a href={PRICING_HREF} className="text-link">
                                 See pricing
                             </a>
                         </>

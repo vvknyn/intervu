@@ -1037,6 +1037,37 @@ body:has([data-shell="bleed"]) {
   }
 }
 
+/* LINK IN TEXT — a link inside a sentence ("privacy policy", "Upload a résumé",
+   "terms"): the colour of the text around it (or the call site's text colour),
+   always underlined, the underline at half strength until hovered. It shares
+   text-action's offset and thickness. There were 68 of these in five looks:
+   offset 2px or 4px or none, dotted or solid, 400 or 600 weight, and four
+   different hovers (opacity, brand, foreground, none). */
+@utility text-link {
+  text-decoration-line: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, currentColor 50%, transparent);
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-color: currentColor;
+    }
+  }
+}
+
+/* NAME LINK — a link that names a thing (a company, a job title, a post): it
+   stays in the text's colour and weight and underlines on hover only, with the
+   same offset and thickness as every other link. */
+@utility name-link {
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-line: underline;
+    }
+  }
+}
+
 /* OVERLAY MOTION — every overlay moves with one of two timings (Interaction
    §9, tokens above). The primitives put these on their content and scrim; a
    call site's own `duration-*`/`ease-*` loses to them (!important: the

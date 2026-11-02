@@ -88,7 +88,7 @@ export function FollowAlertsDialog({
             href={MANAGE_FOLLOWS_HREF}
             data-testid="follow-alerts-cta"
             onClick={close}
-            className="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground text-link"
           >
             Manage companies you follow
           </Link>

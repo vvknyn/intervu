@@ -174,4 +174,20 @@ describe("one press, one row, one inline action", () => {
         }
         assert.deepEqual(offenders, [], "use `text-action` (globals.css)");
     });
+
+    it("every link in text is one of three looks: text-action, text-link or name-link, never a hand-set underline", () => {
+        // 89 literals set their own underline (2026-11-02): offset 2px, 4px or none, dotted or solid, at 400 or 600.
+        const HAND = /^(?:[a-z-]+:)*(?:underline|underline-offset-\d+|decoration-(?!clone$|slice$)[a-z0-9/-]+)$/;
+        const offenders: string[] = [];
+        for (const f of APP_FILES) {
+            read(f).split("\n").forEach((line, i) => {
+                for (const m of line.matchAll(/"([^"\n]*)"/g)) {
+                    // A card link whose title underlines while the whole card is hovered (`group-hover:`) is a name link's hover.
+                    const hit = m[1].split(/\s+/).find((t) => HAND.test(t) && !t.startsWith("group-hover:"));
+                    if (hit) offenders.push(`${f}:${i + 1} ${hit}`);
+                }
+            });
+        }
+        assert.deepEqual(offenders, [], "use text-action (an action), text-link (a link in a sentence) or name-link (a name)");
+    });
 });

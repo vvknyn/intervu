@@ -458,7 +458,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                         type="button"
                         aria-expanded={sealedHowOpen}
                         onClick={() => setSealedHowOpen((open) => !open)}
-                        className="font-semibold text-foreground underline underline-offset-2"
+                        className="text-foreground text-link"
                     >
                         How
                     </button>

@@ -161,7 +161,7 @@ export function FooterContent() {
                         href={GHOST_RESEARCH_HREF}
                         prefetch={false}
                         {...prefetchOnIntent(GHOST_RESEARCH_HREF)}
-                        className="underline underline-offset-2 hover:text-foreground"
+                        className="hover:text-foreground text-link"
                     >
                         {GHOST_SCREENING_CLAUSE}
                     </Link>
@@ -179,7 +179,7 @@ export function FooterContent() {
                         href="https://thesubspace.io"
                         target="_blank"
                         rel="noopener"
-                        className="underline decoration-dotted underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                        className="transition-colors duration-100 hover:text-foreground text-link"
                     >
                         Subspace
                     </a>

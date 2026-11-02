@@ -80,7 +80,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
                                     {story.question}
                                 </div>
                             )}
-                            <div className="text-sm text-foreground truncate cursor-pointer hover:underline decoration-muted-foreground underline-offset-4">
+                            <div className="text-sm text-foreground truncate cursor-pointer name-link">
                                 {story.title || "Untitled Story"}
                             </div>
                         </div>

@@ -23,7 +23,7 @@ export function HubSections({ facts, label, now }: { facts: HubFacts; label: str
           <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm">
             {facts.companies.map(({ domain, name }) => (
               <li key={domain}>
-                <Link href={companyBoardPath(domain)} className="hover:underline">
+                <Link href={companyBoardPath(domain)} className="name-link">
                   {name}
                 </Link>
               </li>
@@ -40,7 +40,7 @@ export function HubSections({ facts, label, now }: { facts: HubFacts; label: str
               const place = locationText(job);
               return (
                 <li key={job.id}>
-                  <Link href={jobPath(job)} className="hover:underline">
+                  <Link href={jobPath(job)} className="name-link">
                     {decodeText(job.title)}
                   </Link>{" "}
                   <span>

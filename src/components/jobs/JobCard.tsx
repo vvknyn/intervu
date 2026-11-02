@@ -231,7 +231,7 @@ export function JobCard({
                             // so the row that's already selected must not carry
                             // the hover-underline affordance at all; every other
                             // row still underlines on hover as usual.
-                            !active && "hover:underline",
+                            !active && "name-link",
                             opened ? "text-muted-foreground" : "font-semibold text-foreground",
                         )}
                         onClick={(e) => {
@@ -303,7 +303,7 @@ export function JobCard({
                                     <button
                                         type="button"
                                         data-testid="job-row-company"
-                                        className="hidden text-left hover:text-foreground hover:underline lg:inline"
+                                        className="hidden text-left hover:text-foreground lg:inline name-link"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onCompany(job);
@@ -356,7 +356,7 @@ export function JobCard({
                                     <button
                                         type="button"
                                         data-testid="cluster-toggle"
-                                        className="hover:text-foreground hover:underline"
+                                        className="hover:text-foreground name-link"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onToggleExpand?.();
