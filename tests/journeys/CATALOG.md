@@ -999,7 +999,7 @@ Apple's Human Interface Guidelines on a phone and in the list, one row per class
 | J-HIG-10 | A list row's selection is a rounded highlight (corner at least 8px) inset at least 4px from the list's edges, not a band across the list (phone and laptop) | anon | `/jobs?q=product manager` (search answered in the browser) | signed-out | no | covered | apple-hig.spec.ts |
 | J-HIG-11 | On a phone every drawer is one drawer: the sign-in, Filters and job sheets open on the same 280ms motion, float 8px off the side and bottom on one corner, and share one header row (16px semibold title, the × 20px down and 16px in, one size) | anon | `/jobs?q=product manager` (search answered in the browser) | signed-out | no | covered | interaction.spec.ts |
 | J-HIG-12 | Every menu (Sort, Browse by field) opens on the 150ms popover motion and closes on 100ms; a laptop dialog opens on the 280ms modal motion with the drawer's header row | anon | `/jobs?q=product manager` | signed-out | no | covered | interaction.spec.ts |
-| J-HIG-13 | A list row lights with the hover fill while a finger is down on it, and an inline text action is underlined on a touch screen | anon | `/jobs?q=product manager` | signed-out | no | covered | interaction.spec.ts |
+| J-HIG-13 | A list row and a tab-bar item each match an :active rule that paints a fill (read from the page's stylesheets: headless Chromium cannot hold a touch in :active), and an inline text action is underlined on a touch screen | anon | `/jobs?q=product manager` | signed-out | no | covered | interaction.spec.ts |
 
 ## Legacy specs pending repair
 

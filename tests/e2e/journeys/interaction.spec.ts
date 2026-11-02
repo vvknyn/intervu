@@ -145,27 +145,49 @@ test("every menu opens and closes on the popover motion, and a laptop dialog ope
   expect(Math.abs(drawer.closeRight - 16)).toBeLessThanOrEqual(1);
 });
 
-test("a list row answers a press with the hover fill; an inline action is underlined on a touch screen", { tag: ["@J-HIG-13"] }, async ({ page }, testInfo) => {
+test("a list row and a tab-bar item answer a press with a fill; an inline action is underlined on a touch screen", { tag: ["@J-HIG-13"] }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "a touch screen");
   await stubbedList(page);
-  // A finger down on the target (a CDP touch, the way a phone presses), read, then cancel so it never becomes a tap.
-  const cdp = await page.context().newCDPSession(page);
-  const pressedFill = async (target: Locator, at?: { dx: number; dy: number }) => {
-    const box = (await target.boundingBox())!;
-    const x = box.x + (at ? at.dx : box.width / 2);
-    const y = box.y + (at ? at.dy : box.height / 2);
-    const before = await target.evaluate((el) => getComputedStyle(el).backgroundColor);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-    await page.waitForTimeout(150);
-    const during = await target.evaluate((el) => getComputedStyle(el).backgroundColor);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
-    return { before, during };
-  };
-  const row = page.getByTestId("job-row").nth(2);
-  const r = await pressedFill(row, { dx: 8, dy: 12 });
-  expect(r.during, "a pressed row lights").not.toBe(r.before);
-  // Chips, tabs and tab-bar items carry the same press-fill rule (unit interaction.test.ts); headless Chromium
-  // does not put a link under a held touch into :active, so this measures the row, which it does.
+  // Headless Chromium never enters :active under an emulated touch (checked 2026-11-02 on a bare page: a held
+  // touchStart leaves `div:active` unmatched), so a finger cannot be simulated here. Instead the journey asks the
+  // page's own stylesheets which :active rule a press on the element would match, and that it paints a fill.
+  const pressFills = (target: Locator) =>
+    target.evaluate((el) => {
+      const hits: string[] = [];
+      const walk = (rules: CSSRuleList, parent: string) => {
+        for (const r of Array.from(rules)) {
+          if (r instanceof CSSStyleRule) {
+            const sel = parent ? r.selectorText.replace(/&/g, parent) : r.selectorText;
+            const fill = r.style.backgroundColor;
+            if (sel.includes(":active") && fill && fill !== "transparent") {
+              for (const part of sel.split(",")) {
+                const rest = part.replace(/:active/g, "").trim();
+                try {
+                  if (rest && el.matches(rest)) hits.push(part.trim());
+                } catch {
+                  /* a selector this engine cannot match */
+                }
+              }
+            }
+            if (r.cssRules?.length) walk(r.cssRules, sel);
+          } else if (r instanceof CSSMediaRule) {
+            if (matchMedia(r.conditionText).matches) walk(r.cssRules, parent);
+          } else if ("cssRules" in r && (r as CSSGroupingRule).cssRules) {
+            walk((r as CSSGroupingRule).cssRules, parent);
+          }
+        }
+      };
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          walk(sheet.cssRules, "");
+        } catch {
+          /* a cross-origin sheet */
+        }
+      }
+      return hits;
+    });
+  expect(await pressFills(page.getByTestId("job-row").nth(1)), "a pressed list row lights").not.toEqual([]);
+  expect(await pressFills(page.locator("[data-mobile-tabbar] a").first()), "a pressed tab-bar item lights").not.toEqual([]);
   // An inline action carries an underline where there is no hover to find it.
   const action = page.locator(".text-action:visible").first();
   if (await action.count()) {
