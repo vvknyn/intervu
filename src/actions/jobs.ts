@@ -14,7 +14,7 @@ import {
   type SearchServeMeta,
 } from "@/lib/jobs/search";
 import { runJobsSearch, type JobsSearchWithProbes } from "@/lib/jobs/run-search";
-import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
+import { rateLimitedSearchResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { loaded, loadFailed, type LoadResult } from "@/lib/load-result";
 import {
   dedupeRelatedJobs,
@@ -103,25 +103,12 @@ export async function searchJobsAction(
 
   const ip = await getClientIp();
   if (!allowSearchRequest(ip)) {
-    // Same shape a real backend outage returns (search.ts's own catch) —
-    // never a raw error, and never a response that reveals a rate limit is
-    // in play. The client's existing one-free-retry already gives a
-    // burst-limited visitor a second try a few seconds later.
-    return {
-      hits: [],
-      total: 0,
-      // Exact shape of search.ts's own real-outage catch (`configured: true`
-      // verbatim — reusing the existing degraded/error result shape per
-      // policy, not deriving a new one): production always has a configured
-      // backend, so this only ever differs from reality in an unconfigured
-      // dev environment, where it costs nothing (there's no real search to
-      // protect there anyway).
-      backend: backendStatus.backend,
-      configured: true,
-      unavailable: true,
-      note: SEARCH_UNAVAILABLE_MESSAGE,
-      searchId,
-    };
+    // The outage shape every caller already handles, with its own note: read
+    // as an outage, a person who browses fast or shares a connection takes the
+    // site for down. The limit is no secret (/api/jobs/suggest already answers
+    // with Retry-After). The client's one-free-retry gives a burst-limited
+    // visitor a second try a few seconds later.
+    return rateLimitedSearchResult(backendStatus.backend, searchId);
   }
 
   const user = await getServerUser();

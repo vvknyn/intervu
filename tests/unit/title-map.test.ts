@@ -268,6 +268,8 @@ describe("related titles for a search", () => {
     titles: {
       "technical account manager": ["Customer Success Manager", "Solutions Engineer", "Implementation Manager"],
       "account manager": ["Technical Account Manager", "Sales Manager"],
+      architect: ["Architectural Designer", "Construction Engineer"],
+      electrician: ["Electrical Supervisor"],
     },
   };
 
@@ -276,9 +278,18 @@ describe("related titles for a search", () => {
     assert.deepEqual(relatedTitlesFor("technical account manager", 2, table), ["Customer Success Manager", "Solutions Engineer"]);
   });
 
-  it("reads a ranked or qualified title as the title it ends in", () => {
+  it("reads a title with rank or scope words as the title without them", () => {
     assert.deepEqual(relatedTitlesFor("Senior Technical Account Manager", 1, table), ["Customer Success Manager"]);
     assert.deepEqual(relatedTitlesFor("enterprise technical account manager", 1, table), ["Customer Success Manager"]);
+    assert.deepEqual(relatedTitlesFor("Licensed Electrician", 4, table), ["Electrical Supervisor"]);
+    assert.deepEqual(relatedTitlesFor("senior licensed architect", 4, table), ["Architectural Designer", "Construction Engineer"]);
+  });
+
+  it("does not read a title it doesn't know as a shorter title it ends in: the words in front can name another line of work", () => {
+    // R69 prod: "customer success architect" was shown building roles.
+    assert.deepEqual(relatedTitlesFor("customer success architect", 4, table), []);
+    assert.deepEqual(relatedTitlesFor("integration engineering architect", 4, table), []);
+    assert.deepEqual(relatedTitlesFor("solutions technical account manager", 4, table), []);
   });
 
   it("leaves out a title holding every typed word (the title search already finds it) and unknown titles", () => {
