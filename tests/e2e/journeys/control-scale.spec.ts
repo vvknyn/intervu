@@ -202,8 +202,9 @@ for (const path of ["/jobs", "/jobs?q=data+analyst", "/trends", "/about"]) {
         await expect
             .poll(async () => {
                 const { measured, findings } = await buttonFaceFindings(page);
-                // Sign in and Create account at the least; fewer means the scan found nothing to check.
-                return measured >= 2 ? findings : [`only ${measured} button faces found`];
+                // The header Sign in at the least (its Create account left the header on 2026-10-26, so /about holds one
+                // face); none means the scan found nothing to check.
+                return measured >= 1 ? findings : [`only ${measured} button faces found`];
             })
             .toEqual([]);
     });

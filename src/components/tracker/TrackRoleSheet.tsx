@@ -109,7 +109,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                             className={TRACKER_FIELD_CLASS}
                         />
                     </div>
-                    <div className="flex flex-wrap gap-2 pt-1">
+                    <div className="action-row pt-1">
                         <Button onClick={() => void handleSave()} disabled={saving || !company.trim() || !position.trim()}>
                             {saving && <InlineSpinner className="mr-2" />}
                             {saving ? "Saving…" : "Save to tracker"}

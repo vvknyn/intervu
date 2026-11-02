@@ -1,4 +1,5 @@
 import type { ExhaustSection, TechFacts } from "@/lib/companies/exhaust";
+import { FactLine } from "@/components/ui/fact-line";
 
 /**
  * Band 8 (gated) — "Hiring infrastructure", at the consumer altitude the
@@ -27,7 +28,7 @@ export function CompanyTechStackBand({
         {techTier ? ` · ${techTier} tier` : ""}.
       </p>
       {groups.length > 0 && (
-        <p className="mt-3 text-xs text-foreground">{groups.join(" · ")}</p>
+        <FactLine items={groups} className="mt-3 text-xs text-foreground" />
       )}
       <p className="mono-data mt-3 text-xs text-muted-foreground">{techStack.label}</p>
     </section>

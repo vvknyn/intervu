@@ -3,6 +3,7 @@
 import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { getSectionOrder, type ResumeData, type ResumeEducation, type ResumeSection } from "@/types/resume";
 import { cn } from "@/lib/utils";
+import { FactLine } from "@/components/ui/fact-line";
 
 const DEFAULT_HEADINGS: Record<ResumeSection, string> = {
     summary: "Professional summary",
@@ -211,16 +212,9 @@ export function GuestResumeReadout({ data, className }: GuestResumeReadoutProps)
                 {profile.name?.trim() ? (
                     <h2 className="text-lg font-semibold text-foreground">{profile.name.trim()}</h2>
                 ) : null}
-                {subtitleParts.length > 0 ? (
-                    <p className="mt-0.5 text-sm text-foreground">
-                        {subtitleParts.join(" · ")}
-                    </p>
-                ) : null}
-                {contactInline.length > 0 ? (
-                    <p className="mt-1 text-xs text-muted-foreground break-words">
-                        {contactInline.join(" · ")}
-                    </p>
-                ) : null}
+                {/* Facts wrap whole and a "·" never ends a line (FactLine); joined text ended a line on one. */}
+                <FactLine items={subtitleParts} className="mt-0.5 text-sm text-foreground" />
+                <FactLine items={contactInline} className="mt-1 text-xs text-muted-foreground" />
             </div>
             <div className="mt-5 space-y-5 divide-y divide-border">
                 {sectionOrder.map((section) => renderSection(section))}

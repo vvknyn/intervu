@@ -51,7 +51,7 @@ export function ResumePlaceConfirm({
             <p className="text-sm text-foreground">
                 Your résumé says “{ask.name}”. {more.length === 0 ? `Is that ${only}?` : "Which place is it?"}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="action-row">
                 {more.length === 0 ? (
                     <Button size="sm" onClick={() => settle(only)}>
                         Yes

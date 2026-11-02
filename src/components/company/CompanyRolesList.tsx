@@ -2,6 +2,7 @@ import Link from "next/link";
 import { decodeText, rowExceptionMeta, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { companyRowMetaSegments } from "@/lib/presentation";
+import { FactLine } from "@/components/ui/fact-line";
 
 /**
  * This company's live-postings list. Every row links back to the main jobs
@@ -63,14 +64,7 @@ export function CompanyRolesList({
                     {titleCaseDisplay(decodeText(job.title))}
                   </div>
                   {meta.length > 0 && (
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {meta.map((segment, i) => (
-                        <span key={i}>
-                          {i > 0 && <span className="mx-1" aria-hidden>·</span>}
-                          {segment.text}
-                        </span>
-                      ))}
-                    </div>
+                    <FactLine items={meta.map((segment) => segment.text)} className="mt-1 text-sm text-muted-foreground" />
                   )}
                 </div>
                 {ghost && (

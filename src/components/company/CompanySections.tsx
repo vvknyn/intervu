@@ -3,7 +3,6 @@ import { Fragment, type ReactNode } from "react";
 import { CompanyCadenceStrip, cadenceStripHasContent } from "@/components/company/CompanyCadenceStrip";
 import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { eventDate } from "@/components/company/CompanyChangeEvents";
-import { DotSeparated } from "@/components/ui/dot-separated";
 import { SectionTitle } from "@/components/ui/heading";
 import type { CompanyFaqItem } from "@/lib/companies/company-faq";
 import { PAY_SCOPE, type CompanyFacts, type Distribution } from "@/lib/companies/company-facts";
@@ -17,6 +16,7 @@ import { companyBoardPath } from "@/lib/companies/paths";
 import { formatCount } from "@/lib/format";
 import { openCountLabel } from "@/lib/companies/presentation";
 import { relatedHeading, type RelatedCompanies } from "@/lib/companies/related-companies";
+import { FactLine } from "@/components/ui/fact-line";
 
 export interface SectionContext {
   facts: CompanyFacts;
@@ -45,7 +45,8 @@ function Section({ id, title, children }: { id: SectionId; title: string; childr
 /** One distribution as "United States 900 · Canada 100"; a value links to a career hub only where one exists. */
 function BucketList({ d, linkValues = false }: { d: Distribution; linkValues?: boolean }) {
   return (
-    <DotSeparated
+    <FactLine
+      className="text-sm text-muted-foreground"
       items={d.buckets.map((b) => {
         const hub = linkValues ? careerHubPathFor(b.value) : null;
         const label = hub ? (
@@ -71,7 +72,7 @@ function Mix({ label, d, noun }: { label: string; d: Distribution | null; noun: 
   return (
     <div className="min-w-0">
       <h3 className="text-sm font-semibold text-foreground">{label}</h3>
-      <div className="mt-1 break-words text-sm text-muted-foreground">
+      <div className="mt-1">
         <BucketList d={d} />
       </div>
       {stated && <p className="mt-1 text-xs text-muted-foreground">{`Counts ${stated.replace(/^of /, "of ")}.`}</p>}
@@ -86,8 +87,9 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
     return (
       <Section id="identity" title={`About ${i.name}`}>
         {p?.tagline && <p className="text-sm text-foreground">{p.tagline}</p>}
-        <div className="mt-2 break-words text-sm text-muted-foreground">
-          <DotSeparated
+        <div className="mt-2">
+          <FactLine
+            className="text-sm text-muted-foreground"
             items={[
               <a key="d" href={`https://${i.domain}`} target="_blank" rel="noopener noreferrer nofollow" className="text-brand hover:underline">
                 {i.domain}
@@ -175,16 +177,16 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
         {facts.mix.skills && (
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-foreground">Skills asked for</h3>
-            <div className="mt-1 break-words text-sm text-muted-foreground">
-              <DotSeparated items={facts.mix.skills.buckets.map((b) => <span key={b.value}>{b.value} <span className="text-xs">({listedOnRoles(b.count)})</span></span>)} />
+            <div className="mt-1">
+              <FactLine className="text-sm text-muted-foreground" items={facts.mix.skills.buckets.map((b) => <span key={b.value}>{b.value} <span className="text-xs">({listedOnRoles(b.count)})</span></span>)} />
             </div>
           </div>
         )}
         {facts.mix.tech && (
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-foreground">Tech named</h3>
-            <div className="mt-1 break-words text-sm text-muted-foreground">
-              <DotSeparated items={facts.mix.tech.buckets.map((b) => <span key={b.value}>{b.value} <span className="text-xs">({listedOnPostings(b.count)})</span></span>)} />
+            <div className="mt-1">
+              <FactLine className="text-sm text-muted-foreground" items={facts.mix.tech.buckets.map((b) => <span key={b.value}>{b.value} <span className="text-xs">({listedOnPostings(b.count)})</span></span>)} />
             </div>
           </div>
         )}
