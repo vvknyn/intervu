@@ -44,25 +44,30 @@ const holdsEveryWord = (title: string, typedWords: string[]) => {
 };
 
 /**
+ * Words that set a role's reach, market or licence, not its line of work: an "Enterprise Technical Account Manager"
+ * or a "Licensed Electrician" does the job the title without them names.
+ */
+export const SCOPE_WORDS: ReadonlySet<string> = new Set([
+  "enterprise", "strategic", "key", "global", "regional", "national", "international", "area", "district",
+  "territory", "field", "licensed", "certified", "registered", "chartered", "qualified", "accredited", "journeyman",
+]);
+
+/**
  * The table key a typed title reads as: the title itself or one of its other names (`expandTitleQuery`), else the
- * same without rank words ("senior accountant" -> "accountant"), else its longest ending that is a key ("licensed
- * electrician" -> "electrician").
+ * same without rank and scope words ("senior accountant" -> "accountant", "licensed electrician" -> "electrician").
+ * Nothing else: a title the table does not know is not read as a shorter title it ends in, because the words in
+ * front often name another line of work ("customer success architect" is not an architect of buildings,
+ * "electronics test engineer" does not test software). No roles-next-to line beats a wrong one.
  */
 function lookupNames(typed: string, table: TitleNeighbourTable): string[] {
   const found = (names: string[]) => names.filter((n) => spellings(n).some((k) => neighboursOf(table, k).length > 0));
   const direct = found(expandTitleQuery(typed));
   if (direct.length > 0) return direct;
-  const unranked = typed.split(" ").filter((w) => !RANK_WORDS.has(w)).join(" ");
-  if (unranked && unranked !== typed) {
-    const viaUnranked = found(expandTitleQuery(unranked));
-    if (viaUnranked.length > 0) return viaUnranked;
-  }
-  const ws = (unranked || typed).split(" ");
-  for (let n = ws.length - 1; n >= 1; n--) {
-    const ending = found([ws.slice(-n).join(" ")]);
-    if (ending.length > 0) return ending;
-  }
-  return [];
+  const core = typed
+    .split(" ")
+    .filter((w) => !RANK_WORDS.has(w) && !SCOPE_WORDS.has(w))
+    .join(" ");
+  return core && core !== typed ? found(expandTitleQuery(core)) : [];
 }
 
 /**
