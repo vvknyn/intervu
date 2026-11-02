@@ -22,6 +22,13 @@ export interface TitleNeighbourTable {
 
 const DEFAULT_TABLE = tableJson as TitleNeighbourTable;
 
+/**
+ * The titles next to a table key. The table is a plain object, so a typed word that names one of its inherited
+ * properties ("constructor") must not read as a key: only the table's own keys count.
+ */
+const neighboursOf = (table: TitleNeighbourTable, key: string): string[] =>
+  Object.hasOwn(table.titles, key) ? table.titles[key] : [];
+
 /** A typed title is often the plural or singular of the posting title ("registered nurses"). */
 function spellings(name: string): string[] {
   const out = [name];
@@ -42,7 +49,7 @@ const holdsEveryWord = (title: string, typedWords: string[]) => {
  * electrician" -> "electrician").
  */
 function lookupNames(typed: string, table: TitleNeighbourTable): string[] {
-  const found = (names: string[]) => names.filter((n) => spellings(n).some((k) => table.titles[k]));
+  const found = (names: string[]) => names.filter((n) => spellings(n).some((k) => neighboursOf(table, k).length > 0));
   const direct = found(expandTitleQuery(typed));
   if (direct.length > 0) return direct;
   const unranked = typed.split(" ").filter((w) => !RANK_WORDS.has(w)).join(" ");
@@ -73,7 +80,7 @@ export function relatedTitlesFor(q: string, max = 4, table: TitleNeighbourTable 
   const out: string[] = [];
   for (const name of names) {
     for (const key of spellings(name)) {
-      for (const title of table.titles[key] ?? []) {
+      for (const title of neighboursOf(table, key)) {
         const k = normalizeTitleName(title);
         if (own.has(k) || seen.has(k) || holdsEveryWord(k, typedWords)) continue;
         seen.add(k);
