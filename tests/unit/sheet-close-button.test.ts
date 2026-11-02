@@ -22,12 +22,16 @@ function closeButtonHasRestingFill(src: string): boolean {
 }
 
 describe("Sheet close button", () => {
-    it("sheet.tsx's SheetContent close control carries no resting background fill (only hover:bg-*)", () => {
+    // Every sheet and dialog × is drawn from one class, `overlayCloseClass` (Interaction §9), so the rule is read there.
+    it("the shared overlay × carries no resting background fill (only hover:bg-*), and every sheet × uses it", () => {
         const src = readFileSync(SHEET, "utf8");
-        assert.equal(closeButtonHasRestingFill(src), false);
-        const m = src.match(/<SheetPrimitive\.Close\s+className="([^"]*)"/);
-        assert.ok(m, "SheetPrimitive.Close must exist with a className");
-        assert.match(m![1], /hover:bg-muted/, "hover state must still fill, matching the sitewide ghost-button idiom");
+        const shared = src.match(/export const overlayCloseClass\s*=\s*"([^"]*)"/);
+        assert.ok(shared, "overlayCloseClass must exist");
+        assert.equal(closeButtonHasRestingFill(`<SheetPrimitive.Close className="${shared![1]}">`), false);
+        assert.match(shared![1], /hover:bg-/, "hover state must still fill, matching the sitewide ghost-button idiom");
+        for (const m of src.matchAll(/<SheetPrimitive\.Close\b[^>]*className=\{?([^>]*)>/g)) {
+            assert.match(m[1], /overlayCloseClass/, `a sheet × not drawn from the shared class: ${m[0]}`);
+        }
     });
 
     it("classifier: catches a reintroduced filled square, passes an icon-only hover-only control (other than bg-muted)", () => {

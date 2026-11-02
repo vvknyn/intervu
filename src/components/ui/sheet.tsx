@@ -273,9 +273,10 @@ const SheetHandle = ({ className }: { className?: string }) => (
 SheetHandle.displayName = "SheetHandle"
 
 /** The close × of every sheet and dialog: one size, one colour, one place (the
- *  top-right of the header row). ui/dialog.tsx draws its × with this too. */
+ *  top-right of the header row). ui/dialog.tsx draws its × with this too. No fill at rest;
+ *  a hover and a press light the same fill as a list row (Interaction §9). */
 export const overlayCloseClass =
-    "ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80 press-fill"
+    "ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-colors hover:bg-surface-hover hover:text-foreground press-fill"
 
 /** The one bottom-sheet header: grab handle, title, an optional line under
  *  it, and the ×, kept out of the sheet's scroll region so the × never sits on
