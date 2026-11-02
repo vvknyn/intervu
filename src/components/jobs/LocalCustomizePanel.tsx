@@ -255,7 +255,7 @@ export function LocalCustomizePanel({
                             )}
                         </DialogBody>
 
-                        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                        <div className="action-row shrink-0 border-t border-border px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                             <Button
                                 type="button"
                                 variant="outline"

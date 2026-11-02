@@ -8,7 +8,6 @@ import { ArrowLeft, ArrowSquareOut, CalendarBlank } from "@phosphor-icons/react"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DotSeparated } from "@/components/ui/dot-separated";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import { Sheet, SheetBar, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { PageLayout } from "@/components/layout/PageLayout";
@@ -49,6 +48,8 @@ import { downloadAppliedResume, removeAppliedResumeFromRole } from "@/lib/pursui
 import { APPLIED_RESUME_LABEL } from "@/lib/pursuits/resume-on-apply";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { DotSeparated } from "@/components/ui/dot-separated";
+import { FactLine } from "@/components/ui/fact-line";
 
 const savedDay = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -533,9 +534,7 @@ export default function PursuitDetailPage() {
                     <div data-testid="pursuit-stage">
                         <h2 className="mb-1.5 text-xs text-muted-foreground">Status</h2>
                         <PursuitStatusPicker status={pursuit.status} disabled={saving} onChange={(status) => void changeStatus(status)} />
-                        <p data-testid="pursuit-dates" className="mt-2 text-sm text-muted-foreground">
-                            <DotSeparated items={pursuitDateFacts(pursuit, nowMs)} />
-                        </p>
+                        <FactLine data-testid="pursuit-dates" items={pursuitDateFacts(pursuit, nowMs)} className="mt-2 text-sm text-muted-foreground" />
                         {/* Honest about a dead listing (spec §7): the snapshot carries the
                             JD, so tailor/prep still work even after the live posting expires
                             out of Meilisearch — but say so plainly rather than pretending
@@ -558,7 +557,7 @@ export default function PursuitDetailPage() {
                         <PursuitNoteField key={pursuit.id} initialNote={pursuit.note ?? ""} onSave={saveNote} rows={3} />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-5">
+                    <div className="action-row border-t border-border pt-5">
                         {/* A linked listing opens in place (the live posting, or an honest
                             "no longer live"); a hand-tracked role only has its URL. */}
                         {pursuit.job_id ? (

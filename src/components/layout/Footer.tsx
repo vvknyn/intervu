@@ -45,8 +45,9 @@ export const LEGAL_LINKS: { label: string; href: string; group: FooterGroup; fro
 /** One footer link in a flat wrapping line. Below lg each is a 44pt row (HIG: a 44x44pt hit region), so two
  *  rows of links no longer sit 6px apart with their tap areas overlapping. */
 const FLAT_LINK_CLASS = "inline-flex min-h-11 items-center transition-colors duration-100 hover:text-foreground lg:min-h-0";
-/** The flat line's row spacing: the links' own 44pt height below lg, 6px between rows from lg. */
-const FLAT_LINE_CLASS = "flex flex-wrap items-center gap-x-5 gap-y-0 text-xs text-muted-foreground lg:gap-y-1.5";
+/** The flat line: `.link-cloud` lays it out (equal columns on a phone, one wrapping line from sm); the rows sit on
+ *  the links' own 44pt height below lg, 6px apart from lg. */
+const FLAT_LINE_CLASS = "link-cloud gap-y-0 text-xs text-muted-foreground lg:gap-y-1.5";
 
 /** Minimal strip for lean hub/deck/apply/jobs — the `lean` entries of the one list above, not the marketing link farm. */
 export const LEAN_LEGAL_LINKS = LEGAL_LINKS.filter((l) => l.lean);

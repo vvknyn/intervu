@@ -1,6 +1,7 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
 import { buildH1bSentence, buildWarnSentence } from "@/lib/companies/exhaust";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
+import { FactLine } from "@/components/ui/fact-line";
 
 interface FilingRow {
   key: string;
@@ -102,13 +103,13 @@ export function CompanyFilingsBand({ exhaust }: { exhaust: CompanyExhaust }) {
             <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
               {warn.data.recent.map((r, i) => (
                 <li key={`${r.noticeDate ?? "notice"}-${i}`}>
-                  {[
-                    r.noticeDate ? eventDate(r.noticeDate) : null,
-                    r.location,
-                    r.employeesAffected != null ? `${r.employeesAffected} affected` : null,
-                  ]
-                    .filter((part): part is string => Boolean(part))
-                    .join(" · ")}
+                  <FactLine
+                    items={[
+                      r.noticeDate ? eventDate(r.noticeDate) : null,
+                      r.location,
+                      r.employeesAffected != null ? `${r.employeesAffected} affected` : null,
+                    ]}
+                  />
                 </li>
               ))}
             </ul>

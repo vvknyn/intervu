@@ -84,7 +84,7 @@ export function SignupGate({
             <h2 className="text-base font-semibold leading-snug text-foreground">{copy.title}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{copy.body}</p>
             {children}
-            <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="action-row mt-4 [--action-row-gap:0.75rem]">
                 <Button asChild>
                     <a data-testid="signup-gate-create" href={hrefs.create} onClick={engage}>
                         {copy.createLabel}

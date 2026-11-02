@@ -1369,6 +1369,91 @@ body:has([data-shell="bleed"]) {
   }
 }
 
+/* ACTION ROW — a set of buttons ("Edit template", "Replace", "Download .pdf",
+   "Download .json", "Delete") that is one line on a wide screen and, on a
+   phone, fills whatever lines it needs: every line runs edge to edge, the
+   buttons on it sharing the width, and one left alone on the last line takes
+   all of it. A plain `flex flex-wrap` left them at their natural widths: a
+   pair, a pair, then "Delete" alone and off-centre (founder screenshot
+   2026-11-01 of /resume). At sm and up it is the ordinary wrapping row.
+   `--action-row-min` is the narrowest a button gets before it drops to the
+   next line (8.5rem fits two on a 390px phone's card and one per line at
+   320px). A row that holds a field as well as buttons is a form row, not
+   this. tests/unit/action-row.test.ts fails a new `flex-wrap` row of buttons
+   that does not use it; journey J-MOB-33 (phone-wrap.spec.ts) measures the
+   rendered rows at 390 and 320. */
+@layer components {
+  .action-row {
+    --action-row-gap: 0.5rem;
+    --action-row-min: 8.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--action-row-gap);
+  }
+  @media (max-width: 639.98px) {
+    .action-row > * {
+      flex: 1 1 var(--action-row-min);
+    }
+  }
+}
+
+/* LINK CLOUD — the footer's run of text links ("About the checks", "Pricing",
+   "Remote jobs" … 16 of them). On a phone it is columns of equal width, each
+   link on a line of its own in its column, so the rows line up and none is
+   left alone at the end (a wrapping flex row put "Terms" alone on a seventh
+   line at 320px, which `text-wrap: balance` cannot fix past six lines). At sm
+   and up it is the ordinary wrapping line. */
+@layer components {
+  .link-cloud {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 0.375rem 1.25rem;
+  }
+  @media (min-width: 640px) {
+    .link-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+  }
+}
+
+/* FACT LINE — facts joined by a "·" ("Technical Account Manager · 11 yrs exp ·
+   Richmond Hill, Ontario"). A fact never breaks across lines, and a "·" never
+   sits at either end of a line. Each fact after the first carries its own dot
+   in a 1em strip to its left (the strip is the gap between two facts); each
+   fact's box is pulled 1em left of its text and spaced 1em from the next, so
+   the strip that lands at the start of a wrapped line hangs outside the row,
+   where `overflow-x: clip` removes it. Plain text with " · " between the facts
+   ended a line on a dot ("… · 11 yrs exp ·"). The row keeps 0.25em of room
+   on its left and 1em on its right, so a focus ring on a link in a fact still
+   shows. Use <FactLine> (ui/fact-line.tsx); it is for a line of its own, not
+   for a run inside a sentence. */
+@layer components {
+  .fact-line {
+    display: flex;
+    flex-wrap: wrap;
+    margin-inline: -0.25em -1em;
+    padding-inline-start: 0.25em;
+    overflow-x: clip;
+  }
+  .fact-line > * {
+    position: relative;
+    margin-inline: -1em 1em;
+    padding-inline-start: 1em;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .fact-line > :not(:first-child)::before {
+    content: "·";
+    position: absolute;
+    inset-inline-start: 0;
+    width: 1em;
+    text-align: center;
+  }
+}
+
 /* The native search-field clear button is ~13px. Same glyph, 16px, padded to
    the 44px touch floor (--hit-min) by its own padding box. */
 input[type="search"]::-webkit-search-cancel-button {

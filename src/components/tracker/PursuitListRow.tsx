@@ -1,10 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { DotSeparated } from "@/components/ui/dot-separated";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { pursuitRowMetaItems } from "@/lib/pursuits/tracker-display";
 import { StageBadge } from "@/components/tracker/StageBadge";
+import { FactLine } from "@/components/ui/fact-line";
 
 interface PursuitListRowProps {
     pursuit: Pursuit;
@@ -41,9 +41,7 @@ export function PursuitListRow({ pursuit, active, onClick }: PursuitListRowProps
                     </div>
                     <div className="mt-1 truncate text-sm text-muted-foreground">{pursuit.company_name}</div>
                     {metaItems.length > 0 ? (
-                        <div className="mt-1 text-sm text-muted-foreground">
-                            <DotSeparated items={metaItems} />
-                        </div>
+                        <FactLine items={metaItems} className="mt-1 text-sm text-muted-foreground" />
                     ) : null}
                 </div>
                 <StageBadge status={pursuit.status} className="self-start" />
