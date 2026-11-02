@@ -206,7 +206,7 @@ function PursuitDetailBody({
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="action-row">
                     {postingUrl && (
                         <Button asChild>
                             <a href={postingUrl} target="_blank" rel="noopener noreferrer">

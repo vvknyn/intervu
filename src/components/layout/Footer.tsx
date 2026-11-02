@@ -92,7 +92,7 @@ export function FooterLinks({ children }: { children?: React.ReactNode }) {
     return (
         <nav
             aria-label="Company"
-            className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground"
+            className="link-cloud text-xs text-muted-foreground"
         >
             {FOOTER_LINKS.map((link) => (
                 <Link key={link.href} {...linkProps(link)} className="transition-colors duration-100 hover:text-foreground">
@@ -210,7 +210,7 @@ function LeanFooterContent() {
             data-lean="true"
             className="relative z-20 shrink-0 border-t border-border bg-background pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-0"
         >
-            <div className="shell-row flex flex-wrap items-center gap-x-5 gap-y-1.5 py-3 text-xs text-muted-foreground sm:py-4">
+            <div className="shell-row link-cloud py-3 text-xs text-muted-foreground sm:py-4">
                 {LEAN_LEGAL_LINKS.map((link) => (
                     <Link
                         key={link.href}

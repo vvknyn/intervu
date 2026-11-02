@@ -33,6 +33,7 @@ import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
 import { posterInlinePanelClassName } from "@/components/layout/route-loading";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FactLine } from "@/components/ui/fact-line";
 import { cn } from "@/lib/utils";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
@@ -205,15 +206,14 @@ function ResumeContent() {
                                     <div className="min-w-0">
                                         <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>
                                         {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}
-                                        <p
+                                        <FactLine
                                             data-testid="resume-local-account-pitch"
                                             className="text-xs text-muted-foreground mt-0.5"
-                                        >
-                                            Saved in this browser · Sign up for saved jobs, alerts, and cloud sync
-                                        </p>
+                                            items={["Saved in this browser", "Sign up for saved jobs, alerts, and cloud sync"]}
+                                        />
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                <div className="action-row shrink-0">
                                     <Button asChild size="sm">
                                         <Link href="/jobs" data-testid="resume-see-matches">
                                             See jobs ranked for this résumé

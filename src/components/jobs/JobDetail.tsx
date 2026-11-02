@@ -61,6 +61,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/types/resume";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { FactLine } from "@/components/ui/fact-line";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -1220,9 +1221,7 @@ export function JobDetail({
                                 {/* Rulebook item c: no bordered tag chips — a sentence-case
                                     label plus one flowing secondary line joined by " · ". */}
                                 <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
-                                <div className="mono-data text-sm text-muted-foreground">
-                                    {visibleTags(job.tags, 16).join(" · ")}
-                                </div>
+                                <FactLine items={visibleTags(job.tags, 16)} className="mono-data text-sm text-muted-foreground" />
                             </div>
                         )}
 

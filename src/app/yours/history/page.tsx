@@ -23,7 +23,6 @@ import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
-import { DotSeparated } from "@/components/ui/dot-separated";
 import { StageBadge } from "@/components/tracker/StageBadge";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import type { JobView } from "@/lib/views/types";
@@ -36,6 +35,7 @@ import {
     HISTORY_EMPTY_TITLE,
 } from "@/lib/pursuits/tracker-voice-copy";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { FactLine } from "@/components/ui/fact-line";
 
 /** Exported so `/mock/history` (fixture preview — `useViewed()` has no
  *  guest fallback, so the real route can't show filled/empty states
@@ -105,14 +105,13 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
                 <div className="min-w-0">
                     <div className="truncate text-base font-semibold leading-snug text-foreground">{snapshot.title}</div>
                     <div className="mt-1 truncate text-sm text-muted-foreground">{companyName}</div>
-                    <div className="mt-1 font-mono text-sm text-muted-foreground">
-                        <DotSeparated
-                            items={[
-                                formatRelativeAge(view.last_viewed_at, Date.now()),
-                                view.view_count > 1 && `viewed ${view.view_count}×`,
-                            ]}
-                        />
-                    </div>
+                    <FactLine
+                        className="mt-1 font-mono text-sm text-muted-foreground"
+                        items={[
+                            formatRelativeAge(view.last_viewed_at, Date.now()),
+                            view.view_count > 1 && `viewed ${view.view_count}×`,
+                        ]}
+                    />
                 </div>
                 {stage && <StageBadge status={stage.status} className="self-start" />}
             </div>

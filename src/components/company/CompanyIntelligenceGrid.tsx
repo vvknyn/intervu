@@ -1,6 +1,7 @@
 import React from "react";
 import type { CompanyIntelligence } from "@/lib/companies/types";
 import { cn } from "@/lib/utils";
+import { FactLine } from "@/components/ui/fact-line";
 
 /**
  * "Aug 15, 2026" from the API's ISO-8601 `published_at`.
@@ -58,7 +59,7 @@ export function CompanyIntelligenceGrid({
       {stackWords.length > 0 && (
         <div data-testid="company-job-post-stack" className="border-t border-border pt-6">
           <h2 className="text-base font-semibold leading-snug text-foreground">Languages and tools in their job posts</h2>
-          <p className="mt-2 text-sm text-foreground">{stackWords.join(" · ")}</p>
+          <FactLine items={stackWords} className="mt-2 text-sm text-foreground" />
           <p className="mono-data mt-2 text-xs text-muted-foreground">From active job listings</p>
         </div>
       )}
