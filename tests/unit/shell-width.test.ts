@@ -11,9 +11,13 @@ import { readFileSync } from "node:fs";
  * 320px inside the search box's left edge at 1920.
  *
  * These guard the SHAPE of the fix, not the one page that surfaced it. The
- * geometry itself is verified by measuring rendered pages at several widths —
- * on /jobs, which declares the bleed, AND on a page that doesn't and must
- * still be capped.
+ * geometry itself is verified by measuring rendered pages — J-NAV-49
+ * (tests/e2e/journeys/shell-frame.spec.ts) reads the logo, nav and avatar x
+ * on /jobs, /resume and /tracker at 1440 and 390.
+ *
+ * Nothing may lift the cap. /jobs used to render `data-shell="bleed"`, which
+ * set `--shell-max: none`, so the logo jumped from 40px to 120px when the
+ * tab changed (owner report, 2026-11-02).
  */
 const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
 
@@ -111,14 +115,16 @@ describe("shell width: one owner, declared by the page", () => {
         assert.match(CSS, /:root\s*\{[^}]*--shell-max:\s*\d/, "the default must be a real length, not none");
     });
 
-    it("turns the cap off only for a page that declares it, never for a named route", () => {
-        const overrides = (CSS.match(/--shell-max:\s*none\s*;/g) ?? []).length;
-        assert.equal(overrides, 1, "exactly one rule may lift the cap");
-        assert.match(
-            CSS,
-            /body:has\(\[data-shell="bleed"\]\)\s*\{\s*--shell-max:\s*none;/,
-            "the lift must key off an attribute the page renders, not a route path",
+    it("never lifts the cap, and does not name a route to do it", () => {
+        assert.equal(
+            (CSS.match(/--shell-max:\s*none/g) ?? []).length,
+            0,
+            "a page must not set --shell-max to none; that is the Jobs/Résumé jump",
         );
+        assert.doesNotMatch(CSS, /data-shell/, "the stylesheet must not offer a per-page opt-out");
+        // 80rem is 1280px, the laptop cap. 72rem is the same token below xl.
+        assert.match(CSS, /--shell-max:\s*80rem/);
+        assert.match(CSS, /--shell-gutter:\s*2\.5rem/, "the xl gutter is the one shared inset");
         // A route literal anywhere near the shell variable would mean the
         // stylesheet had started enumerating pages.
         const shellBlock = CSS.slice(CSS.indexOf("--shell-max"), CSS.indexOf(".shell-row") + 400);
@@ -180,8 +186,8 @@ describe("shell width: one owner, declared by the page", () => {
         assert.match(decls[0], MAX_W_PROBE, "a hardcoded max-w- in a sibling cn(...) argument must still trip the guard");
     });
 
-    it("/jobs asks for the full window rather than assuming it", () => {
-        assert.match(JOBS, /data-shell="bleed"/, "the page must declare the bleed for the chrome to follow");
+    it("/jobs uses the shared shell and does not opt out of it", () => {
+        assert.doesNotMatch(JOBS, /data-shell/, "the page must not lift --shell-max");
         assertAllShellRowsClean(JOBS, "jobs main");
     });
 
