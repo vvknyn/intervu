@@ -692,7 +692,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     {step === 'review' && renderReviewStep()}
                 </DialogBody>
 
-                <DialogFooter className="flex-row justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:justify-between">
+                <DialogFooter className="flex-row justify-between gap-3 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:justify-between">
                     {step === 'review' ? (
                         <>
                             <Button variant="outline" onClick={() => setStep('input')}>

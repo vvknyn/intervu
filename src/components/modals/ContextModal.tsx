@@ -29,7 +29,7 @@ export function ContextModal({ isOpen, onClose, context, setContext, onSave }: C
                         placeholder="e.g. The interviewer is a VP of Engineering. Focus heavily on distributed caching strategies..."
                     />
                 </div>
-                <DialogFooter className="bg-muted -mx-6 -mb-6 p-4 border-t border-border flex justify-end gap-2">
+                <DialogFooter>
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button onClick={onSave}>Save & Regenerate</Button>
                 </DialogFooter>

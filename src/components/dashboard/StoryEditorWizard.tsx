@@ -266,7 +266,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                     )}
                 </DialogBody>
 
-                <DialogFooter className="border-t pt-4">
+                <DialogFooter className="pt-4">
                     {step === 'refine' ? (
                         <div className="flex justify-between w-full">
                             <Button variant="ghost" onClick={onClose}>Cancel</Button>

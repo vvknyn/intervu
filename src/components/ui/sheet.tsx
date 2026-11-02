@@ -296,23 +296,28 @@ const SheetBar = ({
     className,
     labelled = true,
     onClose,
+    grabber = true,
 }: {
     title: React.ReactNode
     description?: React.ReactNode
     className?: string
     labelled?: boolean
     onClose?: () => void
+    /** A bottom sheet has a grabber; a side sheet has none, and its row starts 20px down instead. */
+    grabber?: boolean
 }) => {
     const Title = labelled ? SheetPrimitive.Title : "p"
     const Description = labelled ? SheetPrimitive.Description : "p"
     return (
         <div data-slot="sheet-bar" className={cn("shrink-0", className)}>
-            <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-                <SheetHandle />
-            </div>
+            {grabber && (
+                <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
+                    <SheetHandle />
+                </div>
+            )}
             {/* The × keeps its place (20px down, 16px in) however many lines the title takes: the row aligns to
                 its top and a one-line title centres on the ×'s 32px, as in a Dialog's header. */}
-            <div className="flex items-start gap-2 px-4 pb-3">
+            <div className={cn("flex items-start gap-2 px-4 pb-3", !grabber && "pt-5")}>
                 <div className="flex min-h-8 min-w-0 flex-1 flex-col justify-center">
                     <Title className="line-clamp-2 text-base font-semibold leading-snug text-foreground">{title}</Title>
                     {description && (
@@ -344,7 +349,7 @@ const sheetVariants = cva(
                 // from the sides and the bottom edge, every corner rounded. The `max-sm:` geometry wins
                 // over a call site's own width/centring/corner classes, so no sheet opts out by accident.
                 bottom:
-                    "inset-x-0 bottom-0 max-h-[var(--overlay-max-h)] touch-pan-y rounded-t-panel data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom max-sm:left-[var(--sheet-inset)] max-sm:right-[var(--sheet-inset)] max-sm:bottom-[var(--sheet-inset)] max-sm:w-auto max-sm:max-w-none max-sm:translate-x-0 max-sm:max-h-[calc(var(--overlay-max-h)-var(--sheet-inset))] max-sm:rounded-[var(--radius-sheet)] max-sm:border-b",
+                    "inset-x-0 bottom-0 max-h-[var(--overlay-max-h)] touch-pan-y rounded-t-panel border-b-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom max-sm:left-[var(--sheet-inset)] max-sm:right-[var(--sheet-inset)] max-sm:bottom-[var(--sheet-inset)] max-sm:w-auto max-sm:max-w-none max-sm:translate-x-0 max-sm:max-h-[calc(var(--overlay-max-h)-var(--sheet-inset))] max-sm:rounded-[var(--radius-sheet)] max-sm:border-b",
                 left: "inset-y-0 left-0 h-full w-3/4 rounded-r-panel data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
                 right:
                     "inset-y-0 right-0 h-full w-full rounded-l-panel data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-xl lg:max-w-2xl",
@@ -436,7 +441,9 @@ const SheetFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
     <div
         className={cn(
-            "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+            // One footer for every overlay (Interaction §9): the actions on the sheet's own glass, outside the
+            // scroll region, so no slab and no hairline of its own (like the bar at the top).
+            "flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end",
             className
         )}
         {...props}

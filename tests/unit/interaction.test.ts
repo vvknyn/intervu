@@ -59,18 +59,38 @@ describe("one motion per kind of overlay", () => {
     });
 
     it("no overlay call site sets its own corner or motion", () => {
-        const OPEN = /<(SheetContent|DialogContent|AlertDialogContent|PopoverContent|DropdownMenuContent|SelectContent|TooltipContent)\b([\s\S]*?)>/g;
-        const BANNED = /(?:^|\s)(?:[a-z-]+:)*(rounded-[a-z0-9[\]()-]+|duration-[^\s"]+|ease-[^\s"]+|animate-[^\s"]+|slide-(?:in|out)-[^\s"]+|zoom-(?:in|out)-[^\s"]+|fade-(?:in|out)-[^\s"]+)/;
+        const OPEN = /<(SheetContent|DialogContent|AlertDialogContent|PopoverContent|DropdownMenuContent|SelectContent|TooltipContent)\b/g;
+        // The whole opening tag: up to the first ">" outside braces and strings (a prop like
+        // `onOpenAutoFocus={() => …}` holds a ">" of its own).
+        const openingTag = (src: string, from: number) => {
+            let depth = 0;
+            let quote = "";
+            for (let i = from; i < src.length; i++) {
+                const ch = src[i];
+                if (quote) {
+                    if (ch === quote) quote = "";
+                } else if (ch === '"' || ch === "'" || ch === "`") quote = ch;
+                else if (ch === "{") depth++;
+                else if (ch === "}") depth--;
+                else if (ch === ">" && depth === 0) return src.slice(from, i + 1);
+            }
+            return src.slice(from);
+        };
+        // Corner, motion and edge: a call site's own border colour or a missing edge drew one drawer with a solid
+        // hairline and the next with the glass rim (Filters vs sign-in, 2026-11-02).
+        const BANNED = /(?:^|\s)(?:[a-z-]+:)*(rounded-[a-z0-9[\]()-]+|duration-[^\s"]+|ease-[^\s"]+|animate-[^\s"]+|slide-(?:in|out)-[^\s"]+|zoom-(?:in|out)-[^\s"]+|fade-(?:in|out)-[^\s"]+|border(?:-[trblxy])?(?:-[a-z0-9[\]()/.-]+)?)(?=\s|$)/;
         const offenders: string[] = [];
         for (const f of APP_FILES) {
             const src = read(f);
             for (const m of src.matchAll(OPEN)) {
-                const tag = m[0];
+                const tag = openingTag(src, m.index ?? 0);
                 if (/glass-exempt:/.test(src.slice(Math.max(0, (m.index ?? 0) - 300), m.index))) continue;
-                const cls = /className=(?:"([^"]*)"|\{[^}]*?"([^"]*)")/.exec(tag);
-                const value = cls ? cls[1] ?? cls[2] ?? "" : "";
-                const hit = BANNED.exec(value);
-                if (hit) offenders.push(`${f}: <${m[1]}> ${hit[1]}`);
+                // Every string literal in the className, so both arms of a ternary are read.
+                const cls = /className=(?:"[^"]*"|\{[\s\S]*?\}(?=\s*(?:[a-zA-Z-]+=|\/?>)))/.exec(tag);
+                for (const lit of cls ? cls[0].matchAll(/"([^"]*)"/g) : []) {
+                    const hit = BANNED.exec(lit[1]);
+                    if (hit) offenders.push(`${f}: <${m[1]}> ${hit[1]}`);
+                }
             }
         }
         assert.deepEqual(offenders, [], "the primitive owns an overlay's corner and motion (Interaction §9)");
@@ -90,6 +110,27 @@ describe("one drawer: one header, one ×, one title size", () => {
         const closes = [...sheet.matchAll(/<SheetPrimitive\.Close\b[^>]*>/g), ...dialog.matchAll(/<DialogPrimitive\.Close\b[^>]*aria-label="Close"[^>]*>/g)];
         assert.ok(closes.length >= 3, `expected the bar, the default sheet and the dialog ×, found ${closes.length}`);
         for (const c of closes) assert.match(c[0], /overlayCloseClass/, `a × that is not the shared one: ${c[0]}`);
+    });
+
+    it("no app file draws its own × for a sheet or dialog: the primitives' bar and close do", () => {
+        const handBuilt: string[] = [];
+        for (const f of APP_FILES) {
+            for (const m of read(f).matchAll(/<(SheetClose|DialogClose)\b([^>]*)>/g)) {
+                if (/aria-label="Close"/.test(m[2]) && /className=/.test(m[2])) handBuilt.push(`${f}: <${m[1]}>`);
+            }
+        }
+        assert.deepEqual(handBuilt, [], "use <SheetBar> (grabber={false} on a side sheet) or the Dialog's own ×");
+    });
+
+    it("one footer: an overlay footer sets no fill and no hairline of its own", () => {
+        const offenders: string[] = [];
+        for (const f of APP_FILES) {
+            for (const m of read(f).matchAll(/<(SheetFooter|DialogFooter|AlertDialogFooter)\b[^>]*className="([^"]*)"/g)) {
+                const hit = m[2].split(/\s+/).find((c) => /^(?:[a-z-]+:)*(?:bg-|border(?:-|$)|-m[xyb]?-)/.test(c));
+                if (hit) offenders.push(`${f}: <${m[1]}> ${hit}`);
+            }
+        }
+        assert.deepEqual(offenders, [], "the footer sits on the overlay's own glass (Interaction §9)");
     });
 
     it("a Dialog title is the Sheet bar's title: 16px semibold, left-aligned at every width", () => {
