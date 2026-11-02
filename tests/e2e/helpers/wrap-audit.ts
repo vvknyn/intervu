@@ -7,6 +7,10 @@
  *   its natural width under a pair is the ragged row ("Edit template / Replace", "Download .pdf / Download .json",
  *   "Delete") the founder's 2026-11-01 screenshot of /resume showed. Any row of three or more controls, buttons or
  *   text links (`.wrap-row`, the footer), also fails when its last line holds one and the line above holds two or more.
+ * - `run`: a wrapping run of three or more plain list items or links (a legend, a list of links: nothing around any item)
+ *   whose last line holds one item under a line of two or more ("Full-Time / Contract / Part-Time" then "Internship",
+ *   "On-site / Hybrid" then "Fully Remote"). Chips and pills (an item with its own border or fill) are a cloud and
+ *   are left to `text-wrap: balance`.
  * - `meta-edge`: a "·", "•" or "|" that ends or starts a rendered line ("Technical Account Manager · 11 yrs exp ·"
  *   then "Richmond Hill, Ontario"). A separator clipped out of view (`.fact-line`) does not count, and neither
  *   does a "|" in code. A dash is prose, not a separator, and is not judged here.
@@ -14,7 +18,7 @@
  *
  * The function is self-contained (Playwright serialises it into the page), so it takes no imports and no closures.
  */
-export type WrapFinding = { kind: "action-row" | "meta-edge" | "overflow"; where: string; detail: string };
+export type WrapFinding = { kind: "action-row" | "run" | "meta-edge" | "overflow"; where: string; detail: string };
 
 export function auditWrapping(): WrapFinding[] {
     const findings: WrapFinding[] = [];
@@ -82,6 +86,48 @@ export function auditWrapping(): WrapFinding[] {
                 where: describe(box),
                 detail: `${controls.length} controls on ${rows.length} lines (${rows.map((cells) => cells.length).join("/")}), ${stranded ? "the last one alone" : "not filling the row"}`,
             });
+        }
+    }
+
+    // --- runs of plain items -----------------------------------------------------------------------------------------
+    const flagged = new Set<Element>();
+    const hasChrome = (el: Element) => {
+        const cs = getComputedStyle(el);
+        const border = ["Top", "Right", "Bottom", "Left"].some((side) => parseFloat(cs.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0 && cs.getPropertyValue(`border-${side.toLowerCase()}-style`) !== "none");
+        return border || (cs.backgroundColor !== "rgba(0, 0, 0, 0)" && cs.backgroundColor !== "transparent") || cs.backgroundImage !== "none";
+    };
+    const oneLine = (el: Element) => {
+        const cs = getComputedStyle(el);
+        const line = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3;
+        return el.getBoundingClientRect().height <= line * 1.6 + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    };
+    for (const box of Array.from(document.body.querySelectorAll("*"))) {
+        if (!shown(box) || box.closest("[aria-hidden='true'], [hidden]")) continue;
+        const cs = getComputedStyle(box);
+        const wraps = (cs.display.includes("flex") && cs.flexWrap === "wrap") || box.classList.contains("wrap-row");
+        if (!wraps || hasOwnText(box) || cs.overflowX === "auto" || cs.overflowX === "scroll") continue;
+        const kids = Array.from(box.children).filter(shown);
+        // A run is a list: items (`li`) or links and buttons. A line of facts (`.fact-line`) or a label beside its value wraps like text.
+        if (kids.length < 3 || box.classList.contains("fact-line") || !kids.every((k) => k.tagName === "LI" || k.matches(CONTROL))) continue;
+        if (kids.some(hasChrome) || !kids.every(oneLine)) continue;
+        const r = box.getBoundingClientRect();
+        const left = r.left + parseFloat(cs.paddingLeft) + parseFloat(cs.borderLeftWidth);
+        const right = r.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
+        const rows: DOMRect[][] = [];
+        for (const k of [...kids].sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)) {
+            const kr = k.getBoundingClientRect();
+            const row = rows.find((cells) => Math.abs(cells[0].top - kr.top) < Math.max(4, kr.height / 2));
+            if (row) row.push(kr);
+            else rows.push([kr]);
+        }
+        if (rows.length < 2) continue;
+        const lastRow = rows[rows.length - 1];
+        const lastFills = lastRow[0].left - left <= 2 && right - lastRow[0].right <= 2;
+        if (lastRow.length === 1 && rows[rows.length - 2].length >= 2 && !lastFills && !flagged.has(box)) {
+            flagged.add(box);
+            if (!findings.some((f) => f.kind === "action-row" && f.where === describe(box))) {
+                add({ kind: "run", where: describe(box), detail: `${kids.length} items on ${rows.length} lines (${rows.map((cells) => cells.length).join("/")}), the last one alone` });
+            }
         }
     }
 

@@ -52,9 +52,9 @@ describe("career intent hubs", () => {
   });
 
   it("hub page renders sibling links and a nofollow search link", () => {
-    const pageSrc = readFileSync(join(ROOT, "src/app/careers/[slug]/page.tsx"), "utf8");
-    assert.match(pageSrc, /otherCareerHubs\(hub\.slug\)/);
-    assert.match(pageSrc, /rel="nofollow"[^>]*career-hub-search/);
+    const bodySrc = readFileSync(join(ROOT, "src/components/seo/CareerHubBody.tsx"), "utf8");
+    assert.match(bodySrc, /otherCareerHubs\(hub\.slug\)/);
+    assert.match(bodySrc, /rel="nofollow"[^>]*career-hub-search/);
   });
 
   it("sitemap lists every hub via the shared registry", () => {
