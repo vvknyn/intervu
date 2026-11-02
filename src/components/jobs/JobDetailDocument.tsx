@@ -57,6 +57,7 @@ import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
 import { PageTitle } from "@/components/ui/heading";
+import { FactLine } from "@/components/ui/fact-line";
 
 /** The employer rail — live open-role count, opened/closed 90d, and a
  *  postings-sourced about line (`getCompanyRailAction`, one shared query
@@ -228,9 +229,7 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
                 </PostingCheckSummary>
             )}
             {exposureBadges.length > 0 && (
-                <div className="mono-data mt-3 text-xs text-muted-foreground">
-                    <DotSeparated items={exposureBadges.map((b) => b.label)} />
-                </div>
+                <FactLine items={exposureBadges.map((b) => b.label)} className="mono-data mt-3 text-xs text-muted-foreground" />
             )}
         </div>
     );
@@ -439,9 +438,7 @@ export function JobDetailDocument({
                         a sentence-case label + one flowing secondary line, no
                         bordered chips. */}
                     <div className="mb-1 text-sm font-semibold text-foreground">Must-have skills</div>
-                    <div className="mono-data text-sm text-muted-foreground">
-                        {visibleTags(evidencedSkills(job, "must_have_skills"), 12).join(" · ")}
-                    </div>
+                    <FactLine items={visibleTags(evidencedSkills(job, "must_have_skills"), 12)} className="mono-data text-sm text-muted-foreground" />
                 </div>
             )}
         </div>
@@ -548,9 +545,7 @@ export function JobDetailDocument({
                         the posting-check signal rows above (Receipt). */}
                     <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
                     <MobileDisclosure>
-                        <div data-testid="job-detail-keywords" className="mono-data text-sm text-muted-foreground">
-                            {visibleTags(job.tags, 16).join(" · ")}
-                        </div>
+                        <FactLine data-testid="job-detail-keywords" items={visibleTags(job.tags, 16)} className="mono-data text-sm text-muted-foreground" />
                     </MobileDisclosure>
                 </div>
             )}

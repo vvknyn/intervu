@@ -32,6 +32,10 @@ Reference surface: `/jobs` search (`src/app/jobs/page.tsx`, `src/components/jobs
 - Segment/tab: bare-button recipe — `ctl-md ctl-button px-3 leading-none`, pressed = `underline underline-offset-2` (no fill).
 - Input/select/textarea: `rounded-ctl border border-border bg-card ctl-lg px-3 text-base`, focus `border-foreground`; clear buttons `ctl-sm ctl-square rounded-ctl bg-muted`.
 - **Wrap row.** A row of controls that may wrap is `.wrap-row` (globals.css), not `flex flex-wrap`: its items are inline boxes under `text-wrap: balance`, so the last control never strands on a line of its own. Gap via `[--wrap-gap-x:…]`/`[--wrap-gap-y:…]`; space the row with padding (its block margin is the primitive's).
+- **Action row.** A set of buttons (Edit, Replace, Download, Delete) is `.action-row` (globals.css), not `flex flex-wrap`: below sm every line it wraps onto runs edge to edge, the buttons on it sharing the width and a lone last one taking the line; from sm up it is the ordinary row. `.wrap-row` is for chips and toolbar controls that read as a cloud; `.action-row` is for buttons that read as a set. A field plus its button is a form row, not this. `tests/unit/phone-wrap.test.ts` fails a `flex-wrap` row of two or more `<Button>`s that is not listed with a reason.
+- **Fact line.** Facts joined by a "·" on a line of their own are `<FactLine items={[…]}/>` (ui/fact-line.tsx), never text joined with " · ": each fact wraps whole and no dot ends or starts a wrapped line. A run inside a sentence, a clamped list or the job rows (`MetaLine`, `DotSeparated`: the dot stays at a line's end, J-MOB-24/26) stay as they are.
+- **Link cloud.** The footer's run of text links is `.link-cloud`: columns of equal width below sm, one wrapping line from sm up, so no link is left alone on a last line.
+- Phone wrapping is measured, not eyeballed: `auditWrapping` (tests/e2e/helpers/wrap-audit.ts) is the one question asked of a rendered page — journeys J-MOB-33 and J-MOB-34 (phone-wrap.spec.ts) at 390 and 320.
 - Links inside copy: `text-foreground underline-offset-2 hover:underline`.
 
 ## 6. Panels, headers, empty, loading
