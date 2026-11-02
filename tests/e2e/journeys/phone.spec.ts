@@ -650,8 +650,9 @@ for (const width of [390, 320]) {
         await page.evaluate(() => window.scrollBy(0, -60));
         await page.waitForTimeout(500);
         expectDockFrame(await pinnedBottomBars(page), 2);
-        // Down again, then a tap on the round button expands it in place: no navigation.
-        await scrollDown(page, 1000);
+        // Down again (to where the first run reached: a short posting's Apply bar comes to rest in the page near
+        // its end, and the dock is full there by design), then a tap on the round button expands it in place: no navigation.
+        await scrollDown(page, 600);
         await page.waitForTimeout(500);
         expectDockInline(await pinnedBottomBars(page, undefined, 40));
         await page.getByTestId("mobile-tabbar").click();

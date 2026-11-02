@@ -144,7 +144,9 @@ test("no row in an open job mixes control steps: the /jobs detail (split pane at
  * Search fills its 32px bar); a face with neither is an inline text link and
  * takes the text around it. A face with no text shows no type, so only its
  * corner is read. The corner is the control corner unless the element names
- * its own (a chip's pill), which the unit gate makes it justify.
+ * its own (a chip's pill), which the unit gate makes it justify; inside a
+ * phone dock capsule (`.dock-capsule`, the tab bar and the Apply bar) it is
+ * the capsule's pill, set once by the capsule (concentric corners).
  */
 const buttonFaceFindings = (page: Page) =>
     page.evaluate(() => {
@@ -155,6 +157,8 @@ const buttonFaceFindings = (page: Page) =>
         probe.style.borderRadius = "var(--radius-ctl)";
         document.body.appendChild(probe);
         const ctlRadius = getComputedStyle(probe).borderTopLeftRadius;
+        probe.style.borderRadius = "var(--radius-pill)";
+        const pillRadius = getComputedStyle(probe).borderTopLeftRadius;
         probe.remove();
 
         const findings: string[] = [];
@@ -180,7 +184,10 @@ const buttonFaceFindings = (page: Page) =>
             const ownCorner = [...el.classList].some((c) => /(?:^|:)rounded(?:-|$)/.test(c));
             if (face && !ownCorner) {
                 const corners = [cs.borderTopLeftRadius, cs.borderTopRightRadius, cs.borderBottomRightRadius, cs.borderBottomLeftRadius];
-                if (corners.some((c) => c !== ctlRadius)) findings.push(`${name}: corners ${corners.join(" ")} (want the control corner, ${ctlRadius})`);
+                // `max-lg:dock-capsule` is a variant-prefixed class: match the name inside it, and only while the capsule is drawn (below lg).
+                const capsule = el.closest('[class*="dock-capsule"]');
+                const want = capsule && getComputedStyle(capsule).borderTopLeftRadius === pillRadius ? pillRadius : ctlRadius;
+                if (corners.some((c) => c !== want)) findings.push(`${name}: corners ${corners.join(" ")} (want ${want === pillRadius ? "the capsule's pill" : "the control corner"}, ${want})`);
             }
         }
         return { measured, findings };
