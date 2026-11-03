@@ -726,14 +726,12 @@ body {
    this they agreed only because three files happened to spell the same
    `max-w-6xl xl:max-w-7xl px-4 sm:px-8 xl:px-10` string.
 
-   `--shell-max` is the only page width: 72rem, then 80rem (1280px) from the
-   xl breakpoint. `--shell-gutter` is the only side inset (16 / 32 / 40px).
-   Every route, /jobs included, reads both. Nothing sets the cap to none:
-   when Jobs did, the logo sat at 40px there and at 120px on Résumé and
-   Tracker (owner report, 2026-11-02). The two-pane board stays; it sits
-   inside this same row. */
+   `--shell-max` is the only page width: 100% across viewports, inset by
+   `--shell-gutter` (16 / 32 / 40px). Every route, /jobs included, reads
+   both so the page occupies the full width up to the side gutter and the
+   logo, nav and avatar stay fixed across Jobs, Résumé and Tracker. */
 :root {
-  --shell-max: 72rem;
+  --shell-max: 100%;
   --shell-gutter: 1rem;
 }
 @media (min-width: 640px) {
@@ -743,7 +741,7 @@ body {
 }
 @media (min-width: 1280px) {
   :root {
-    --shell-max: 80rem;
+    --shell-max: 100%;
     --shell-gutter: 2.5rem;
   }
 }

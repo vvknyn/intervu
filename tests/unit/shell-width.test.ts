@@ -122,8 +122,8 @@ describe("shell width: one owner, declared by the page", () => {
             "a page must not set --shell-max to none; that is the Jobs/Résumé jump",
         );
         assert.doesNotMatch(CSS, /data-shell/, "the stylesheet must not offer a per-page opt-out");
-        // 80rem is 1280px, the laptop cap. 72rem is the same token below xl.
-        assert.match(CSS, /--shell-max:\s*80rem/);
+        // 100% fills the viewport up to --shell-gutter on every route.
+        assert.match(CSS, /--shell-max:\s*100%/);
         assert.match(CSS, /--shell-gutter:\s*2\.5rem/, "the xl gutter is the one shared inset");
         // A route literal anywhere near the shell variable would mean the
         // stylesheet had started enumerating pages.

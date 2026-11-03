@@ -417,13 +417,11 @@ const getDefaultBrowseActionGuarded = (suppressLocationDefault: boolean): Promis
  * uses, rather than a one-off text treatment.
  */
 /**
- * A ceiling inside the shared shell (`--shell-max`, 80rem / 1280px at xl),
- * not a second page width. The shell is already under 1600, so on a laptop
- * this class does nothing and the header, the list and the detail pane share
- * one pair of edges. It only binds if the shell is later widened, where an
- * uncapped description pane ran past a readable line.
+ * Shared full-width content class inside `.shell-row` (`--shell-max: 100%`
+ * with `--shell-gutter` side inset), so the header, the filter rail, the
+ * results list and the detail pane share one pair of edges across the window.
  */
-const cappedContentClass = "mx-auto w-full max-w-[1600px]";
+const cappedContentClass = "mx-auto w-full";
 
 /** Set to "1" once the searcher hides the filter rail; the rail is open without it. */
 const FILTERS_RAIL_HIDDEN_KEY = "velai.jobs.filtersRailHidden";

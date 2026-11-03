@@ -15,11 +15,10 @@ import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-sta
 export const FOOTER_GROUPS = ["Job searches", "Company", "Help & legal"] as const;
 export type FooterGroup = (typeof FOOTER_GROUPS)[number];
 
-/** The crawl-path nav: every career hub plus the company directory. `lean`, so EVERY footer
- *  variant (full, lean, the /jobs inline panels) renders it from this one list. */
-const SEO_NAV_LINKS: { label: string; href: string; group: FooterGroup; lean: true }[] = [
-    ...CAREER_HUBS.map((hub) => ({ label: hub.label, href: hub.path, group: "Job searches" as const, lean: true as const })),
-    { label: "Companies", href: "/co", group: "Job searches", lean: true },
+/** The crawl-path nav: every career hub plus the company directory, rendered on the full marketing footer. */
+const SEO_NAV_LINKS: { label: string; href: string; group: FooterGroup }[] = [
+    ...CAREER_HUBS.map((hub) => ({ label: hub.label, href: hub.path, group: "Job searches" as const })),
+    { label: "Companies", href: "/co", group: "Job searches" },
 ];
 
 /** Quiet footer links — Research lives here (not primary nav). `fromCurrentPage`
@@ -200,7 +199,7 @@ export function Footer() {
     return <FooterContent />;
 }
 
-/** The `lean` links only (checks, the hubs and Companies, Pricing, Privacy, Terms) — no blog/alternatives
+/** The `lean` links only (checks, Pricing, Privacy, Terms) — no career-hub/blog/alternatives
  *  farm on hub/deck/apply lean walks and on `/careers/remote-jobs`. */
 function LeanFooterContent() {
     const prefetchOnIntent = usePrefetchOnIntent();

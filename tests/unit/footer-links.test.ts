@@ -15,16 +15,17 @@ describe("footer links come from one list", () => {
         for (const l of LEAN_LEGAL_LINKS) assert.ok(full.has(l.href), l.href);
         assert.deepEqual(LEAN_LEGAL_LINKS.map((l) => l.label).slice(-2), ["Privacy", "Terms"]);
     });
-    it("every career hub is linked from the full footer", () => {
-        const hrefs = new Set(LEGAL_LINKS.map((l) => l.href));
-        for (const hub of CAREER_HUBS) assert.ok(hrefs.has(hub.path), hub.path);
-    });
-    it("every footer variant carries every hub and /co (the lean list is built from the same entries)", () => {
-        for (const links of [LEGAL_LINKS, LEAN_LEGAL_LINKS]) {
-            const hrefs = new Set(links.map((l) => l.href));
-            for (const hub of CAREER_HUBS) assert.ok(hrefs.has(hub.path), hub.path);
-            assert.ok(hrefs.has("/co"));
-        }
+    it("every career hub and /co are linked from the full footer, and kept out of the lean strip", () => {
+        const fullHrefs = new Set(LEGAL_LINKS.map((l) => l.href));
+        for (const hub of CAREER_HUBS) assert.ok(fullHrefs.has(hub.path), hub.path);
+        assert.ok(fullHrefs.has("/co"));
+
+        const leanHrefs = new Set(LEAN_LEGAL_LINKS.map((l) => l.href));
+        for (const hub of CAREER_HUBS) assert.ok(!leanHrefs.has(hub.path), hub.path);
+        assert.deepEqual(
+            LEAN_LEGAL_LINKS.map((l) => l.label),
+            ["About the checks", "Pricing", "Privacy", "Terms"],
+        );
     });
 });
 

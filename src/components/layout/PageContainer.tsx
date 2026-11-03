@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The ONE page container: the `.shell-row` geometry the TopBar and Footer
- * already use (globals.css: `--shell-max` 72rem → 80rem / 1280px at xl;
+ * already use (globals.css: `--shell-max` 100rem → 105rem / 1680px at xl;
  * `--shell-gutter` 16 / 32 / 40px), so a page's left edge is the header
  * logo's left edge on every route, /jobs included.
  *
