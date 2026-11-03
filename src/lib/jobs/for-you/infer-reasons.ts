@@ -1,7 +1,8 @@
-import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import type { MatchScore } from "@/lib/match/score";
 import { topSkills } from "@/lib/jobs/resume-match";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { resumeLanguages } from "@/lib/match/posting-language";
+import { sharedRoleHeads, titleInResumeLanguage, titlesShareSignal } from "@/lib/match/title-signal";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
@@ -74,12 +75,17 @@ export function inferReasons(
     // `resume`.
 
     if (resume) {
-        const titleTokens = meaningfulTitleTokens(job.title ?? "");
+        const jobTitle = titleInResumeLanguage(job.title ?? "", resumeLanguages(resume) ?? ["english"]);
         const resumeTitles = resume.experience.map((e) => e.role).filter(Boolean);
-        const resumeTitleTokens = resumeTitles.flatMap((t) => meaningfulTitleTokens(t));
-        const titleHits = tokenOverlap(titleTokens, resumeTitleTokens);
-        if (titleHits.length > 0 && bullets.length < MAX_BULLETS) {
-            bullets.push(`${TITLE_OVERLAP_LEAD} (${titleHits.slice(0, 3).join(", ")})`);
+        const heads = new Set<string>();
+        for (const role of resumeTitles) {
+            if (!titlesShareSignal(jobTitle, role)) continue;
+            for (const head of sharedRoleHeads(jobTitle, role)) heads.add(head);
+        }
+        if (heads.size > 0 && bullets.length < MAX_BULLETS) {
+            bullets.push(`${TITLE_OVERLAP_LEAD} (${[...heads].slice(0, 3).join(", ")})`);
+        } else if (resumeTitles.some((role) => titlesShareSignal(jobTitle, role)) && bullets.length < MAX_BULLETS) {
+            bullets.push(TITLE_OVERLAP_LEAD);
         }
 
         const skills = topSkills(resume, 12);
@@ -89,12 +95,8 @@ export function inferReasons(
             chips.push(hit);
         }
 
-        if (resume.profile?.profession && job.title) {
-            const profTokens = meaningfulTitleTokens(resume.profile.profession);
-            const overlap = tokenOverlap(profTokens, titleTokens);
-            if (overlap.length > 0 && chips.length < MAX_CHIPS) {
-                chips.push(resume.profile.profession);
-            }
+        if (resume.profile?.profession && jobTitle && titlesShareSignal(jobTitle, resume.profile.profession) && chips.length < MAX_CHIPS) {
+            chips.push(resume.profile.profession);
         }
     }
 

@@ -1,33 +1,31 @@
-import { LOCATION_UNKNOWN_TEXT, meaningfulTitleTokens, prettyEnum, salaryText } from "@/lib/jobs/presentation";
+import { LOCATION_UNKNOWN_TEXT, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import type { PublicJob } from "@/lib/jobs/types";
 import { presentJob } from "@/lib/presentation";
+import { resumeLanguages } from "@/lib/match/posting-language";
+import { sharedMeaningfulPhrases, sharedRoleHeads, titleInResumeLanguage, titlesShareSignal } from "@/lib/match/title-signal";
 import type { ResumeData } from "@/types/resume";
 
-function uniqueOverlap(a: string[], b: string[]): string[] {
-    const setB = new Set(b.map((token) => token.toLowerCase()));
-    return [...new Set(a.filter((token) => setB.has(token.toLowerCase())))];
-}
-
-/** The résumé role whose title shares ≥2 meaningful words with the posting title, or null. */
+/**
+ * The résumé role this posting's title actually overlaps: a shared role head
+ * ("product", "nurse") or a meaningful phrase ("product manager"). Generic
+ * modifiers alone ("technical", "manager") are not an overlap.
+ */
 export function deckOverlapTitle(job: PublicJob, resume: ResumeData | null): string | null {
-    const jobTitle = job.title?.trim();
-    if (!resume || !jobTitle) return null;
-    const jobTokens = meaningfulTitleTokens(jobTitle);
-    if (jobTokens.length < 2) return null;
+    const raw = job.title?.trim();
+    if (!resume || !raw) return null;
+    const jobTitle = titleInResumeLanguage(raw, resumeLanguages(resume) ?? ["english"]);
 
     const candidates = [
         ...resume.experience.map((item) => item.role).filter(Boolean),
         resume.profile?.profession,
     ].filter((value): value is string => Boolean(value?.trim()));
 
-    let best: { title: string; hits: number } | null = null;
+    let best: { title: string; rank: number } | null = null;
     for (const candidate of candidates) {
-        const tokens = meaningfulTitleTokens(candidate);
-        if (tokens.length < 2) continue;
-        const hits = uniqueOverlap(jobTokens, tokens);
-        if (hits.length < 2) continue;
-        if (!best || hits.length > best.hits) best = { title: candidate.trim(), hits: hits.length };
+        if (!titlesShareSignal(jobTitle, candidate)) continue;
+        const rank = sharedRoleHeads(jobTitle, candidate).length * 10 + sharedMeaningfulPhrases(jobTitle, candidate).length;
+        if (!best || rank > best.rank) best = { title: candidate.trim(), rank };
     }
     return best ? best.title : null;
 }
