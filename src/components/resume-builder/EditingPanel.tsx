@@ -294,7 +294,7 @@ export function EditingPanel({
                                 <button
                                     type="button"
                                     onClick={handleTightenWording}
-                                    className="text-xs font-medium text-live hover:underline"
+                                    className="text-xs text-action"
                                 >
                                     Tighten wording ({diagnostics.tightenableCount})
                                 </button>
@@ -305,7 +305,7 @@ export function EditingPanel({
                         </p>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs">
                             <div className="rounded-ctl border border-border bg-surface-2 px-3 py-2">
-                                <div className="font-medium text-foreground">
+                                <div className="font-semibold text-foreground">
                                     Quantified bullets: {diagnostics.quantifiedBullets}/{diagnostics.totalBullets}
                                 </div>
                                 <div className="text-muted-foreground">
@@ -315,7 +315,7 @@ export function EditingPanel({
                                 </div>
                             </div>
                             <div className="rounded-ctl border border-border bg-surface-2 px-3 py-2">
-                                <div className="font-medium text-foreground">
+                                <div className="font-semibold text-foreground">
                                     Action-verb openers: {diagnostics.totalBullets - diagnostics.weakOpeners.length}/{diagnostics.totalBullets}
                                 </div>
                                 <div className="text-muted-foreground">
@@ -326,7 +326,7 @@ export function EditingPanel({
                             </div>
                             {diagnostics.fillerAndBuzzwords.length > 0 && (
                                 <div className="rounded-ctl border border-border bg-surface-2 px-3 py-2 sm:col-span-2">
-                                    <div className="font-medium text-foreground">
+                                    <div className="font-semibold text-foreground">
                                         Filler or clichés to cut ({diagnostics.fillerAndBuzzwords.length})
                                     </div>
                                     <div className="text-muted-foreground">
