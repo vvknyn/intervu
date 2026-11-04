@@ -182,3 +182,31 @@ describe("rewordLine: a verb before 'in' or 'on'", () => {
         assert.equal(reword("Logged in the system daily.", "Document care."), "Logged in the system daily.");
     });
 });
+
+describe("rewordLine: passive duty openers and leading filler adverbs", () => {
+    it("converts passive duty openers ('Responsible for <ing>', 'Tasked with <ing>') into direct past-tense verbs", () => {
+        assert.equal(
+            reword("Responsible for charting all assessments in Epic.", "Document assessments in the EHR."),
+            "Documented all assessments in Epic.",
+        );
+        assert.equal(
+            reword("Tasked with managing a cross-functional team of 8.", "Oversee the engineering team."),
+            "Oversaw a cross-functional team of 8.",
+        );
+        assert.equal(
+            reword("Responsible for building internal tools.", "Deliver customer value."),
+            "Built internal tools.",
+        );
+    });
+
+    it("strips leading filler adverbs ('Successfully', 'Effectively') when not in the posting", () => {
+        assert.equal(
+            reword("Successfully charted all assessments in Epic.", "Document assessments in the EHR."),
+            "Documented all assessments in Epic.",
+        );
+        assert.equal(
+            reword("Effectively led a team of 5.", "Lead and manage a team."),
+            "Led a team of 5.",
+        );
+    });
+});

@@ -93,6 +93,7 @@ export function batchPrompt(items: BatchItem[]): string {
 
 For each item:
 - Lead with what "asks" names, in the posting's words where the text already shows it.
+- Open lines with a strong action verb (never "responsible for", "helped with", or "assisted in"), and drop filler words ("various", "multiple", "successfully", "effectively").
 - Keep every fact, name and number. Add no tool, employer, number, result or duty the text doesn't state.
 - If the text doesn't show what is asked, return it unchanged.
 - Keep its tense. One sentence${summary ? ` (the summary, id "s": up to 3, and it may use facts from the lines in "shows")` : ""}, at most "max" words.

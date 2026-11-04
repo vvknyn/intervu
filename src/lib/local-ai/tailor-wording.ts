@@ -64,6 +64,13 @@ const VERB_GROUPS: VerbForms[][] = [
 const WORK_WITH_RE = /^(work|worked|working|works)(\s+closely)?\s+with\b/i;
 const WORK_WITH_GROUP = 3;
 
+/** Passive duty openers ("Responsible for managing...", "Tasked with building...")
+ *  read as the direct past-tense verb ("Managed...", "Built...", or the posting's target verb in that group). */
+const DUTY_OPENER_RE = /^(?:(?:was|were)\s+)?(?:responsible\s+for|tasked\s+with|in\s+charge\s+of|accountable\s+for)\s+(\p{L}+)/iu;
+
+/** Leading filler adverbs ("Successfully charted...", "Effectively managed...") dropped when not in the posting. */
+const LEADING_FILLER_ADVERB_RE = /^(successfully|effectively)\s+(\p{L}+)/iu;
+
 /** A verb followed by one of these is a phrase ("Managed to", "Headed up",
  *  "Logged in", "Coordinated with") whose swap could break the sentence: left
  *  as written. The collaborate group takes "with" either way, and "in" or "on"
@@ -312,12 +319,33 @@ function replaceAt(text: string, start: number, end: number, insert: string): st
 function rewordOpener(line: string, wording: PostingWording, ctx: RewordContext, terms: string[]): string {
     const lead = line.match(/^\s*/)?.[0].length ?? 0;
     const rest = line.slice(lead);
-    const workWith = rest.match(WORK_WITH_RE);
+    const duty = rest.match(DUTY_OPENER_RE);
+    const filler = !duty ? rest.match(LEADING_FILLER_ADVERB_RE) : null;
+    const workWith = !duty && !filler ? rest.match(WORK_WITH_RE) : null;
     let group: number;
     let tense: Tense;
     let spanEnd: number;
     let keepTail = "";
-    if (workWith) {
+    let fallbackTarget: VerbForms | null = null;
+    if (duty) {
+        const form = verbFormOf(duty[1]);
+        if (!form || form.tense !== "ing") return line;
+        group = form.group;
+        tense = "past";
+        spanEnd = lead + duty[0].length;
+        const after = line.slice(spanEnd);
+        if (PARTICLE_AFTER_RE.test(after) && !(group === WORK_WITH_GROUP && /^\s+with\b/i.test(after))) return line;
+        fallbackTarget = form.member;
+    } else if (filler && !wording.spellings.has(spellingKey(filler[1]))) {
+        const form = verbFormOf(filler[2]);
+        if (!form) return line;
+        group = form.group;
+        tense = form.tense;
+        spanEnd = lead + filler[0].length;
+        const after = line.slice(spanEnd);
+        if (PARTICLE_AFTER_RE.test(after) && !(group === WORK_WITH_GROUP && /^\s+with\b/i.test(after))) return line;
+        fallbackTarget = form.member;
+    } else if (workWith) {
         group = WORK_WITH_GROUP;
         const w = workWith[1].toLowerCase();
         tense = w === "worked" ? "past" : w === "working" ? "ing" : w === "works" ? "s" : "base";
@@ -338,7 +366,8 @@ function rewordOpener(line: string, wording: PostingWording, ctx: RewordContext,
         const after = line.slice(spanEnd);
         if (PARTICLE_AFTER_RE.test(after) && !(group === WORK_WITH_GROUP && /^\s+with\b/i.test(after))) return line;
     }
-    const target = wording.verbTargets[group];
+    const preferred = wording.verbTargets[group];
+    const target = preferred && (!fallbackTarget || !wording.verbsUsed[group].has(fallbackTarget.base)) ? preferred : fallbackTarget;
     if (!target || ctx.roleOpeners.has(target.base)) return line;
     const written = verbInTense(target, tense, wording);
     ctx.roleOpeners.add(target.base);
@@ -460,7 +489,10 @@ export function equivalentWords(resumeText: string, postingText: string): string
         const resumeUses = group.some((m) => [m.base, m.past, m.ing, m.s].some((f) => resumeKeys.has(spellingKey(f))))
             || (g === WORK_WITH_GROUP && /\bwork(ed|ing|s)?\s+(closely\s+)?with\b/i.test(resumeText));
         if (!resumeUses) return;
-        for (const m of group) if (m.target) for (const f of [m.base, m.past, m.ing, m.s]) out.add(f);
+        for (const m of group) {
+            const memberInResume = [m.base, m.past, m.ing, m.s].some((f) => resumeKeys.has(spellingKey(f)));
+            if (m.target || memberInResume) for (const f of [m.base, m.past, m.ing, m.s]) if (f !== "-") out.add(f);
+        }
     });
     for (const [key, posting] of wording.spellings) {
         if (resumeKeys.has(key)) for (const w of posting.toLowerCase().split(/[\s-]+/)) out.add(w);
@@ -477,6 +509,16 @@ export function equivalentWords(resumeText: string, postingText: string): string
 export function openingVerbBase(line: string): string | null {
     const rest = line.trimStart();
     if (WORK_WITH_RE.test(rest)) return "work with";
+    const duty = rest.match(DUTY_OPENER_RE);
+    if (duty) {
+        const form = verbFormOf(duty[1]);
+        if (form && form.tense === "ing") return form.member.base;
+    }
+    const filler = rest.match(LEADING_FILLER_ADVERB_RE);
+    if (filler) {
+        const form = verbFormOf(filler[2]);
+        if (form) return form.member.base;
+    }
     const first = rest.match(/^\p{L}+/u)?.[0];
     return first ? verbFormOf(first)?.member.base ?? null : null;
 }
