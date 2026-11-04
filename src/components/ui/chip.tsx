@@ -28,7 +28,7 @@ export const chipVariants = cva(
        * is a real control (button/trigger) or embeds one (e.g. ChipDismiss).
        */
       interactive: {
-        true: "hover:bg-muted hover:text-foreground cursor-pointer",
+        true: "hover:bg-muted hover:text-foreground cursor-pointer press-fill",
         false: "",
       },
     },

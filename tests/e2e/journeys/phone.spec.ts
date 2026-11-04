@@ -683,3 +683,17 @@ test("on a phone the opened job sheet's Apply bar is the same capsule, lifted of
     await testInfo.attach("job-sheet-dock", { body: await page.screenshot(), contentType: "image/png" });
     expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test("on a phone the minimized dock's round button keeps its tab's name for VoiceOver", { tag: ["@J-HIG-02"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    test.skip(!(await openLongJobPage(page)), "this server lists no job with a long posting (no search backend), so there is no job page to scroll");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await scrollDown(page, 600);
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.dock), { timeout: 10_000 }).toBe("min");
+    // HIG Tab bars: tabs are labelled. Minimized, the label text is hidden; the link was announced with no name.
+    const current = page.locator("[data-mobile-tabbar] [data-dock-current]");
+    await expect(current).toBeVisible();
+    await expect(current).toHaveAccessibleName("Jobs");
+    expect(diagnostics.pageErrors).toEqual([]);
+});

@@ -47,7 +47,7 @@ export function DescriptionLoadingStatus({ onRetry }: { onRetry?: () => void } =
                         type="button"
                         onClick={onRetry}
                         data-testid="for-you-jd-retry"
-                        className="text-sm font-semibold text-brand underline-offset-4 hover:underline"
+                        className="text-sm text-action"
                     >
                         Try again
                     </button>

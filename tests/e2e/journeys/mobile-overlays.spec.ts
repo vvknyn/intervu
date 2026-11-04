@@ -5,10 +5,11 @@ import { settled } from "./overlay";
 /**
  * Overlay primitives at compact width — see tests/journeys/CATALOG.md (J-MODAL-07, J-MODAL-08).
  * The Filters are a bottom sheet with 44px rows on a phone and a rail on a laptop;
- * a Dialog is a full-width sheet on the bottom edge that never starts above y=0.
+ * a Dialog is the same sheet on a phone and never starts above y=0. On a phone a sheet floats the way iOS 26's do
+ * (HIG Sheets, Liquid Glass): 8px (--sheet-inset) in from both sides and the bottom edge (2026-11-02).
  */
 
-test("the Filters sheet is a full-width bottom sheet with 44px rows on a phone, and a rail beside the list at laptop width", { tag: ["@J-MODAL-07"] }, async ({ page }) => {
+test("the Filters sheet is a bottom sheet floating 8px off the sides and bottom with 44px rows on a phone, and a rail beside the list at laptop width", { tag: ["@J-MODAL-07"] }, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/jobs");
   const toggle = filtersToggle(page);
@@ -17,9 +18,9 @@ test("the Filters sheet is a full-width bottom sheet with 44px rows on a phone, 
   await expect(sheet).toBeVisible();
   await settled(sheet);
   const box = (await sheet.boundingBox())!;
-  expect(box.x, "the sheet spans the screen").toBe(0);
-  expect(box.width).toBe(390);
-  expect(box.y + box.height, "the sheet sits on the bottom edge").toBe(844);
+  expect(box.x, "the sheet floats 8px in from the left").toBe(8);
+  expect(box.width, "and 8px in from the right").toBe(374);
+  expect(box.y + box.height, "8px above the bottom edge").toBe(836);
   // Minimum salary is on every search, whatever the index returns for the other groups.
   const row = (await openGroup(sheet.getByTestId("filters-panel"), "salary")).locator("label").first();
   expect((await row.boundingBox())!.height, "rows meet the 44px touch floor").toBeGreaterThanOrEqual(44);
@@ -35,7 +36,7 @@ test("the Filters sheet is a full-width bottom sheet with 44px rows on a phone, 
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-test("a Dialog is a full-width bottom sheet on a phone and stays below y=0 when the keyboard shrinks the viewport", { tag: ["@J-MODAL-08"] }, async ({ page, baseURL }) => {
+test("a Dialog is the floating bottom sheet on a phone and stays below y=0 when the keyboard shrinks the viewport", { tag: ["@J-MODAL-08"] }, async ({ page, baseURL }) => {
   const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");
   test.skip(!local, "the account menu needs the dev-only __INTERVU_E2E_AUTH__ sign-in, which production builds ignore");
   await page.addInitScript(() => {
@@ -56,7 +57,8 @@ test("a Dialog is a full-width bottom sheet on a phone and stays below y=0 when 
   }).toPass({ timeout: 30_000 });
   await settled(dialog);
   const box = (await dialog.boundingBox())!;
-  expect(box.width, "full width").toBe(390);
+  expect(box.x, "8px in from the left").toBe(8);
+  expect(box.width, "and from the right").toBe(374);
   expect(box.y, "never starts above the screen").toBeGreaterThanOrEqual(0);
-  expect(box.y + box.height, "anchored to the bottom edge").toBe(470);
+  expect(box.y + box.height, "8px above the bottom edge").toBe(462);
 });

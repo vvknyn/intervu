@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 export const RANKED_LOWER_ANCHOR = "ranked-lower";
 const OPEN_KEY = "velai.ranked-disclosure.open";
 
-const linkClass = "underline underline-offset-2 transition-colors duration-100 hover:text-foreground";
+const linkClass = "transition-colors duration-100 hover:text-foreground text-link";
 
 function readOpen(): boolean {
     try {

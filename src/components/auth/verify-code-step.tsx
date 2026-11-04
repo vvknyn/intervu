@@ -66,13 +66,13 @@ export function VerifyCodeStep({ pendingAuthenticationToken, email, onVerified, 
             </form>
             <p className="text-center text-sm text-muted-foreground">
                 {EMAIL_CODE_RESEND_PROMPT}{' '}
-                <button type="button" disabled={isPending} onClick={resend} className="text-foreground underline underline-offset-4">
+                <button type="button" disabled={isPending} onClick={resend} className="text-foreground text-link">
                     send a new code
                 </button>
                 .
             </p>
             <p className="text-center text-sm">
-                <button type="button" onClick={onBack} className="text-brand hover:underline">
+                <button type="button" onClick={onBack} className="text-action">
                     Use a different account
                 </button>
             </p>

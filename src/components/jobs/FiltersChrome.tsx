@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef } from "react";
-import { SidebarSimple, X } from "@phosphor-icons/react";
+import { SidebarSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { filterCountBadgeClass } from "@/components/ui/chip";
-import { Sheet, SheetBar, SheetBody, SheetClose, SheetContent, SheetFooter, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBar, SheetBody, SheetContent, SheetFooter } from "@/components/ui/sheet";
 import { SubTitle } from "@/components/ui/heading";
 
 /**
@@ -108,28 +108,16 @@ export function FiltersSheet({
                 }}
                 className={
                     side === "bottom"
-                        ? "mx-auto w-full max-w-2xl gap-0 border-border border-b-0 p-0"
-                        : "w-full gap-0 border-border p-0 sm:max-w-sm"
+                        ? "mx-auto w-full max-w-2xl gap-0 p-0"
+                        : "w-full gap-0 p-0 sm:max-w-sm"
                 }
             >
-                {side === "bottom" ? (
-                    <SheetBar title="Filters" />
-                ) : (
-                    <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
-                        <SheetTitle className="min-w-0 flex-1 text-base">Filters</SheetTitle>
-                        <SheetClose
-                            aria-label="Close"
-                            className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
-                        >
-                            <X size={16} aria-hidden />
-                        </SheetClose>
-                    </div>
-                )}
+                <SheetBar title="Filters" grabber={side === "bottom"} />
                 <SheetBody id="filters-panel" data-testid="filters-panel" className="poster-list-inset-x py-2 text-foreground custom-scrollbar">
                     {children}
                 </SheetBody>
                 {/* Filters apply live, so "Show N jobs" only closes the sheet. */}
-                <SheetFooter className="shrink-0 flex-row gap-3 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <SheetFooter className="flex-row gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <Button variant="outline" size="touch" disabled={activeCount === 0} onClick={onClearAll}>
                         Clear all
                     </Button>

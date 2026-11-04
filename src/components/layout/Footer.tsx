@@ -41,6 +41,13 @@ export const LEGAL_LINKS: { label: string; href: string; group: FooterGroup; fro
     { label: "Terms", href: "/terms", group: "Help & legal", lean: true },
 ];
 
+/** One footer link in a flat wrapping line. Below lg each is a 44pt row (HIG: a 44x44pt hit region), so two
+ *  rows of links no longer sit 6px apart with their tap areas overlapping. */
+const FLAT_LINK_CLASS = "inline-flex min-h-11 items-center transition-colors duration-100 hover:text-foreground lg:min-h-0";
+/** The flat line: `.link-cloud` lays it out (equal columns on a phone, one wrapping line from sm); the rows sit on
+ *  the links' own 44pt height below lg, 6px apart from lg. */
+const FLAT_LINE_CLASS = "link-cloud gap-y-0 text-xs text-muted-foreground lg:gap-y-1.5";
+
 /** Minimal strip for lean hub/deck/apply/jobs — the `lean` entries of the one list above, not the marketing link farm. */
 export const LEAN_LEGAL_LINKS = LEGAL_LINKS.filter((l) => l.lean);
 
@@ -91,10 +98,10 @@ export function FooterLinks({ children }: { children?: React.ReactNode }) {
     return (
         <nav
             aria-label="Company"
-            className="link-cloud text-xs text-muted-foreground"
+            className={FLAT_LINE_CLASS}
         >
             {FOOTER_LINKS.map((link) => (
-                <Link key={link.href} {...linkProps(link)} className="transition-colors duration-100 hover:text-foreground">
+                <Link key={link.href} {...linkProps(link)} className={FLAT_LINK_CLASS}>
                     {link.label}
                 </Link>
             ))}
@@ -142,7 +149,9 @@ export function FooterContent() {
         >
             {/* Same `shell-row` as TopBar — the two bands frame the page, so
                 they have to share its gutter or the frame is crooked. */}
-            <div className="shell-row flex flex-col gap-2 sm:gap-2.5 py-3 sm:py-4">
+            {/* 16px between the lines below lg: the links inside the two sentences take a 44pt tap area that
+                reaches 14px past their line, and the gap keeps it off the sections' rows. */}
+            <div className="shell-row flex flex-col gap-4 py-3 sm:py-4 lg:gap-2.5">
                 <p className="max-w-md text-xs text-muted-foreground">
                     {/* Provenance without the geo clause from marketing-stats — avoids
                         the multi-country list on guest surfaces. */}
@@ -151,7 +160,7 @@ export function FooterContent() {
                         href={GHOST_RESEARCH_HREF}
                         prefetch={false}
                         {...prefetchOnIntent(GHOST_RESEARCH_HREF)}
-                        className="underline underline-offset-2 hover:text-foreground"
+                        className="hover:text-foreground text-link"
                     >
                         {GHOST_SCREENING_CLAUSE}
                     </Link>
@@ -169,7 +178,7 @@ export function FooterContent() {
                         href="https://thesubspace.io"
                         target="_blank"
                         rel="noopener"
-                        className="underline decoration-dotted underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                        className="transition-colors duration-100 hover:text-foreground text-link"
                     >
                         Subspace
                     </a>
@@ -209,14 +218,14 @@ function LeanFooterContent() {
             data-lean="true"
             className="relative z-20 shrink-0 border-t border-border bg-background pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-0"
         >
-            <div className="shell-row link-cloud py-3 text-xs text-muted-foreground sm:py-4">
+            <div className={`shell-row ${FLAT_LINE_CLASS} py-3 sm:py-4`}>
                 {LEAN_LEGAL_LINKS.map((link) => (
                     <Link
                         key={link.href}
                         href={link.href}
                         prefetch={false}
                         {...prefetchOnIntent(link.href)}
-                        className="transition-colors duration-100 hover:text-foreground"
+                        className={FLAT_LINK_CLASS}
                     >
                         {link.label}
                     </Link>

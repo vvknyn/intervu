@@ -38,7 +38,7 @@ export default async function CompanyDirectoryPage() {
       <ul className="mt-6 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
         {groups.map(({ letter, entries }) => (
           <li key={letter}>
-            <Link href={letterPath(letter)} className="font-semibold text-brand hover:underline">
+            <Link href={letterPath(letter)} className="text-action">
               {letter}
             </Link>{" "}
             <span className="text-muted-foreground">{entries.length} companies</span>

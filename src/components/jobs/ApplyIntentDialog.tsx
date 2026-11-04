@@ -113,14 +113,14 @@ export function ApplyIntentDialog({
                 growing the whole dialog past `max-h` and pushing the footer
                 off screen — that was the bug: the exit lived inside the same
                 scrolling block as content that can run long. */}
-            <DialogContent className="rounded-panel p-0 sm:max-w-lg">
+            <DialogContent className="p-0 sm:max-w-lg">
                 <div className="shrink-0 px-6 pt-6 pr-12">
                     <DialogHeader className="text-left">
                         <DialogTitle className="text-title">Tailor your résumé with your own agent</DialogTitle>
                         <DialogDescription className="text-sm leading-relaxed">
                             Connect Claude or ChatGPT over MCP and it can read your résumé, tailor it
                             for this role, and save the result back to your account. Reading and saving
-                            your résumé is part of a paid month; see <Link href="/pricing" className="underline">pricing</Link>.
+                            your résumé is part of a paid month; see <Link href="/pricing" className="text-link">pricing</Link>.
                         </DialogDescription>
                     </DialogHeader>
                 </div>
@@ -150,7 +150,7 @@ export function ApplyIntentDialog({
                         <button
                             type="button"
                             onClick={() => setChoosing(true)}
-                            className="self-start text-xs text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                            className="self-start text-xs text-muted-foreground transition-colors hover:text-foreground text-link"
                         >
                             Use a different AI
                         </button>
@@ -187,7 +187,7 @@ export function ApplyIntentDialog({
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <Link
                             href="/connect"
-                            className="text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                            className="text-muted-foreground transition-colors hover:text-foreground text-link"
                         >
                             How connecting works
                         </Link>
@@ -197,7 +197,7 @@ export function ApplyIntentDialog({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={handleDismissAndContinue}
-                                className="text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                                className="text-muted-foreground transition-colors hover:text-foreground text-link"
                             >
                                 Don&apos;t show this again
                             </a>
@@ -205,7 +205,7 @@ export function ApplyIntentDialog({
                             <button
                                 type="button"
                                 onClick={handleDismissAndContinue}
-                                className="text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                                className="text-muted-foreground transition-colors hover:text-foreground text-link"
                             >
                                 Don&apos;t show this again
                             </button>

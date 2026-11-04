@@ -185,7 +185,8 @@ const buttonFaceFindings = (page: Page) =>
             if (face && !ownCorner) {
                 const corners = [cs.borderTopLeftRadius, cs.borderTopRightRadius, cs.borderBottomRightRadius, cs.borderBottomLeftRadius];
                 // `max-lg:dock-capsule` is a variant-prefixed class: match the name inside it, and only while the capsule is drawn (below lg).
-                const capsule = el.closest('[class*="dock-capsule"]');
+                // A `glass-group` (the phone top bar's account controls) is the same kind of capsule: what sits on it is concentric with it.
+                const capsule = el.closest('[class*="dock-capsule"], [class*="glass-group"]');
                 const want = capsule && getComputedStyle(capsule).borderTopLeftRadius === pillRadius ? pillRadius : ctlRadius;
                 if (corners.some((c) => c !== want)) findings.push(`${name}: corners ${corners.join(" ")} (want ${want === pillRadius ? "the capsule's pill" : "the control corner"}, ${want})`);
             }

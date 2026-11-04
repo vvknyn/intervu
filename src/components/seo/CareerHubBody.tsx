@@ -33,7 +33,7 @@ export function CareerHubBody({ hub, facts, now }: { hub: CareerHub; facts: HubF
       </Prose>
 
       <nav aria-label="Related career topics" className="link-cloud mt-8 text-sm">
-        <Link href={jobsHref} rel="nofollow" data-testid="career-hub-search" className="font-semibold text-brand hover:underline">
+        <Link href={jobsHref} rel="nofollow" data-testid="career-hub-search" className="text-action">
           {hub.searchLabel}
         </Link>
         {otherCareerHubs(hub.slug).map((other) => (

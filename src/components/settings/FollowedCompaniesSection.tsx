@@ -93,7 +93,7 @@ export function FollowedCompaniesSection() {
                             <div className="min-w-0">
                                 <Link
                                     href={companyBoardPath(f.domain)}
-                                    className="block truncate text-sm text-foreground underline-offset-2 hover:underline"
+                                    className="block truncate text-sm text-foreground name-link"
                                 >
                                     {f.displayName}
                                 </Link>

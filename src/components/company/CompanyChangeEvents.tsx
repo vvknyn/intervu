@@ -92,7 +92,7 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
                 href={evidence.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="underline underline-offset-2 hover:text-foreground"
+                className="hover:text-foreground text-link"
               >
                 source
               </a>

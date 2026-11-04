@@ -41,7 +41,7 @@ function PaymentItem({ row }: { row: PaymentRow }) {
                     ) : null}
                 </p>
                 {row.receiptUrl ? (
-                    <a href={row.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline">
+                    <a href={row.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-link">
                         Receipt
                     </a>
                 ) : null}

@@ -30,7 +30,7 @@ export function CompanyRolesList({
         <span className="text-xs text-muted-foreground">
           Live roles
         </span>
-        <Link href={jobsSearchUrl} className="text-sm text-brand hover:underline">
+        <Link href={jobsSearchUrl} className="text-sm text-action">
           View all in search
         </Link>
       </div>

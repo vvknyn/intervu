@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -73,6 +73,16 @@ const SITE_TITLE = SITE_NAME;
 // Fallback for any route that doesn't set its own `metadata`. `/jobs` sets its
 // own (lib/seo/jobs-metadata.ts), so this is no longer its page-level copy.
 /** Site-wide guest meta strings live in @/lib/seo/constants — see SITE_DESCRIPTION and LANDING_*. */
+
+/** The page is dark only (the FOUC guard below): say so to iOS, so the keyboard, pickers, autofill
+ *  and Safari's own bars draw dark rather than following a phone set to Light (HIG Dark Mode).
+ *  The colour is the canvas, `--background` 11 13 18 in globals.css. */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "dark",
+  themeColor: "#0b0d12",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),

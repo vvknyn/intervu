@@ -33,15 +33,15 @@ import { CheckCircle, WarningCircle, Info, X } from "@phosphor-icons/react";
 const VARIANT_META: Record<ToastVariant, { icon: React.ReactNode; cls: string }> = {
     success: {
         icon: <CheckCircle weight="fill" className="text-live shrink-0" />,
-        cls: "border-live",
+        cls: "",
     },
     error: {
         icon: <WarningCircle weight="fill" className="text-danger-text shrink-0" />,
-        cls: "border-danger-text",
+        cls: "",
     },
     info: {
         icon: <Info weight="fill" className="text-brand shrink-0" />,
-        cls: "border-brand",
+        cls: "",
     },
 };
 
@@ -79,7 +79,10 @@ export function Toaster() {
                             key={t.id}
                             role={isError ? "alert" : "status"}
                             aria-live={isError ? "assertive" : "polite"}
-                            className={`pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-none border bg-background px-4 py-3 text-sm enter-reveal ${meta.cls}`}
+                            // A notice is an overlay like any other (Interaction §9): the overlay glass on the panel
+                            // corner, in on the modal timing. The kind shows in its icon, not a coloured border.
+                            data-state="open"
+                            className={`pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-panel material-glass px-4 py-3 text-sm motion-modal animate-in fade-in-0 slide-in-from-bottom-2 ${meta.cls}`}
                         >
                             {meta.icon}
                             <span className="flex-1 leading-snug text-foreground">{t.message}</span>
@@ -90,7 +93,7 @@ export function Toaster() {
                                         dismissToast(t.id);
                                         t.action?.onClick();
                                     }}
-                                    className="designed-focus shrink-0 rounded-ctl font-semibold text-foreground underline underline-offset-2 transition-colors hover:text-muted-foreground focus-visible:border-foreground"
+                                    className="designed-focus shrink-0 rounded-ctl text-action focus-visible:border-foreground"
                                 >
                                     {t.action.label}
                                 </button>

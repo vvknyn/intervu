@@ -49,7 +49,8 @@ export function FrontDoorFieldLinks({ onSelectQuery }: { onSelectQuery: (q: stri
     return (
         <div data-testid="front-door-field-links" className="mt-3 w-full text-left">
             <p className="mb-2 text-xs font-semibold text-muted-foreground">Browse by field</p>
-            <div className="wrap-row">
+            {/* 32px chips, 12px between rows: each 44pt tap area is its own (HIG Buttons). */}
+            <div className="wrap-row [--wrap-gap-y:0.75rem]">
                 {indexCategories.map((cat) => (
                     <button
                         key={cat.q}

@@ -59,7 +59,7 @@ export default async function CompanyLetterPage({ params }: { params: Promise<{ 
         })}
       </ul>
       <p className="mt-8 text-sm">
-        <Link href="/co" className="text-brand hover:underline">
+        <Link href="/co" className="text-action">
           All letters
         </Link>
       </p>

@@ -261,7 +261,7 @@ export function SavedSearchesPanel({
                         className={cn(
                             compact
                                 // control-type-allow: compact form is an inline underlined text action beside the 24px name field, sized with it
-                                ? "inline-flex items-center gap-1 text-xs text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                                ? "inline-flex items-center gap-1 text-xs text-foreground disabled:opacity-50 text-link"
                                 : "inline-flex ctl-md ctl-button items-center gap-1 bg-muted text-brand px-2.5 whitespace-nowrap disabled:opacity-50",
                         )}
                     >
@@ -274,7 +274,7 @@ export function SavedSearchesPanel({
                         className={cn(
                             compact
                                 ? "text-xs text-muted-foreground hover:text-foreground"
-                                : "text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 px-1",
+                                : "text-xs text-muted-foreground hover:text-foreground px-1 text-link",
                         )}
                     >
                         ✕
@@ -298,8 +298,8 @@ export function SavedSearchesPanel({
                                 }}
                                 className={cn(
                                     compact
-                                        ? "max-w-[10rem] truncate text-xs text-foreground underline underline-offset-2 hover:no-underline"
-                                        : "max-w-[12rem] truncate text-xs text-foreground hover:underline",
+                                        ? "max-w-[10rem] truncate text-xs text-foreground text-link"
+                                        : "max-w-[12rem] truncate text-xs text-foreground name-link",
                                 )}
                                 title={cleanSavedSearchName(s.name)}
                             >

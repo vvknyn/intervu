@@ -67,7 +67,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
             <SheetContent
                 side="bottom"
                 hideCloseButton
-                className="mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0"
+                className="mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 p-0"
             >
                 <SheetBar title="Track a role" description="One step. Link the posting — skip the essay." />
                 <SheetBody className="space-y-3 px-4 py-4 pb-7">

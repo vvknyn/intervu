@@ -91,7 +91,7 @@ function ResumeNotReady({ className, locked }: { className?: string; locked?: bo
         return (
             <p className={cn("text-xs text-foreground", className)} data-testid="daily-picks-resume-not-ready">
                 {LOCKED_RESUME_NOTE}{" "}
-                <Link href={PRICING_HREF} className="underline underline-offset-2">
+                <Link href={PRICING_HREF} className="text-link">
                     See pricing
                 </Link>
             </p>
@@ -100,7 +100,7 @@ function ResumeNotReady({ className, locked }: { className?: string; locked?: bo
     return (
         <p className={cn("text-xs text-foreground", className)} data-testid="daily-picks-resume-not-ready">
             None can go out yet: we can&apos;t read a role or skills from the résumé saved on your account.{" "}
-            <Link href="/jobs" className="underline underline-offset-2">
+            <Link href="/jobs" className="text-link">
                 Upload it on Jobs
             </Link>
             .
@@ -115,7 +115,7 @@ export function DailyPicksSettingsRow({ control }: { control: DailyPicksControl 
         return (
             <p className="text-xs text-muted-foreground" data-testid="daily-picks-load-failed">
                 Couldn&apos;t load daily picks.{" "}
-                <button type="button" onClick={retry} className="text-foreground underline underline-offset-2">
+                <button type="button" onClick={retry} className="text-foreground text-link">
                     Try again
                 </button>
             </p>

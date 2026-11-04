@@ -75,7 +75,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                 ))}
                 <p className="text-xs text-muted-foreground">
                     First time?{" "}
-                    <Link href="/connect" className="font-semibold text-foreground underline underline-offset-4 hover:opacity-80">
+                    <Link href="/connect" className="text-foreground text-link">
                         Connect once
                     </Link>
                 </p>
@@ -96,7 +96,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
                 <button
                     type="button"
                     onClick={handleSwitch}
-                    className="text-xs text-foreground underline underline-offset-4 hover:opacity-80 cursor-pointer"
+                    className="text-xs text-foreground cursor-pointer text-link"
                 >
                     Switch AI
                 </button>

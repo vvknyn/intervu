@@ -118,7 +118,7 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
                             ? buildCompanyJobsUrl({ domain: job.company_domain.trim() })
                             : jobCompanyHref(cleanedCompany, job.company_domain)
                     }
-                    className="mt-4 inline-block text-sm text-brand hover:underline"
+                    className="mt-4 inline-block text-sm text-action"
                 >
                     All jobs at {companyBrand || cleanedCompany}
                 </Link>
@@ -138,7 +138,7 @@ function MobileDisclosure({ className, children }: { className?: string; childre
     const id = useId();
     return (
         <div className={className}>
-            <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="text-xs text-brand hover:underline lg:hidden">
+            <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="text-xs text-action lg:hidden">
                 {open ? "Hide details" : "Show details"}
             </button>
             <div id={id} className={cn(open ? "block" : "hidden", "lg:block")}>
@@ -361,7 +361,7 @@ export function JobDetailDocument({
                     )}
                     <div className="mt-2 text-sm text-muted-foreground">
                         {cleanedCompany ? (
-                            <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground hover:underline">
+                            <Link href={jobCompanyHref(cleanedCompany, job.company_domain)} className="font-semibold text-foreground name-link">
                                 {companyBrand}
                             </Link>
                         ) : (
@@ -380,7 +380,7 @@ export function JobDetailDocument({
                                 {(locationExpanded ? [...locationDisclosure.visible, ...locationDisclosure.hidden] : locationDisclosure.visible).map((segment, i) => (
                                     <span key={i} className="block" data-testid="job-location">{segment}</span>
                                 ))}
-                                <button type="button" onClick={() => setLocationExpanded((v) => !v)} className="mt-0.5 block text-xs text-brand hover:underline">
+                                <button type="button" onClick={() => setLocationExpanded((v) => !v)} className="mt-0.5 block text-xs text-action">
                                     {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
                                 </button>
                             </>

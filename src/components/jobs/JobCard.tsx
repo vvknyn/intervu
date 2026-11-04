@@ -185,13 +185,17 @@ export function JobCard({
                 }
             }}
             className={cn(
-                // rounded-none: KEEP — flush; rows are hairline-separated, not
-                // bordered cards (rulebook item h): the divider lives on the
-                // content wrapper below, inset past the tile, so this outer
-                // grid carries no border or bottom margin of its own — rows
-                // touch, the line between them starts at the title's x, not
-                // the tile's.
-                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-transparent text-left transition-colors duration-[var(--transition-base)] focus-visible:inset-outline-2 focus-visible:outline-live gap-x-3 px-[var(--list-inset)] pt-4",
+                // Rows are hairline-separated, not bordered cards (rulebook
+                // item h): the divider lives on the content wrapper below,
+                // inset past the tile, so this outer grid carries no border
+                // or bottom margin of its own — rows touch, the line between
+                // them starts at the title's x, not the tile's.
+                "group grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] bg-transparent text-left transition-colors duration-[var(--transition-base)] focus-visible:inset-outline-2 focus-visible:outline-live gap-x-3 pt-4",
+                // A standalone row is a `list-row`: its hover, press and selection are a rounded lens inset from
+                // the list's edges (Apple's list highlight).
+                // rounded-none: KEEP — an employer group's rows stay one flush block on its own fill, so they
+                // keep square corners and the full width.
+                group ? "w-full rounded-none px-[var(--list-inset)]" : "list-row active:bg-surface-hover",
                 // No stripe. hover = --surface-hover (Tailwind v4 gates `hover:` behind
                 // @media (hover:hover), so touch never sticks it). The open row = the brand
                 // tint (a different hue, within 1.03x of hover in luminance) PLUS a 1px inset
@@ -227,7 +231,7 @@ export function JobCard({
                             // so the row that's already selected must not carry
                             // the hover-underline affordance at all; every other
                             // row still underlines on hover as usual.
-                            !active && "hover:underline",
+                            !active && "name-link",
                             opened ? "text-muted-foreground" : "font-semibold text-foreground",
                         )}
                         onClick={(e) => {
@@ -299,7 +303,7 @@ export function JobCard({
                                     <button
                                         type="button"
                                         data-testid="job-row-company"
-                                        className="hidden text-left hover:text-foreground hover:underline lg:inline"
+                                        className="hidden text-left hover:text-foreground lg:inline name-link"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onCompany(job);
@@ -352,7 +356,7 @@ export function JobCard({
                                     <button
                                         type="button"
                                         data-testid="cluster-toggle"
-                                        className="hover:text-foreground hover:underline"
+                                        className="hover:text-foreground name-link"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onToggleExpand?.();

@@ -61,10 +61,11 @@ function titleClass(html: string): string {
 
 test("selected row (active=true): title has no hover:underline class", () => {
     const html = renderCard(job({ id: "active-1" }), true);
-    assert.doesNotMatch(titleClass(html), /hover:underline/);
+    assert.doesNotMatch(titleClass(html), /hover:underline|\bname-link\b/);
 });
 
 test("unselected row (active=false): title keeps the hover:underline class — class-wide fix, not a removal", () => {
     const html = renderCard(job({ id: "inactive-1" }), false);
-    assert.match(titleClass(html), /hover:underline/);
+    // The hover underline is `name-link` (Interaction §9: one look for a link that names a thing).
+    assert.match(titleClass(html), /\bname-link\b/);
 });

@@ -11,7 +11,6 @@ import {
     WarningCircle,
     Compass,
     CaretDown,
-    X,
     Check,
     Question,
     LockSimple,
@@ -31,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
-import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBar, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
@@ -761,7 +760,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={clearFiltersTestId}
                     onClick={onClearFilters}
-                    className="font-semibold text-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-foreground transition-colors duration-100 hover:text-foreground text-link"
                 >
                     Clear filters
                 </button>
@@ -771,7 +770,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={clearQueryTestId}
                     onClick={onClearQuery}
-                    className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="transition-colors duration-100 hover:text-foreground text-link"
                 >
                     ✕ clear search
                 </button>
@@ -782,7 +781,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={() => onClearEntry(entry)}
-                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left transition-colors duration-100 hover:text-foreground text-link"
                 >
                     ✕ clear {entry.label}
                 </button>
@@ -792,7 +791,7 @@ function ActiveFilterActions({
                     type="button"
                     data-testid={chipTestId}
                     onClick={locationDefault.onClear}
-                    className="text-left underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                    className="text-left transition-colors duration-100 hover:text-foreground text-link"
                 >
                     ✕ clear {locationDefault.label}
                 </button>
@@ -872,7 +871,7 @@ function EmptyResults({
                 <button
                     type="button"
                     onClick={onRevealGhosts}
-                    className="mt-2 w-full text-center text-xs text-foreground underline underline-offset-2"
+                    className="mt-2 w-full text-center text-xs text-foreground text-link"
                 >
                     {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
                 </button>
@@ -898,7 +897,7 @@ function RankMore({ count, loading, onClick }: { count: number; loading: boolean
                 data-testid="rank-more"
                 disabled={loading}
                 onClick={onClick}
-                className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                className="text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground text-link"
             >
                 {loading ? "Ranking more roles…" : `Rank ${count.toLocaleString()} more`}
             </button>
@@ -5232,7 +5231,7 @@ export function JobsContent({
                     <Link
                         key="edit"
                         href="/resume"
-                        className="whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                        className="whitespace-nowrap text-foreground transition-opacity duration-100 text-link"
                     >
                         Edit résumé
                         <LinkPending />
@@ -5242,7 +5241,7 @@ export function JobsContent({
                             key="remove"
                             onRemove={removeGuestResume}
                             testIdPrefix="jobs"
-                            className="whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                            className="whitespace-nowrap text-foreground transition-opacity duration-100 text-link"
                         />
                     ),
                 ]}
@@ -5312,7 +5311,7 @@ export function JobsContent({
                                     {PRIVACY_HEADLINE}{" "}
                                     <Link
                                         href={`/privacy#${PRIVACY_RESUME_SECTION_ID}`}
-                                        className="font-semibold text-brand underline underline-offset-4 hover:text-brand"
+                                        className="text-action"
                                     >
                                         How
                                     </Link>
@@ -5545,7 +5544,7 @@ export function JobsContent({
                                     <button
                                         type="button"
                                         onClick={handleClearSearch}
-                                        className="ctl-md ctl-button -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
+                                        className="ctl-md ctl-button -my-1.5 transition-colors hover:text-foreground text-link"
                                     >
                                         clear ✕
                                     </button>
@@ -5945,7 +5944,7 @@ export function JobsContent({
                             {backgroundError && displaySearchError && (
                                 <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-l-2 border-verdict-risk pl-3 text-xs text-verdict-risk">
                                     <span>{displaySearchError}</span>
-                                    <button onClick={retrySearch} className="underline underline-offset-2">
+                                    <button onClick={retrySearch} className="text-link">
                                         Retry
                                     </button>
                                 </div>
@@ -5988,8 +5987,13 @@ export function JobsContent({
                                    one goes through the exact same `submitSearch`
                                    chokepoint a typed Enter/suggestion-pick uses, so
                                    the URL write and recent-searches recording can't
-                                   drift from a real search. Styled like SerpFilters'
-                                   own `Affordance` grammar — no pills, no buttons. */
+                                   drift from a real search. Drawn as the same chip
+                                   BrowseSeedRow uses for the same seeds: a tappable
+                                   shape (HIG Buttons: "Prefer buttons that have a
+                                   discernible background shape"), 32px with 12px
+                                   between rows so each 44pt tap area is its own, and
+                                   the clip on an inner span (a clipping button cut
+                                   its own 44pt area to its 16px text). */
                                 <div className="px-[var(--list-inset)] text-left" data-testid="serp-ask">
                                     <p className="text-xs text-faint">
                                         Suggested roles
@@ -5997,7 +6001,7 @@ export function JobsContent({
                                     <p className="mt-1 text-xs text-muted-foreground">
                                         Tap one to search — your filters stay on
                                     </p>
-                                    <div className="wrap-row pt-3.5 [--wrap-gap-x:1rem] [--wrap-gap-y:0.625rem]" role="list" aria-label="Suggested roles">
+                                    <div className="wrap-row pt-3.5 [--wrap-gap-x:0.5rem] [--wrap-gap-y:0.75rem]" role="list" aria-label="Suggested roles">
                                         {searchSeeds.map((seed) => (
                                             <button
                                                 key={seed}
@@ -6005,9 +6009,10 @@ export function JobsContent({
                                                 data-testid="serp-ask-seed"
                                                 title={`Search for ${seed}`}
                                                 onClick={() => submitSearch(seed)}
-                                                className="inline-block max-w-[min(100%,14rem)] truncate text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                                // control-type-allow: a seed suggestion chip keeps the chip pill; its type still comes from the step
+                                                className="ctl-md ctl-button max-w-[min(100%,14rem)] items-center rounded-pill bg-surface-2 px-2.5 text-left text-foreground transition-colors hover:bg-border"
                                             >
-                                                {seed}
+                                                <span className="min-w-0 truncate">{seed}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -6119,7 +6124,7 @@ export function JobsContent({
                                                                                 type="button"
                                                                                 data-testid="beyond-window-show-all"
                                                                                 onClick={() => panelPostedBucket(undefined)}
-                                                                                className="text-foreground underline-offset-2 hover:underline"
+                                                                                className="text-foreground name-link"
                                                                             >
                                                                                 Show all
                                                                             </button>,
@@ -6398,7 +6403,7 @@ export function JobsContent({
                                                     type="button"
                                                     onClick={() => void loadMore()}
                                                     data-testid="jobs-load-more"
-                                                    className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+                                                    className="text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground text-link"
                                                 >
                                                     Show {Math.min(PAGE, Math.max(total - hits.length, 0)) || PAGE} more ↓
                                                 </button>
@@ -6531,37 +6536,14 @@ export function JobsContent({
                 <SheetContent
                     side="bottom"
                     hideCloseButton
-                    className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                    className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden p-0"
                 >
-                    <div className="shrink-0">
-                        <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-                            <SheetHandle />
-                        </div>
-                        <div className="flex items-center gap-2 px-4 pb-3">
-                            <div className="min-w-0 flex-1">
-                                {detailJob ? (
-                                    <>
-                                        <p className="truncate text-base font-semibold text-foreground">
-                                            {decodeText(detailJob.title)}
-                                        </p>
-                                        <p className="truncate text-meta text-muted-foreground">
-                                            {displayCompanyBrand(detailJob.company, detailJob.company_domain, detailJob.title)}
-                                        </p>
-                                    </>
-                                ) : (
-                                    <p className="truncate text-base font-semibold text-foreground">Job details</p>
-                                )}
-                            </div>
-                            <button
-                                type="button"
-                                aria-label="Close"
-                                onClick={closeDetail}
-                                className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
-                            >
-                                <X size={16} aria-hidden />
-                            </button>
-                        </div>
-                    </div>
+                    <SheetBar
+                        labelled={false}
+                        onClose={closeDetail}
+                        title={detailJob ? decodeText(detailJob.title) : "Job details"}
+                        description={detailJob ? displayCompanyBrand(detailJob.company, detailJob.company_domain, detailJob.title) : undefined}
+                    />
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${displayCompanyBrand(detailJob.company, detailJob.company_domain, detailJob.title)}` : "Job details"}
                     </SheetTitle>

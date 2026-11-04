@@ -67,7 +67,8 @@ export function resumeTabLabel(resumeConnected: boolean): string {
 /** The ONE résumé entry in the nav: /resume (the AI pairing at /connect lives in Settings). */
 export const RESUME_TAB: NavTab = {
     label: "Add résumé",
-    shortLabel: "Add résumé",
+    /** The phone tab bar's label: one word, the same before and after a résumé exists (HIG Tab bars). */
+    shortLabel: "Résumé",
     href: "/resume",
     testId: "topbar-resume",
     match: (p) => p.startsWith("/resume"),
