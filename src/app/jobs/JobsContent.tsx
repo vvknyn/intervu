@@ -416,19 +416,11 @@ const getDefaultBrowseActionGuarded = (suppressLocationDefault: boolean): Promis
  * uses, rather than a one-off text treatment.
  */
 /**
- * Where reading content stops widening. The page shell itself is edge to edge
- * — Vivek picked "full-bleed chrome, capped results" on /mock/surface
- * (2026-08-24) after asking to lose the empty margins on either side — so the
- * search shell and the toolbar run the full window and only the results grid
- * takes this cap.
- *
- * 1600 is a ceiling, not a width: below it this class does nothing at all, so
- * every laptop viewport renders exactly as it did. It exists for the wide
- * monitor, where an uncapped three-pane grid put the description pane at
- * ~110 characters per line — well past the 65–75 a person reads without
- * losing their place on the return sweep.
+ * Shared full-width content class inside `.shell-row` (`--shell-max: 100%`
+ * with `--shell-gutter` side inset), so the header, the filter rail, the
+ * results list and the detail pane share one pair of edges across the window.
  */
-const cappedContentClass = "mx-auto w-full max-w-[1600px]";
+const cappedContentClass = "mx-auto w-full";
 
 /** Set to "1" once the searcher hides the filter rail; the rail is open without it. */
 const FILTERS_RAIL_HIDDEN_KEY = "velai.jobs.filtersRailHidden";
@@ -5279,15 +5271,10 @@ export function JobsContent({
      */
     return (
         <div className="min-h-screen">
-            {/* `data-shell="bleed"` is this page ASKING for the full window;
-                globals.css turns that into `--shell-max: none` for the header
-                and footer too, so all three left edges stay together. Each
-                child then decides whether it caps itself
-                (`cappedContentClass`) — masthead, search shell and toolbar
-                deliberately don't, so they line up against the same gutter,
-                and the results grid is the one thing that stops widening. */}
+            {/* The same `.shell-row` as the header. The list and the detail
+                pane sit inside it, on the logo's edge. A max-width here is
+                what made the logo jump between Jobs, Résumé and Tracker. */}
             <div
-                data-shell="bleed"
                 className="shell-row flex flex-col pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] pt-2 sm:pt-3 lg:pb-20"
             >
                 {/* Landing masthead — mounts whenever the front door is "at

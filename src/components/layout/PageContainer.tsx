@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * The ONE page container: the `.shell-row` geometry the TopBar and Footer
- * already use (globals.css: `--shell-max` 72rem → 80rem at xl; gutter
- * 16 / 32 / 40px), so a page's left edge is the header logo's left edge on
- * every route.
+ * already use (globals.css: `--shell-max` 100rem → 105rem / 1680px at xl;
+ * `--shell-gutter` 16 / 32 / 40px), so a page's left edge is the header
+ * logo's left edge on every route, /jobs included.
  *
  * `measure="reading"` narrows the CONTENT to a readable line length (48rem)
  * but keeps it on the shell's left edge — centring a narrow column inside the
@@ -27,10 +27,9 @@ export function PageContainer({ measure = "wide", className, ...props }: PageCon
 }
 
 /**
- * The open résumé editor's canvas (Settings › Résumé and /resume): the shell's
- * width from lg up, edge to edge below it so the editor gets the whole phone.
- * One string for both pages, so the two editors can't drift apart.
+ * The open résumé editor's canvas (Settings › Résumé and /resume): `.shell-row`
+ * from lg up, and `.shell-canvas` (globals.css) drops the cap and the gutter
+ * below lg so the editor gets the whole phone. One string for both pages.
  */
-// page-scale-allow: the open editor's canvas runs edge to edge below lg
 export const EDITOR_CANVAS_FRAME =
-  "mx-auto max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10";
+  "shell-row shell-canvas pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-6";

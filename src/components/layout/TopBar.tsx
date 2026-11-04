@@ -91,10 +91,9 @@ export function TopBar() {
             // flat bar the docked filter band shares.
             className="sticky top-0 z-[var(--z-topbar)] shrink-0 max-lg:scroll-edge lg:material-bar pt-[env(safe-area-inset-top,0px)] transition-colors"
         >
-            {/* `shell-row` (globals.css) owns the width and the gutter, so this
-                bar lines up with whatever the page below it is doing — capped
-                on most pages, edge to edge on one that declares it. Writing a
-                `max-w-*` here again would reintroduce the crooked frame.
+            {/* `shell-row` (globals.css) owns the width and the gutter, the same
+                on every route. Writing a `max-w-*` or a gutter here would move
+                the logo and the nav when the tab changes.
                 `data-region="header"` sits here (the top row) rather than on
                 the outer `<header>` — the docked filter band below is a DOM
                 child of that same `<header>` (for one sticky positioning
@@ -241,7 +240,7 @@ export function TopBar() {
             {docked && (
                 <div data-region="band" className="hidden lg:block">
                     {/* Wrap instead of horizontal scroll; chips never truncate. */}
-                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip">
+                    <div className="shell-row box-border flex min-w-0 min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip">
                         {docked && (
                             <>
                                 <button

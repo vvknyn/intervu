@@ -51,18 +51,17 @@ import {
     type CandidateSignals,
     preferredRoles,
 } from "@/lib/jobs/candidate-signals";
-import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { payPlace } from "@/lib/jobs/pay-place";
 import { listedPastSenior, resumeManagedPeople, titleLevel, titleManagesPeople, titlePastSenior, yearsAsked } from "@/lib/jobs/role-level";
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
-import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { contentFamilyLabel, isWorkWord, resumeContentFamilies, type ContentFamily } from "@/lib/match/content-family";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, PHRASE_MATCH_WEIGHT, resumeTermSet } from "@/lib/match/jd-match";
-import { languageLabel } from "@/lib/match/posting-language";
+import { languageLabel, resumeLanguages } from "@/lib/match/posting-language";
+import { countsAsTitleMatch, isGenericTitleModifier, isTitleStopword, isTruncatedStem, resumeSharesTitleSignal, titleInResumeLanguage, titleTermTokens } from "@/lib/match/title-signal";
 import { COVERAGE_MIN_RESUME_TERMS, requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
-import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
+import { familiesNamedBy, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
@@ -391,9 +390,13 @@ function normalize(s: string): string {
     return s.trim().toLowerCase();
 }
 
-/** `meaningfulTitleTokens` (stop-words stripped) with rank words ALSO stripped — the shared step both vocabularies below run through. */
+/**
+ * Fit-vocabulary tokens: unicode words, stopwords (English and French) and rank
+ * words removed. Accented words stay whole, so a French title cannot contribute
+ * the cut stem "qualit".
+ */
 function relevanceTokens(s: string): string[] {
-    return meaningfulTitleTokens(s).filter((t) => !RANK_WORDS.has(t));
+    return titleTermTokens(s);
 }
 
 /** Simple singular/plural tolerance carried over from the pre-redesign skills
@@ -411,8 +414,27 @@ function vocabHasToken(vocab: ReadonlySet<string>, token: string): boolean {
  * Account Manager" was Strong on Today (3 of 3 title terms) and Stretch on its
  * page (8 of 29 once the description's first sentences counted).
  */
-function jobVocabulary(job: PublicJob): Set<string> {
-    return new Set([...relevanceTokens(job.title ?? ""), ...(job.tags ?? []).flatMap((tag) => relevanceTokens(tag))]);
+function jobVocabulary(resume: ResumeData, job: PublicJob): Set<string> {
+    const languages = resumeLanguages(resume) ?? ["english"];
+    // One language of a bilingual title. The other half's words are the same role written again.
+    const title = titleInResumeLanguage(job.title ?? "", languages);
+    const tokens = new Set<string>([
+        ...relevanceTokens(title),
+        ...(job.tags ?? []).flatMap((tag) => relevanceTokens(titleInResumeLanguage(tag, languages))),
+    ]);
+    const source = [title, ...(job.tags ?? [])].join(" ");
+    // Generic modifiers count only alongside a shared role or the same kind of work.
+    // On their own they neither raise the fraction nor fill a Strong slot.
+    // "Manager" still counts on a Customer Success Manager for a TAM: that is their kind of role.
+    const jobFamilies = familiesNamedBy([title]);
+    const targets = resumeTargets(resume);
+    const sameKind = jobFamilies.some((family) => targets.families.includes(family) || targets.ownFamilies.includes(family));
+    const keepGenerics = sameKind || resumeSharesTitleSignal(resume, job.title ?? "");
+    for (const token of [...tokens]) {
+        if (isTitleStopword(token) || isTruncatedStem(token, source)) tokens.delete(token);
+        else if (!keepGenerics && isGenericTitleModifier(token)) tokens.delete(token);
+    }
+    return tokens;
 }
 
 /**
@@ -548,7 +570,7 @@ export const workWeight = (terms: readonly string[]): number =>
  * with no text to read (a bare list row), and the role's title still orders and caps (`roleAffinity`).
  */
 function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | null {
-    const jobVocab = jobVocabulary(job);
+    const jobVocab = jobVocabulary(resume, job);
     const resumeVocab = resumeVocabulary(resume);
     if (jobVocab.size === 0 || resumeVocab.size === 0) return null;
 
@@ -602,7 +624,7 @@ export function relevanceTerms(resume: ResumeData, job: PublicJob): { matched: s
     const resumeVocab = resumeVocabulary(resume);
     const matched: string[] = [];
     const missing: string[] = [];
-    for (const token of jobVocabulary(job)) (vocabHasToken(resumeVocab, token) ? matched : missing).push(token);
+    for (const token of jobVocabulary(resume, job)) (vocabHasToken(resumeVocab, token) ? matched : missing).push(token);
     return { matched, missing };
 }
 
@@ -1005,7 +1027,7 @@ export function roleFit(resume: ResumeData, job: PublicJob, preferred: readonly 
     const title = job.title ?? "";
     // Whole words, in order (`jobTitleMatchesTarget`): a substring test read
     // "Nursery Teacher" as a "Nurse" posting.
-    if (searched.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "target";
+    if (searched.some((phrase) => countsAsTitleMatch(title, phrase))) return "target";
     const jobFamilies = familiesNamedBy([job.title ?? ""]);
     if (jobFamilies.length === 0) return "unverified";
     if (families.length === 0) {
@@ -1106,10 +1128,10 @@ function titleAffinity(resume: ResumeData, job: PublicJob, preferred: readonly s
     if (fit === "off-target") return fit;
     const { own, ownFamilies } = resumeTargets(resume, preferred);
     const title = job.title ?? "";
-    if (own.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "own";
+    if (own.some((phrase) => countsAsTitleMatch(title, phrase))) return "own";
     // A role they asked for but have not held is next to theirs, not one more of their own (2026-10-14).
     const { statedUnheld } = resumeTargets(resume, preferred);
-    if (statedUnheld.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "adjacent";
+    if (statedUnheld.some((phrase) => countsAsTitleMatch(title, phrase))) return "adjacent";
     if (familiesNamedBy([title]).some((family) => ownFamilies.includes(family))) return "family";
     // A résumé that names no role of its own (skills only) has nothing to be "next to".
     if (fit === "target") return own.length > 0 ? "adjacent" : "family";
@@ -1119,7 +1141,7 @@ function titleAffinity(resume: ResumeData, job: PublicJob, preferred: readonly s
 /** The candidate's role a posting is explained against: the own title it matched, else their first one. */
 function yourRoleFor(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): string | null {
     const { own } = resumeTargets(resume, preferred);
-    return own.find((phrase) => jobTitleMatchesTarget(job.title ?? "", phrase)) ?? own[0] ?? null;
+    return own.find((phrase) => countsAsTitleMatch(job.title ?? "", phrase)) ?? own[0] ?? null;
 }
 
 /**

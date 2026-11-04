@@ -8,6 +8,7 @@ import {
     ResumeSection,
     getSectionOrder,
 } from "@/types/resume";
+import { analyzeResumeDiagnostics, tightenResumeData } from "@/lib/resume/resume-diagnostics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -216,6 +217,19 @@ export function EditingPanel({
         });
     };
 
+    const diagnostics = useMemo(() => analyzeResumeDiagnostics(data), [data]);
+
+    const handleTightenWording = useCallback(() => {
+        const { data: tightened, fixedCount } = tightenResumeData(data);
+        if (fixedCount > 0) {
+            onUpdate({
+                experience: tightened.experience,
+                projects: tightened.projects,
+                generatedSummary: tightened.generatedSummary,
+            });
+        }
+    }, [data, onUpdate]);
+
     // Built here rather than closed over: `SectionHeader` lives at module scope
     // (see its comment) so it can't reach these directly.
     const nav: SectionNav = {
@@ -267,6 +281,62 @@ export function EditingPanel({
                         );
                     })}
                 </div>
+
+                {/* Bullet & Wording Diagnostics (XYZ Formula) */}
+                {diagnostics.totalBullets > 0 && (
+                    <div className="rounded-panel border border-border bg-surface p-4 space-y-3 shadow-[var(--shadow-bevel-highlight)]">
+                        <div className="flex items-center justify-between border-b border-border pb-2">
+                            <div className="flex items-center gap-2">
+                                <Sparkle size={16} className="text-muted-foreground" />
+                                <h4 className="text-xs font-semibold text-foreground">Writing &amp; Impact Check</h4>
+                            </div>
+                            {diagnostics.tightenableCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handleTightenWording}
+                                    className="text-xs font-medium text-live hover:underline"
+                                >
+                                    Tighten wording ({diagnostics.tightenableCount})
+                                </button>
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Aim for the XYZ structure: <span className="text-foreground">Accomplished [X] as measured by [Y], by doing [Z]</span>.
+                        </p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs">
+                            <div className="rounded-ctl border border-border bg-surface-2 px-3 py-2">
+                                <div className="font-medium text-foreground">
+                                    Quantified bullets: {diagnostics.quantifiedBullets}/{diagnostics.totalBullets}
+                                </div>
+                                <div className="text-muted-foreground">
+                                    {diagnostics.unquantifiedBullets.length === 0
+                                        ? "Every experience bullet includes a metric or scope."
+                                        : `${diagnostics.unquantifiedBullets.length} experience bullet${diagnostics.unquantifiedBullets.length === 1 ? " lacks" : "s lack"} a number, %, or timeframe.`}
+                                </div>
+                            </div>
+                            <div className="rounded-ctl border border-border bg-surface-2 px-3 py-2">
+                                <div className="font-medium text-foreground">
+                                    Action-verb openers: {diagnostics.totalBullets - diagnostics.weakOpeners.length}/{diagnostics.totalBullets}
+                                </div>
+                                <div className="text-muted-foreground">
+                                    {diagnostics.weakOpeners.length === 0
+                                        ? "No passive duty openers found."
+                                        : `${diagnostics.weakOpeners.length} bullet${diagnostics.weakOpeners.length === 1 ? " opens" : "s open"} with "${diagnostics.weakOpeners[0]?.detail}".`}
+                                </div>
+                            </div>
+                            {diagnostics.fillerAndBuzzwords.length > 0 && (
+                                <div className="rounded-ctl border border-border bg-surface-2 px-3 py-2 sm:col-span-2">
+                                    <div className="font-medium text-foreground">
+                                        Filler or clichés to cut ({diagnostics.fillerAndBuzzwords.length})
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                        Drop low-signal words like &ldquo;{diagnostics.fillerAndBuzzwords[0]?.detail}&rdquo; so each bullet leads with concrete action and impact.
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Section Ordering */}
                 <div className="rounded-panel border border-border bg-surface p-4 space-y-3 shadow-[var(--shadow-bevel-highlight)]">
@@ -594,7 +664,7 @@ export function EditingPanel({
                 company: "",
                 role: "",
                 dates: "Jan 2024 — Present",
-                description: "• Spearheaded key initiatives that drove business value\n• Led architecture and execution of core systems",
+                description: "• Accomplished [X] as measured by [Y], by doing [Z]\n• Built or improved [system/process], reducing [metric] by [%]",
             };
             onUpdate({ experience: [newExp, ...experience] });
         };
