@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { CareerHubBody } from "@/components/seo/CareerHubBody";
 import type { DirectoryCompany } from "@/lib/companies/directory-model";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -49,7 +48,7 @@ function job(i: number): PublicJob {
     salary_period: null,
     visa_sponsorship: null,
     tags: [],
-    apply_url: "https://example.com/apply",
+    apply_url: "/mock/career-hub",
     source: "mock",
     posted_at: new Date(NOW - (i + 1) * DAY).toISOString(),
     posted_ts: NOW - (i + 1) * DAY,
@@ -74,7 +73,9 @@ const facts: HubFacts = {
 
 export default async function MockCareerHubPage({ searchParams }: { searchParams: Promise<{ hub?: string }> }) {
   const { hub: slug } = await searchParams;
-  const hub = getCareerHub(slug ?? getAllCareerHubSlugs()[0]);
-  if (!hub) notFound();
+  // An unknown ?hub= falls back to the first hub: a mock page never answers a 404 itself, because the gated mock
+  // layout is what hides it in production (tests/unit/mock-routes-production-gate.test.ts).
+  const hub = getCareerHub(slug ?? "") ?? getCareerHub(getAllCareerHubSlugs()[0]);
+  if (!hub) throw new Error("no career hub to mock");
   return <CareerHubBody hub={hub} facts={facts} now={NOW + DAY / 2} />;
 }
