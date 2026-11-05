@@ -67,6 +67,9 @@ export function auditWrapping(): WrapFinding[] {
             else rows.push([kr]);
         }
         if (rows.length < 2) continue;
+        // A vertical list (block or grid children, one per line, such as the inset rows of a grouped list) is a list of rows, not a row that wrapped.
+        const wrapsLines = (cs.display.includes("flex") && cs.flexWrap === "wrap") || box.classList.contains("wrap-row");
+        if (!wrapsLines && rows.every((cells) => cells.length === 1)) continue;
         const buttons = controls.every((c) => c.getBoundingClientRect().height >= 28);
         const ragged =
             buttons &&
