@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PLAN_AND_PAYMENTS_HREF } from "@/lib/billing/paths";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Prose } from "@/components/ui/prose";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { PAID_FEATURES } from "@/lib/jobs/resume-privacy-copy";
+import { CHROME_EXTENSION_STORE_URL } from "@/lib/brand/extension-store";
 import { captureEvent } from "@/lib/analytics/events";
 import { PERSONAL_EMAIL_HINT } from "@/lib/auth/auth-gate-copy";
 import {
@@ -38,8 +39,15 @@ type PricingClientProps = {
   paidStatusUnknown?: boolean;
 };
 
-const FREE_FEATURES = [
+const FREE_FEATURES: ReactNode[] = [
   "Job search and matching, using a résumé kept on your device",
+  <>
+    The{" "}
+    <a href={CHROME_EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" data-testid="pricing-extension-link" className="underline">
+      Chrome extension
+    </a>{" "}
+    with that same résumé: your fit on job pages, changes to your résumé for each job and filling in the application
+  </>,
   "The application tracker and saved jobs",
 ];
 
@@ -55,11 +63,11 @@ const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 
 const CHECKOUT_FALLBACK_ERROR = "Checkout didn't start. Try again in a minute.";
 
-function FeatureList({ items }: { items: string[] }) {
+function FeatureList({ items }: { items: ReactNode[] }) {
   return (
     <ul className="mt-3 space-y-2 text-sm text-foreground">
-      {items.map((item) => (
-        <li key={item} className="flex gap-2">
+      {items.map((item, i) => (
+        <li key={i} className="flex gap-2">
           <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
           <span>{item}</span>
         </li>
