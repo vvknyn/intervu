@@ -42,7 +42,7 @@ export function WorkArrangementDistribution({
         ))}
       </div>
 
-      <ul className="mt-2 mb-4 flex flex-wrap gap-x-4 gap-y-1" aria-label="Workplace flexibility legend">
+      <ul className="link-cloud mt-2 mb-4" aria-label="Workplace flexibility legend">
         {workTypes.map((item, i) => (
           <li key={`legend-${item.key}`} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span

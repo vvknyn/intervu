@@ -47,7 +47,7 @@ export default async function BillingReturnPage({ searchParams }: { searchParams
             <PageTitle>Payment</PageTitle>
             <p className="mt-4">{message}</p>
             <p className="mt-6">
-                <Link href="/jobs" className="underline">Back to jobs</Link>
+                <Link href="/jobs" className="text-link">Back to jobs</Link>
             </p>
         </PageContainer>
     );

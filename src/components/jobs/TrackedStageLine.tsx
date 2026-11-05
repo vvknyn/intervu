@@ -38,7 +38,7 @@ export function TrackedStageLine({
                             key="open"
                             href={`/yours/${pursuit.id}`}
                             data-testid="job-tracked-stage-link"
-                            className="whitespace-nowrap text-foreground underline underline-offset-2"
+                            className="whitespace-nowrap text-foreground text-link"
                         >
                             Update status
                         </Link>

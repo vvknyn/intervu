@@ -265,7 +265,7 @@ function ResumeContent() {
                                         type="button"
                                         data-testid="resume-remove-local"
                                         onClick={() => setConfirmingRemove(true)}
-                                        className="text-muted-foreground underline underline-offset-2 hover:text-danger-text"
+                                        className="text-muted-foreground hover:text-danger-text text-link"
                                     >
                                         Remove from this device
                                     </button>

@@ -5,6 +5,7 @@ import { facetValueLabel } from "@/components/jobs/FilterPanel";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import type { MarketStats } from "@/lib/jobs/market-stats";
 import { ContextHelp } from "@/components/ui/context-help";
+import { FactLine } from "@/components/ui/fact-line";
 import { POSTING_AGE_CONTEXT_COPY } from "@/lib/jobs/ghost-context-copy";
 import { TrendSection } from "./TrendSection";
 
@@ -82,15 +83,14 @@ export function MarketPulse({
 
       {sourceCoverage.length > 0 && (
         <div className="mt-4 rounded-panel border border-border bg-muted p-3">
-          <p data-testid="trends-pulse-coverage" className="text-xs leading-relaxed text-muted-foreground">
-            <span className="mr-1 font-semibold text-foreground">
-              Where these postings come from:
-            </span>
-            {sourceCoverage
-              .slice(0, MAX_VISIBLE_SOURCES)
-              .map((row) => `${facetValueLabel("source", row.source)} (${row.count.toLocaleString()})`)
-              .join(" · ")}
-          </p>
+          <div data-testid="trends-pulse-coverage" className="text-xs leading-relaxed text-muted-foreground">
+            <p className="font-semibold text-foreground">Where these postings come from:</p>
+            <FactLine
+              items={sourceCoverage
+                .slice(0, MAX_VISIBLE_SOURCES)
+                .map((row) => `${facetValueLabel("source", row.source)} (${row.count.toLocaleString()})`)}
+            />
+          </div>
         </div>
       )}
     </TrendSection>

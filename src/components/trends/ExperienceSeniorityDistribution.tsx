@@ -36,7 +36,7 @@ export function ExperienceSeniorityDistribution({
           <div className="text-xs text-muted-foreground">
             <span>Employment contract types</span>
           </div>
-          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
+          <div className="link-cloud mt-2.5">
             {employmentTypes.map((type) => {
               const href = `/${serializeJobsUrl({
                 ...DEFAULT_URL_STATE,

@@ -5,6 +5,7 @@ import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { decodeText, displayCompanyName, locationText, postedAgeShort } from "@/lib/jobs/presentation";
 import type { HubFacts } from "@/lib/seo/hub-facts";
 import { SectionTitle } from "@/components/ui/heading";
+import { FactLine } from "@/components/ui/fact-line";
 
 /** The facts a career hub states, server-rendered: live role count, companies, newest roles.
  *  A part whose data was not read is not rendered. */
@@ -20,10 +21,10 @@ export function HubSections({ facts, label, now }: { facts: HubFacts; label: str
       {facts.companies.length > 0 && (
         <section aria-labelledby="hub-companies" className="mt-8" data-testid="career-hub-companies">
           <SectionTitle id="hub-companies">Companies hiring for {topic}</SectionTitle>
-          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+          <ul className="link-cloud mt-2 text-sm">
             {facts.companies.map(({ domain, name }) => (
               <li key={domain}>
-                <Link href={companyBoardPath(domain)} className="hover:underline">
+                <Link href={companyBoardPath(domain)} className="name-link">
                   {name}
                 </Link>
               </li>
@@ -40,14 +41,10 @@ export function HubSections({ facts, label, now }: { facts: HubFacts; label: str
               const place = locationText(job);
               return (
                 <li key={job.id}>
-                  <Link href={jobPath(job)} className="hover:underline">
+                  <Link href={jobPath(job)} className="name-link">
                     {decodeText(job.title)}
-                  </Link>{" "}
-                  <span>
-                    · {displayCompanyName(job.company)}
-                    {place ? ` · ${place}` : ""}
-                    {age ? ` · ${age}` : ""}
-                  </span>
+                  </Link>
+                  <FactLine items={[displayCompanyName(job.company), place, age]} />
                 </li>
               );
             })}

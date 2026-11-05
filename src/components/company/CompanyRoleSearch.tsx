@@ -15,8 +15,8 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MagnifyingGlass, X } from "@phosphor-icons/react";
-import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { MagnifyingGlass } from "@phosphor-icons/react";
+import { Sheet, SheetBar, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { SectionTitle, SubTitle } from "@/components/ui/heading";
 import { roleCountLabel, showMoreLabel, type CompanyRoleStat } from "@/lib/companies/presentation";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
@@ -338,7 +338,7 @@ export function CompanyRoleSearch({
             </SubTitle>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
               Screened for{" "}
-              <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+              <Link href={GHOST_RESEARCH_HREF} className="hover:text-foreground text-link">
                 postings that aren&apos;t really hiring
               </Link>
               , plus freshness and verified salary transparency.
@@ -389,7 +389,7 @@ export function CompanyRoleSearch({
           {searchesPartialWindow && hasQuery && (
             <p className="mt-2 text-xs text-muted-foreground">
               Searching the {jobs.length} most recent roles —{" "}
-              <Link href={jobsSearchUrl} className="text-brand hover:underline">
+              <Link href={jobsSearchUrl} className="text-action">
                 use full search
               </Link>{" "}
               for all.
@@ -404,7 +404,7 @@ export function CompanyRoleSearch({
             <p className="text-sm text-foreground">
               No open roles match &ldquo;{trimmedQuery}&rdquo;.
             </p>
-            <Link href={jobsSearchUrl} className="mt-2 inline-block text-sm text-brand hover:underline">
+            <Link href={jobsSearchUrl} className="mt-2 inline-block text-sm text-action">
               Search all jobs at {companyName}
             </Link>
           </div>
@@ -526,37 +526,14 @@ export function CompanyRoleSearch({
             e.preventDefault();
             openerRef.current.focus();
           }}
-          className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-180 -translate-x-1/2 overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+          className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-180 -translate-x-1/2 overflow-hidden p-0"
         >
-          <div className="shrink-0 border-b border-border">
-            <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
-              <SheetHandle />
-            </div>
-            <div className="flex items-center gap-2 px-4 pb-3">
-              <div className="min-w-0 flex-1">
-                {selectedJob ? (
-                  <>
-                    <p className="truncate text-base font-semibold text-foreground">
-                      {decodeText(selectedJob.title)}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {displayCompanyBrand(selectedJob.company, selectedJob.company_domain, selectedJob.title)}
-                    </p>
-                  </>
-                ) : (
-                  <p className="truncate text-base font-semibold text-foreground">Job details</p>
-                )}
-              </div>
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={() => setSelectedJob(null)}
-                className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
-              >
-                <X size={16} weight="bold" aria-hidden />
-              </button>
-            </div>
-          </div>
+          <SheetBar
+            labelled={false}
+            onClose={() => setSelectedJob(null)}
+            title={selectedJob ? decodeText(selectedJob.title) : "Job details"}
+            description={selectedJob ? displayCompanyBrand(selectedJob.company, selectedJob.company_domain, selectedJob.title) : undefined}
+          />
           <SheetTitle className="sr-only">
             {selectedJob
               ? `${decodeText(selectedJob.title)} at ${displayCompanyBrand(selectedJob.company, selectedJob.company_domain, selectedJob.title)}`

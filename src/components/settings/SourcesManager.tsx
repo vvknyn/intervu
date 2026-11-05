@@ -530,7 +530,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                                         setCommunitySearch("");
                                         loadCommunity();
                                     }}
-                                    className="text-sm text-foreground underline underline-offset-2 hover:underline"
+                                    className="text-sm text-foreground text-link"
                                 >
                                     Clear search
                                 </button>

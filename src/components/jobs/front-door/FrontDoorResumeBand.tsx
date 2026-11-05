@@ -70,7 +70,7 @@ export function FrontDoorResumeBand({
                                     <button
                                         type="button"
                                         onClick={onSignInClick}
-                                        className="font-semibold text-foreground underline underline-offset-2"
+                                        className="text-foreground text-link"
                                     >
                                         {AUTH_CTA_LABEL}
                                     </button>

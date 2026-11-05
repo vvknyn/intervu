@@ -39,7 +39,7 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
             {stage ? (
                 <p className="mb-3 flex flex-wrap items-baseline gap-x-3 text-sm text-muted-foreground" data-testid="tracker-stage-filter">
                     <span>Showing {lanes[0]?.label} only</span>
-                    <Link href="/yours" data-testid="tracker-stage-all" className="text-brand hover:underline">
+                    <Link href="/yours" data-testid="tracker-stage-all" className="text-action">
                         All stages
                     </Link>
                 </p>

@@ -185,13 +185,17 @@ export function JobCard({
                 }
             }}
             className={cn(
-                // rounded-none: KEEP — flush; rows are hairline-separated, not
-                // bordered cards (rulebook item h): the divider lives on the
-                // content wrapper below, inset past the tile, so this outer
-                // grid carries no border or bottom margin of its own — rows
-                // touch, the line between them starts at the title's x, not
-                // the tile's.
-                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-transparent text-left transition-colors duration-[var(--transition-base)] focus-visible:inset-outline-2 focus-visible:outline-live gap-x-3 px-[var(--list-inset)] pt-4",
+                // Rows are hairline-separated, not bordered cards (rulebook
+                // item h): the divider lives on the content wrapper below,
+                // inset past the tile, so this outer grid carries no border
+                // or bottom margin of its own — rows touch, the line between
+                // them starts at the title's x, not the tile's.
+                "group grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] bg-transparent text-left transition-colors duration-[var(--transition-base)] focus-visible:inset-outline-2 focus-visible:outline-live gap-x-3 pt-4",
+                // A standalone row is a `list-row`: its hover, press and selection are a rounded lens inset from
+                // the list's edges (Apple's list highlight).
+                // rounded-none: KEEP — an employer group's rows stay one flush block on its own fill, so they
+                // keep square corners and the full width.
+                group ? "w-full rounded-none px-[var(--list-inset)]" : "list-row active:bg-surface-hover",
                 // No stripe. hover = --surface-hover (Tailwind v4 gates `hover:` behind
                 // @media (hover:hover), so touch never sticks it). The open row = the brand
                 // tint (a different hue, within 1.03x of hover in luminance) PLUS a 1px inset
@@ -217,17 +221,16 @@ export function JobCard({
                         href={jobPath(job)}
                         data-testid="job-title"
                         className={cn(
-                            // Three lines below sm: on a 320px phone the title
-                            // column is ~140px, and two lines cut "Registered
-                            // Nurse, Pediatrics - Per Diem" to "Registered
-                            // Nurse,…" (2026-10-02).
-                            "text-base leading-snug line-clamp-2 max-sm:line-clamp-3",
+                            // The clamp is on the inner span, not here: a link that clips its own overflow
+                            // also clips the 44pt tap floor drawn around it (globals.css), which left
+                            // every title 22pt tall to a finger (2026-11-05).
+                            "text-base leading-snug",
                             // Selected row (`active`) freezes `:hover` in some
                             // browsers because the pointer never truly leaves —
                             // so the row that's already selected must not carry
                             // the hover-underline affordance at all; every other
                             // row still underlines on hover as usual.
-                            !active && "hover:underline",
+                            !active && "name-link",
                             opened ? "text-muted-foreground" : "font-semibold text-foreground",
                         )}
                         onClick={(e) => {
@@ -246,7 +249,10 @@ export function JobCard({
                             onClick();
                         }}
                     >
-                        {presented.title}
+                        {/* Three lines below sm: on a 320px phone the title column is ~140px, and two
+                            lines cut "Registered Nurse, Pediatrics - Per Diem" to "Registered Nurse,…"
+                            (2026-10-02). */}
+                        <span className="line-clamp-2 max-sm:line-clamp-3">{presented.title}</span>
                     </Link>
                     {/* Exception-only word marks beside the title (ATTENTION.md
                         channel 4) — `rowExceptionMark` is the single
@@ -299,7 +305,7 @@ export function JobCard({
                                     <button
                                         type="button"
                                         data-testid="job-row-company"
-                                        className="hidden text-left hover:text-foreground hover:underline lg:inline"
+                                        className="hidden text-left hover:text-foreground lg:inline name-link"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onCompany(job);
@@ -352,7 +358,7 @@ export function JobCard({
                                     <button
                                         type="button"
                                         data-testid="cluster-toggle"
-                                        className="hover:text-foreground hover:underline"
+                                        className="hover:text-foreground name-link"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onToggleExpand?.();

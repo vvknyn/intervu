@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-const LINK_CLASS = "text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70";
+const LINK_CLASS = "text-foreground transition-opacity duration-100 text-link";
 
 /**
  * What to call the résumé a page ranks against. An uploaded file goes by its

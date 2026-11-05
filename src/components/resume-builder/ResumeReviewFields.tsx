@@ -108,7 +108,7 @@ export function ResumeReviewFields({
                         {level.from === "settings" ? (
                             <>
                                 {" "}
-                                <Link href="/settings?tab=prefs" target="_blank" className="underline underline-offset-2 hover:text-foreground">
+                                <Link href="/settings?tab=prefs" target="_blank" className="hover:text-foreground text-link">
                                     Change it in Settings
                                 </Link>
                             </>

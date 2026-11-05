@@ -189,11 +189,11 @@ export function AuthPopover({
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
                 <DialogContent
-                    className="sm:max-w-105 max-h-[min(640px,var(--overlay-max-h))] bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8"
+                    className="sm:max-w-105 max-h-[min(640px,var(--overlay-max-h))]"
                     onCloseAutoFocus={handleDialogCloseAutoFocus}
                 >
                     <DialogTitle className="sr-only">{headline?.title ?? "Authentication"}</DialogTitle>
-                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />
+                    <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} inOverlay />
                 </DialogContent>
             </Dialog>
         );
@@ -206,7 +206,7 @@ export function AuthPopover({
                     {AUTH_CTA_LABEL}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain bg-surface-2 p-5 pt-7 shadow-[var(--shadow-overlay)] sm:p-6 sm:pt-8">
+            <PopoverContent align="end" className="w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain p-5 pt-7 sm:p-6 sm:pt-8">
                 <div>
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />
                 </div>

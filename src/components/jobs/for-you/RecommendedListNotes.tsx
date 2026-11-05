@@ -46,7 +46,7 @@ export function RecommendedListNotes({
                     {notice.action ? (
                         <>
                             {" · "}
-                            <Link href={notice.action.href} className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground">
+                            <Link href={notice.action.href} className="transition-colors duration-100 hover:text-foreground text-link">
                                 {notice.action.label}
                             </Link>
                         </>

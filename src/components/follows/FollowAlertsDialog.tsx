@@ -69,7 +69,7 @@ export function FollowAlertsDialog({
                     acknowledge();
                     close();
                   }}
-                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition-colors hover:text-brand"
+                  className="list-row flex items-center justify-between gap-3 py-3 text-sm transition-colors hover:bg-surface-hover"
                 >
                   <div className="min-w-0">
                     <div className="truncate">{titleCaseDisplay(decodeText(job.title))}</div>
@@ -88,7 +88,7 @@ export function FollowAlertsDialog({
             href={MANAGE_FOLLOWS_HREF}
             data-testid="follow-alerts-cta"
             onClick={close}
-            className="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground text-link"
           >
             Manage companies you follow
           </Link>

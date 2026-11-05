@@ -26,7 +26,7 @@ function DisclosureSummary({
     <summary
       data-slot="disclosure-summary"
       className={cn(
-        "cursor-pointer rounded-ctl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+        "cursor-pointer rounded-ctl press-fill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
         !marker && "list-none [&::-webkit-details-marker]:hidden",
         className
       )}

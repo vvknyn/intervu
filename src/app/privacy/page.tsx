@@ -534,7 +534,7 @@ export default function PrivacyPage() {
           You can edit or delete content you created in the product. To remove your entire account, use the
           self-serve flow in account settings ({ACCOUNT_SELF_SERVE_DELETION_FLOW}). For questions about privacy or
           deletion, email{" "}
-          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
+          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground text-link">
             {PUBLIC_SUPPORT_EMAIL}
           </a>{" "}
           or use the <Link href="/contact">contact page</Link>.
@@ -543,7 +543,7 @@ export default function PrivacyPage() {
         <DocHeading>Contact</DocHeading>
         <p>
           Questions: email{" "}
-          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
+          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground text-link">
             {PUBLIC_SUPPORT_EMAIL}
           </a>{" "}
           or use the <Link href="/contact">contact page</Link>.

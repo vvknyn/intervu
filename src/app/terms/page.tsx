@@ -105,7 +105,7 @@ export default function TermsPage() {
         <DocHeading>Contact</DocHeading>
         <p>
           Questions: email{" "}
-          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
+          <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground text-link">
             {PUBLIC_SUPPORT_EMAIL}
           </a>{" "}
           or use the <Link href="/contact">contact page</Link>.

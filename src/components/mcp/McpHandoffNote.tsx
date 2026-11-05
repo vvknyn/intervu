@@ -96,7 +96,7 @@ export function McpHandoffNote({
                 <div className="min-w-0 flex-1">
                     {copy.heading && <p className="mb-1 font-semibold text-foreground">{copy.heading}</p>}
                     {copy.sentence}{" "}
-                    <Link href="/connect" className="font-semibold text-brand underline underline-offset-4 hover:text-brand">
+                    <Link href="/connect" className="text-action">
                         Connect it once
                     </Link>
                 </div>

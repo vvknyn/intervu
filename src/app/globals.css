@@ -161,6 +161,13 @@
      the width of the tab bar once it minimizes to one round button. */
   --dock-w: min(28rem, calc(100vw - 2rem));
   --dock-min-w: 3.5rem;
+  /* A sheet on a phone floats like iOS 26's: inset from the sides and the
+     bottom edge, every corner rounded (HIG Sheets, Liquid Glass). */
+  --sheet-inset: 0.5rem;
+  --radius-sheet: 2rem;
+  /* A list row's highlight (hover, press, selection) is a rounded lens inset
+     this far from the list's edges (`list-row`), on the control corner. */
+  --lens-inset: 0.375rem;
   /* The sticky header's height. TopBar SETS its own height from this, so the
      token can't drift from the bar it describes, and anything that has to
      clear the header — a scroll target's `scroll-margin-top`, an
@@ -324,6 +331,14 @@
   --transition-deck: 220ms;
   --transition-page: 180ms;
   --transition-stack: 600ms;
+  /* Overlay motion — two pairs, one per kind (Interaction §9). A modal surface
+     (sheet, dialog, alert, toast) slides or fades in over 280ms and out over
+     180ms; a popover surface (menu, select, popover, combobox, tooltip) over
+     150ms and 100ms. Entering eases out, leaving eases in. */
+  --transition-modal-in: 280ms;
+  --transition-modal-out: 180ms;
+  --transition-pop-in: 150ms;
+  --transition-pop-out: 100ms;
   --motion-press-scale: 0.98;
   --motion-lift-y: -1px;
   --motion-deck-shift: 12%;
@@ -458,6 +473,26 @@
   --shadow-overlay: 0 14px 44px -8px rgb(0 0 0 / 0.55), 0 4px 14px rgb(0 0 0 / 0.35);
   --shadow-postcard: 0 20px 44px -12px rgb(0 0 0 / 0.6), 0 4px 14px rgb(0 0 0 / 0.32);
   --shadow-surface-raised: 0 10px 28px -6px rgb(0 0 0 / 0.45), 0 2px 8px rgb(0 0 0 / 0.22);
+}
+
+/* The page is dark only, and says so to iOS: the keyboard, native pickers,
+   autofill and scrollbars draw dark instead of following a phone set to Light
+   (HIG Dark Mode). layout.tsx also exports `viewport.colorScheme` and
+   `themeColor` for Safari's own bars. */
+html {
+  color-scheme: dark;
+}
+
+/* HIG Accessibility, Increase Contrast ("Make sure all your app's colors work
+   well in light, dark, and increased contrast contexts"): secondary and faint
+   text and the hairlines step up; the glass utilities turn opaque on their own. */
+@media (prefers-contrast: more) {
+  .dark {
+    --muted-foreground: 212 218 230;
+    --faint: 178 186 200;
+    --border: 96 104 122;
+    --border-subtle: 72 80 98;
+  }
 }
 
 @theme inline {
@@ -839,6 +874,13 @@ body {
 @utility material-float {
   background-color: rgb(var(--surface-3) / 0.6);
   border: 1px solid rgb(var(--foreground) / 0.16);
+  /* Liquid Glass edge (WWDC26): a specular highlight along the top rim, a
+     darkened lower rim, and the soft shadow that lifts the capsule off the
+     content it floats over. */
+  box-shadow:
+    inset 0 1px 0 rgb(var(--foreground) / 0.14),
+    inset 0 -1px 0 rgb(0 0 0 / 0.22),
+    0 8px 24px -8px rgb(0 0 0 / 0.55);
   -webkit-backdrop-filter: blur(14px) saturate(180%);
   backdrop-filter: blur(14px) saturate(180%);
   @supports not (backdrop-filter: blur(1px)) {
@@ -846,6 +888,242 @@ body {
   }
   @media (prefers-reduced-transparency: reduce) {
     background-color: rgb(var(--surface-3));
+  }
+  /* HIG Accessibility (Increase Contrast): glass turns opaque with a visible edge. */
+  @media (prefers-contrast: more) {
+    background-color: rgb(var(--surface-3));
+    border-color: rgb(var(--foreground) / 0.5);
+  }
+}
+
+/* LIQUID GLASS, the overlay layer: sheets, dialogs, alerts, menus, popovers,
+   selects. Apple HIG "Materials" (June 2026): Liquid Glass "forms a distinct
+   functional layer for controls and navigation elements ... that floats above
+   the content layer"; "Don't use Liquid Glass in the content layer"; use the
+   regular variant "when components have a significant amount of text, such as
+   alerts, sidebars, or popovers", and it "appears more opaque in larger
+   elements". So this is thicker than the capsules (0.84 of the popover fill,
+   28px blur) and every overlay primitive in components/ui paints it; cards,
+   rows and page backgrounds stay solid in the 136df428 palette. The fill alone
+   keeps the overlay's own text legible when WebKit reports backdrop-filter and
+   does not blur (design-language.test.ts guards the floor and the fallbacks;
+   journey J-HIG-09 measures it rendered). */
+@utility material-glass {
+  background-color: rgb(var(--popover) / 0.84);
+  border: 1px solid rgb(var(--foreground) / 0.12);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--foreground) / 0.1),
+    var(--shadow-overlay);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  @supports not (backdrop-filter: blur(1px)) {
+    background-color: rgb(var(--popover));
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: rgb(var(--popover));
+  }
+  @media (prefers-contrast: more) {
+    background-color: rgb(var(--popover));
+    border-color: rgb(var(--foreground) / 0.5);
+  }
+}
+
+/* The phone top bar's background, which is no slab (HIG Toolbars: "Reduce the
+   use of toolbar backgrounds ... use a ScrollEdgeEffectStyle when necessary to
+   distinguish the toolbar area from the content area"): content scrolling up
+   under the bar fades and blurs out toward the top edge, and the bar's own
+   controls float on glass capsules (`glass-group`). Near-opaque where the
+   wordmark and controls sit, clear only at the bar's lower edge, so the fill
+   alone still covers what scrolls under the controls when WebKit does not blur.
+   From lg the bar keeps the flat `material-bar`. */
+@utility scroll-edge {
+  background-color: transparent;
+  background-image: linear-gradient(to bottom, rgb(var(--background) / 0.97) 0%, rgb(var(--background) / 0.94) 75%, rgb(var(--background) / 0) 100%);
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-mask-image: linear-gradient(to bottom, white 75%, transparent);
+    mask-image: linear-gradient(to bottom, white 75%, transparent);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    background-image: none;
+    background-color: rgb(var(--background));
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    background-color: rgb(var(--background));
+    background-image: none;
+  }
+  @media (prefers-contrast: more) {
+    background-image: none;
+    background-color: rgb(var(--background));
+    box-shadow: inset 0 -1px 0 rgb(var(--foreground) / 0.5);
+  }
+}
+
+/* A group of top-bar controls on one glass capsule (HIG Toolbars: "Group
+   toolbar items logically"; the system "applies the Liquid Glass appearance to
+   toolbar buttons"). One capsule per group, at least the 44pt floor tall; a
+   lone icon control in it is a glass circle. */
+@utility glass-group {
+  @apply material-float;
+  display: flex;
+  align-items: center;
+  min-height: var(--hit-min);
+  min-width: var(--hit-min);
+  justify-content: center;
+  padding-inline: 0.25rem;
+  border-radius: var(--radius-pill);
+  /* Concentric: a control inside the capsule is a capsule too. */
+  & :is(a, button) {
+    border-radius: var(--radius-pill);
+  }
+}
+
+/* A row of a list (the /jobs results, History). Apple draws a list row's
+   hover, press and selection as a rounded highlight inset from the list's
+   edges (iOS 26 and macOS 26 lists, HIG Lists and tables: "Provide appropriate
+   feedback when people select a list item"), not a hard band edge to edge. The
+   row is inset by --lens-inset and pads back by the same amount, so its text
+   stays on the list's --list-inset line; its own background, ring and focus
+   ring take the rounded corners. Journey J-HIG-10. */
+@utility list-row {
+  margin-inline: var(--lens-inset);
+  /* A <button> row does not stretch to its line on its own: fill it, less the two insets. */
+  width: calc(100% - 2 * var(--lens-inset));
+  padding-inline: calc(var(--list-inset) - var(--lens-inset));
+  border-radius: var(--radius-ctl);
+  /* Press: the same lens, lit while the finger is down (touch has no hover). */
+  &:active {
+    background-color: rgb(var(--surface-hover));
+  }
+}
+
+/* PRESS — the one press feedback for anything tapped that is not a Button
+   (Buttons scale through .designed-press): a chip, a tab, a tab-bar item, a
+   disclosure or accordion row. The item lights with the hover fill while the
+   finger is down, on its own corner. Claude's apps and Apple's both answer
+   every tap; before this a touch on a chip or a row showed nothing. */
+@utility press-fill {
+  &:active:not(:disabled):not([aria-disabled="true"]) {
+    background-color: rgb(var(--surface-hover));
+  }
+}
+
+/* INLINE ACTION — a text button or link that sits in a line of text or a
+   toolbar ("Show details", "try again", "Sign in", "How MCP works"). One look:
+   the brand colour, the weight of the text around it, underlined on a touch
+   screen (no hover to discover it) and on hover elsewhere. There were three:
+   text-brand, text-live and text-foreground, underlined always, on hover, or
+   never, at 400 or 600. */
+@utility text-action {
+  color: rgb(var(--brand));
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  @media (hover: none) {
+    text-decoration-line: underline;
+    text-decoration-color: rgb(var(--brand) / 0.5);
+  }
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-line: underline;
+    }
+  }
+}
+
+/* LINK IN TEXT — a link inside a sentence ("privacy policy", "Upload a résumé",
+   "terms"): the colour of the text around it (or the call site's text colour),
+   always underlined, the underline at half strength until hovered. It shares
+   text-action's offset and thickness. There were 68 of these in five looks:
+   offset 2px or 4px or none, dotted or solid, 400 or 600 weight, and four
+   different hovers (opacity, brand, foreground, none). */
+@utility text-link {
+  text-decoration-line: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, currentColor 50%, transparent);
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-color: currentColor;
+    }
+  }
+}
+
+/* NAME LINK — a link that names a thing (a company, a job title, a post): it
+   stays in the text's colour and weight and underlines on hover only, with the
+   same offset and thickness as every other link. */
+@utility name-link {
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-line: underline;
+    }
+  }
+}
+
+/* OVERLAY MOTION — every overlay moves with one of two timings (Interaction
+   §9, tokens above). The primitives put these on their content and scrim; a
+   call site's own `duration-*`/`ease-*` loses to them (!important: the
+   tailwindcss-animate `animate-in`/`duration-*` utilities write the same
+   properties at the same specificity). Reduced motion still wins: it zeroes
+   the tokens. Before: the Filters sheet opened in 500ms, the job sheet in
+   150ms, the sign-in sheet in 150ms, the combobox never animated out. Radix
+   marks state with data-state (a tooltip's open state is "delayed-open" /
+   "instant-open"); react-aria with data-entering / data-exiting. */
+@utility motion-modal {
+  &:is([data-state="open"], [data-entering]) {
+    animation-duration: var(--transition-modal-in) !important;
+    animation-timing-function: var(--ease-enter) !important;
+  }
+  &:is([data-state="closed"], [data-exiting]) {
+    animation-duration: var(--transition-modal-out) !important;
+    animation-timing-function: var(--ease-out-exit) !important;
+  }
+}
+@utility motion-pop {
+  &:is([data-state="open"], [data-state="delayed-open"], [data-state="instant-open"], [data-entering]) {
+    animation-duration: var(--transition-pop-in) !important;
+    animation-timing-function: var(--ease-enter) !important;
+  }
+  &:is([data-state="closed"], [data-exiting]) {
+    animation-duration: var(--transition-pop-out) !important;
+    animation-timing-function: var(--ease-out-exit) !important;
+  }
+}
+/* EXPAND — an accordion panel and a <details> disclosure open and close the
+   same way: height over --transition-panel, easing in and out. The disclosure
+   used to snap open while the accordion slid. */
+@utility motion-expand {
+  animation-duration: var(--transition-panel) !important;
+  animation-timing-function: var(--ease-standard) !important;
+}
+@supports selector(::details-content) {
+  details[data-slot="disclosure"] {
+    interpolate-size: allow-keywords;
+  }
+  details[data-slot="disclosure"]::details-content {
+    block-size: 0;
+    overflow-y: clip;
+    transition:
+      block-size var(--transition-panel) var(--ease-standard),
+      content-visibility var(--transition-panel) allow-discrete;
+  }
+  details[data-slot="disclosure"][open]::details-content {
+    block-size: auto;
+  }
+}
+
+/* The selected item on a glass bar: a lighter lens of the glass, not an opaque
+   slab cut into it (iOS 26 tab bar). */
+@utility glass-selected {
+  background-color: rgb(var(--foreground) / 0.12);
+  @media (prefers-contrast: more) {
+    background-color: rgb(var(--foreground) / 0.24);
   }
 }
 
@@ -906,6 +1184,44 @@ body {
       width var(--transition-enter) var(--ease-standard),
       bottom var(--transition-enter) var(--ease-standard),
       transform var(--transition-enter) var(--ease-standard);
+  }
+}
+
+/* A phone on its side (HIG Layout: "adapt to ... orientation"; an iPhone in
+   landscape leaves about 390px of height). The pinned chrome took 124px of it,
+   188px on a job page (48%). Here the top bar scrolls away with the page, the
+   tab bar is compact the way iOS draws it in landscape (44pt tall, icon beside
+   the label, 8px off the bottom), and an Apply capsule rides on the tab bar's
+   row instead of stacking above it. Journey J-HIG-06. */
+@media (max-width: 1023px) and (orientation: landscape) and (max-height: 32rem) {
+  html:has([data-mobile-tabbar]) {
+    --dock-bar-h: 2.75rem;
+    --dock-min-w: 2.75rem;
+    --mobile-bottom-gap: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    --mobile-tabbar-h: 3.75rem;
+  }
+  html:has([data-dock-accessory]) {
+    --dock-w: min(48rem, calc(100vw - 2rem));
+  }
+  [data-testid="topbar"] {
+    position: relative;
+  }
+  [data-mobile-tabbar] {
+    height: var(--dock-bar-h);
+  }
+  [data-mobile-tabbar] > a {
+    flex-direction: row;
+    gap: 0.375rem;
+  }
+  html:not([data-dock="min"]):has([data-dock-accessory]) {
+    --dock-above-tabbar: var(--mobile-bottom-gap);
+  }
+  html:not([data-dock="min"]):has([data-dock-accessory]) [data-mobile-tabbar],
+  html:not([data-dock="min"]):has([data-dock-accessory]) [data-dock-accessory] {
+    width: calc((var(--dock-w) - var(--dock-air)) / 2);
+  }
+  html:not([data-dock="min"]):has([data-dock-accessory]) [data-dock-accessory] {
+    transform: translateX(calc((var(--dock-w) + var(--dock-air)) / 4));
   }
 }
 
@@ -990,10 +1306,10 @@ body {
    than checkbox and radio are excluded as a class, not by a name list. */
 @layer base {
   @media (pointer: coarse) {
-    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band):where(:not([class*="before:"], textarea, select, input:not([type="checkbox"], [type="radio"]))) {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band, a[href], label:has(input[type="checkbox"], input[type="radio"])):where(:not([class*="before:"], textarea, select, input:not([type="checkbox"], [type="radio"]))) {
       position: relative;
     }
-    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band):where(:not([class*="before:"]))::before {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band, a[href], label:has(input[type="checkbox"], input[type="radio"])):where(:not([class*="before:"]))::before {
       content: "";
       position: absolute;
       top: 50%;
@@ -1002,6 +1318,32 @@ body {
       height: max(100%, var(--hit-min));
       transform: translate(-50%, -50%);
     }
+    /* Links are controls too (HIG Buttons/Accessibility: a 44x44pt hit region),
+       and a link inside running text takes the same floor: positioned, it
+       paints above the neighbouring lines' text, so the strip of its 44pt box
+       that overlaps them taps the link, not the words. A link that wraps onto
+       a second line has no one box to centre a ::before on, so in running text
+       each line of the link also grows by block padding (inline padding moves
+       nothing; `clone` gives every fragment its own). A link that is a box
+       itself (flex/block/grid, or painted with a background that padding would
+       grow visibly) is left to the ::before. */
+    :where(p, li, dd, td, th, blockquote, figcaption, .prose) :where(a[href]:not([class*="flex"], [class*="block"], [class*="grid"], [class*="bg-"])) {
+      padding-block: calc((var(--hit-min) - 1em) / 2);
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+  }
+}
+
+/* HIG Buttons: a control has to be visible to be used, and a phone cannot
+   hover. Anything revealed on hover (`opacity-0 group-hover:opacity-100`, the
+   story list's edit and delete) shows at rest where the primary pointer cannot
+   hover. One rule for every instance, present and future (unit:
+   apple-hig.test.ts). */
+@media (hover: none) {
+  [class*="group-hover:opacity-100"],
+  [class*="group-hover/"][class*=":opacity-100"] {
+    opacity: 1;
   }
 }
 
@@ -2058,6 +2400,10 @@ select {
     --transition-deck: 0ms;
     --transition-page: 0ms;
     --transition-stack: 0ms;
+    --transition-modal-in: 0ms;
+    --transition-modal-out: 0ms;
+    --transition-pop-in: 0ms;
+    --transition-pop-out: 0ms;
   }
 
   .designed-press:active:not(:disabled),

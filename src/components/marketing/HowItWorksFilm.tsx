@@ -26,6 +26,7 @@ export function HowItWorksFilm({ film, onOpenChange }: HowItWorksFilmProps) {
 
     return (
         <Dialog open={film !== null} onOpenChange={onOpenChange}>
+            {/* glass-exempt: a video player is content (HIG Materials); it keeps the film's own dark frame. */}
             <DialogContent
                 className="max-w-[min(920px,calc(100vw-2rem))] gap-0 rounded-none border border-foreground bg-[#12151a] p-0 text-[#ececec] sm:max-w-[min(920px,calc(100vw-2rem))]"
                 showCloseButton

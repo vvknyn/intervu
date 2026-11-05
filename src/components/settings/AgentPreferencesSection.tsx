@@ -218,7 +218,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     {embedded ? "Job search" : "Your agent's answers"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
+                    <button onClick={onLoginClick} className="text-foreground text-link">
                         {AUTH_CTA_LABEL}
                     </button>{" "}
                     to see and edit what your AI fills into applications for you.
@@ -291,7 +291,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onValueChange={(v) => setExperienceLevel(v === ANY ? undefined : (v as ExperienceLevel))}
                                 >
                                     <SelectTrigger size="lg" ><SelectValue /></SelectTrigger>
-                                    <SelectContent className="rounded-panel">
+                                    <SelectContent>
                                         <SelectItem value={ANY}>Any</SelectItem>
                                         {EXPERIENCE_LEVELS.map((lvl) => (
                                             <SelectItem key={lvl} value={lvl}>{facetValueLabel("experience_level", lvl)}</SelectItem>
@@ -306,7 +306,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onValueChange={(v) => setEmploymentType(v === ANY ? undefined : (v as EmploymentType))}
                                 >
                                     <SelectTrigger size="lg" ><SelectValue /></SelectTrigger>
-                                    <SelectContent className="rounded-panel">
+                                    <SelectContent>
                                         <SelectItem value={ANY}>Any</SelectItem>
                                         {EMPLOYMENT_TYPES.map((t) => (
                                             <SelectItem key={t} value={t}>{facetValueLabel("employment_type", t)}</SelectItem>
@@ -332,7 +332,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     onValueChange={(v) => setPostedWithinDays(v === ANY ? undefined : (Number(v) as PostedWithinDays))}
                                 >
                                     <SelectTrigger size="lg" ><SelectValue /></SelectTrigger>
-                                    <SelectContent className="rounded-panel">
+                                    <SelectContent>
                                         <SelectItem value={ANY}>Any time</SelectItem>
                                         {POSTED_WITHIN_DAYS_OPTIONS.map((d) => (
                                             <SelectItem key={d} value={String(d)}>{d} days</SelectItem>

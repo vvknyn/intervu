@@ -143,7 +143,7 @@ export function PricingClient({
         {autoRenewing ? (
           <p data-testid="pricing-auto-renewing" className="mt-5 text-sm font-semibold text-foreground">
             Month to month is on{paidUntil !== null ? `. Next payment ${formatPaidUntil(paidUntil)}` : ""}.{" "}
-            <Link href={PLAN_AND_PAYMENTS_HREF} className="font-normal underline">Manage it in Settings</Link>
+            <Link href={PLAN_AND_PAYMENTS_HREF} className="font-normal text-link">Manage it in Settings</Link>
           </p>
         ) : paidUntil !== null ? (
           <p data-testid="pricing-paid-until" className="mt-5 text-sm font-semibold text-foreground">
@@ -223,7 +223,7 @@ export function PricingClient({
 
         <p className="mt-4 text-xs text-muted-foreground">
           We don&apos;t sell your data or your résumé. How we handle it is in the{" "}
-          <Link href="/privacy" className="underline">privacy policy</Link>.
+          <Link href="/privacy" className="text-link">privacy policy</Link>.
         </p>
       </Card>
 

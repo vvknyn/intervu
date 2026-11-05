@@ -4,6 +4,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FactLine } from "@/components/ui/fact-line";
+import { BLOG_POSTS } from "@/lib/blog/posts";
+import { getAllCareerHubSlugs } from "@/lib/seo/career-hubs";
+import { SAMPLE_BLOG_SLUG, SAMPLE_CAREER_SLUG, WRAP_FIXTURE_READY, WRAP_ROUTES, auditedPaths, isFixture } from "../e2e/helpers/wrap-routes";
 
 /**
  * The phone "wrapping" class (founder screenshot of /resume, 2026-11-01): a row of buttons left ragged by
@@ -119,6 +122,38 @@ describe("the primitives exist in globals.css", () => {
     });
 });
 
+describe("runs of plain items are .link-cloud or FactLine, on the pages that draw them only when their data answers", () => {
+    const src = (rel: string) => FILES.find((f) => f.rel === rel)!.src;
+
+    it("/trends: the employment-type links and the workplace legend are link clouds, the sources line is a FactLine", () => {
+        const experience = src("src/components/trends/ExperienceSeniorityDistribution.tsx");
+        const work = src("src/components/trends/WorkArrangementDistribution.tsx");
+        const pulse = src("src/components/trends/MarketPulse.tsx");
+        assert.match(experience, /className="link-cloud mt-2\.5"/);
+        assert.match(work, /<ul className="link-cloud mt-2 mb-4"/);
+        assert.doesNotMatch(experience, /flex-wrap/);
+        assert.doesNotMatch(work, /flex-wrap/);
+        assert.match(pulse, /<FactLine\s+items=\{sourceCoverage/);
+        assert.doesNotMatch(pulse, /\.join\(" · "\)/);
+    });
+
+    it("the career hubs: the topic links and the company links are link clouds, a role's facts are a FactLine", () => {
+        const body = src("src/components/seo/CareerHubBody.tsx");
+        const sections = src("src/components/seo/HubSections.tsx");
+        assert.match(body, /<nav aria-label="Related career topics" className="link-cloud /);
+        assert.match(sections, /<ul className="link-cloud mt-2 text-sm">/);
+        assert.match(sections, /<FactLine items=\{\[displayCompanyName\(job\.company\), place, age\]\} \/>/);
+        for (const file of [body, sections]) assert.doesNotMatch(file, /flex-wrap/);
+    });
+
+    it("both pages draw their body from a component the /mock fixture renders too", () => {
+        assert.match(src("src/app/trends/page.tsx"), /<TrendsPageBody /);
+        assert.match(readFileSync(join(process.cwd(), "src/app/mock/trends/page.tsx"), "utf8"), /<TrendsPageBody /);
+        assert.match(src("src/app/careers/[slug]/page.tsx"), /<CareerHubBody /);
+        assert.match(readFileSync(join(process.cwd(), "src/app/mock/career-hub/page.tsx"), "utf8"), /<CareerHubBody /);
+    });
+});
+
 describe("FactLine", () => {
     it("renders each fact as its own item and no dot as text", () => {
         const html = renderToStaticMarkup(FactLine({ items: ["Technical Account Manager", "11 yrs exp", "Richmond Hill, Ontario"] }));
@@ -142,7 +177,6 @@ describe("FactLine", () => {
 const HAND_JOINED_DOT_ALLOWED: Record<string, string> = {
     "src/components/jobs/JobCard.tsx": "a title attribute (the row's tooltip), not rendered text",
     "src/components/jobs/TailorChangeList.tsx": "one short heading: role · company",
-    "src/components/trends/MarketPulse.tsx": "a run of sources after a bold label, inside one paragraph",
     "src/components/company/CompanyFactRow.tsx": "one cell's value: two short phrases",
     "src/components/jobs/HiresIn.tsx": "a sentence: the hiring note, then the posting's own quote",
     "src/components/jobs/for-you/RecommendedListNotes.tsx": "a notice, then its action link, in one sentence",
@@ -173,3 +207,54 @@ describe("a line of facts is a <FactLine>, not text joined with a dot", () => {
         assert.doesNotMatch(readout, /\.join\(" · "\)/);
     });
 });
+
+/** Page routes under src/app, as URL patterns (`/careers/[slug]`), without the /mock design fixtures. */
+function pageRoutes(dir = join(SRC, "app"), prefix = ""): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) {
+            if (entry.name === "page.tsx") out.push(prefix || "/");
+            continue;
+        }
+        if (prefix === "" && entry.name === "mock") continue;
+        const segment = /^\(.*\)$/.test(entry.name) ? "" : `/${entry.name}`;
+        out.push(...pageRoutes(join(dir, entry.name), prefix + segment));
+    }
+    return out;
+}
+
+describe("every page route is audited for phone wrapping, or skipped with a reason", () => {
+    it("WRAP_ROUTES lists exactly the page routes under src/app", () => {
+        assert.deepEqual(Object.keys(WRAP_ROUTES).sort(), [...new Set(pageRoutes())].sort(), "a new page route must be added to tests/e2e/helpers/wrap-routes.ts (audited, or skipped with a reason), and a removed one dropped");
+    });
+
+    it("a skipped route says why, and an audited one names at least one path", () => {
+        for (const [route, entry] of Object.entries(WRAP_ROUTES)) {
+            if ("skip" in entry) assert.ok(entry.skip.trim().length >= 15, `${route}: say why it is skipped`);
+            else assert.ok(entry.audit.length > 0 && entry.audit.every((p) => p.startsWith("/")), `${route}: name the paths asked`);
+        }
+    });
+
+    it("every fixture asked has its mock page, and each section a fixture must draw exists in source", () => {
+        const sources = FILES.map((f) => f.src).concat(tsxFilesIncludingMock().map((path) => readFileSync(path, "utf8"))).join("\n");
+        for (const path of auditedPaths().filter(isFixture)) {
+            assert.ok(tsxFilesIncludingMock().some((file) => file.endsWith(join(...path.split("/").filter(Boolean), "page.tsx"))), `${path} has no page under src/app`);
+            for (const id of WRAP_FIXTURE_READY[path] ?? []) assert.ok(sources.includes(id) || sources.includes(`${id.slice(0, id.lastIndexOf("-") + 1)}\${`), `${path} waits for ${id}, which no source draws`);
+        }
+        for (const path of Object.keys(WRAP_FIXTURE_READY)) assert.ok(auditedPaths().includes(path), `${path} is waited for but never asked`);
+    });
+
+    it("the sample slugs are still real", () => {
+        assert.ok(BLOG_POSTS.some((post) => post.slug === SAMPLE_BLOG_SLUG), `no blog post ${SAMPLE_BLOG_SLUG}`);
+        assert.ok(getAllCareerHubSlugs().includes(SAMPLE_CAREER_SLUG), `no career hub ${SAMPLE_CAREER_SLUG}`);
+    });
+});
+
+function tsxFilesIncludingMock(dir = SRC, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) tsxFilesIncludingMock(path, out);
+        else if (entry.name.endsWith(".tsx")) out.push(path);
+    }
+    return out;
+}

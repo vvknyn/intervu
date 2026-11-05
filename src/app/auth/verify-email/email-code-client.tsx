@@ -65,7 +65,7 @@ export function EmailCodeClient({ email, held, restartHref }: { email: string | 
                 </form>
                 <p className="mt-4 text-center text-sm text-muted-foreground">
                     {EMAIL_CODE_RESEND_PROMPT}{" "}
-                    <Link href={restartHref} prefetch={false} className="text-foreground underline underline-offset-4">
+                    <Link href={restartHref} prefetch={false} className="text-foreground text-link">
                         {EMAIL_CODE_RESEND_LABEL}
                     </Link>
                     .

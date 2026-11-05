@@ -33,7 +33,7 @@ export default function BlogIndexPage() {
               {formatBlogDate(post.datePublished)}
             </time>
             <SectionTitle className="mt-1">
-              <Link href={blogPostPath(post.slug)} className="hover:underline" data-testid="blog-post-link">
+              <Link href={blogPostPath(post.slug)} className="name-link" data-testid="blog-post-link">
                 {post.title}
               </Link>
             </SectionTitle>

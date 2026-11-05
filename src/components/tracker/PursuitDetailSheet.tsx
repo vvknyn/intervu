@@ -53,7 +53,7 @@ export function PursuitDetailSheet({
             <SheetContent
                 side="bottom"
                 hideCloseButton
-                className="mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0"
+                className="mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 p-0"
             >
                 <PursuitDetailBody
                     // Not keyed on the note: each autosave changed the key, remounted
@@ -155,7 +155,7 @@ function PursuitDetailBody({
                                     <button
                                         type="button"
                                         onClick={() => setConfirmingResumeRemove(true)}
-                                        className="mt-1 block text-xs text-muted-foreground underline underline-offset-2 hover:text-destructive"
+                                        className="mt-1 block text-xs text-muted-foreground hover:text-destructive text-link"
                                     >
                                         Remove résumé
                                     </button>

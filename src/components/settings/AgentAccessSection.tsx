@@ -163,7 +163,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             <section>
                 <h2 className="text-base font-semibold mb-1">Connected agents</h2>
                 <p className="text-sm text-muted-foreground">
-                    <button onClick={onLoginClick} className="text-foreground underline underline-offset-2 hover:underline">
+                    <button onClick={onLoginClick} className="text-foreground text-link">
                         {AUTH_CTA_LABEL}
                     </button>{" "}
                     to connect Claude or another AI agent to your Velai account.
@@ -267,7 +267,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         </div>
                         <button
                             onClick={() => setNewSecret(null)}
-                            className="text-xs text-muted-foreground underline hover:text-foreground"
+                            className="text-xs text-muted-foreground hover:text-foreground text-link"
                         >
                             Done, I saved it
                         </button>
@@ -293,7 +293,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         {chatAppInstruction.primary} {chatAppInstruction.alternate}
                     </li>
                 </ul>
-                <a href="/connect" className="inline-block text-xs text-foreground underline underline-offset-2 hover:underline">
+                <a href="/connect" className="inline-block text-xs text-foreground text-link">
                     Full setup instructions
                 </a>
             </div>

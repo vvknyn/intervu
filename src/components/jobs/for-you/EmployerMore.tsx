@@ -75,8 +75,8 @@ export function EmployerMore({
                         const age = postedAgeShort(derivePostedTs(job), nowMs);
                         return (
                             <li key={job.id} data-testid={`${testId}-role`} data-job-id={job.id} className="min-w-0">
-                                <Link href={jobPath(job)} className="line-clamp-2 font-normal text-foreground hover:underline">
-                                    {presented.title}
+                                <Link href={jobPath(job)} className="block font-normal text-foreground name-link">
+                                    <span className="line-clamp-2">{presented.title}</span>
                                 </Link>
                                 <div className="flex flex-wrap items-baseline text-muted-foreground">
                                     <MetaLine
@@ -99,7 +99,7 @@ export function EmployerMore({
                     <Link
                         href={jobCompanyHref(lead.company ?? employer, lead.company_domain)}
                         data-testid={`${testId}-all`}
-                        className="mt-2 inline-block text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                        className="mt-2 inline-block text-muted-foreground transition-colors hover:text-foreground text-link"
                     >
                         See the other {hidden} at {employer}
                     </Link>

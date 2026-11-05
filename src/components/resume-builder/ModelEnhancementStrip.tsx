@@ -58,7 +58,7 @@ export function ModelEnhancementStrip({ phase, onSkip, onUseImproved }: Props) {
                     onClick={onSkip}
                     data-testid="resume-model-skip"
                     // control-type-allow: an inline text link (size="link") set with the 12px note above it
-                    className="text-xs text-muted-foreground underline hover:text-foreground"
+                    className="text-xs text-muted-foreground hover:text-foreground text-link"
                 >
                     Skip — use quick match
                 </Button>

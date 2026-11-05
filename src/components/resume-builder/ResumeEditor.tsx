@@ -454,7 +454,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                             <button
                                                 type="button"
                                                 onClick={() => setCompareBaseline(null)}
-                                                className="underline underline-offset-2 hover:no-underline"
+                                                className="text-link"
                                                 title="Compare against the last saved resume instead"
                                             >
                                                 reset
@@ -537,7 +537,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                     <button
                                         type="button"
                                         onClick={loadVersions}
-                                        className="hover:underline text-xs"
+                                        className="text-xs name-link"
                                     >
                                         Refresh
                                     </button>
