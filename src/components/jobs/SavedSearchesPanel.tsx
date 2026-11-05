@@ -298,12 +298,12 @@ export function SavedSearchesPanel({
                                 }}
                                 className={cn(
                                     compact
-                                        ? "max-w-[10rem] truncate text-xs text-foreground text-link"
-                                        : "max-w-[12rem] truncate text-xs text-foreground name-link",
+                                        ? "max-w-[10rem] text-xs text-foreground text-link"
+                                        : "max-w-[12rem] text-xs text-foreground name-link",
                                 )}
                                 title={cleanSavedSearchName(s.name)}
                             >
-                                {cleanSavedSearchName(s.name)}
+                                <span className="block truncate">{cleanSavedSearchName(s.name)}</span>
                             </button>
                             {(newCounts[s.id]?.value ?? 0) >= 1 && (
                                 <span

@@ -504,7 +504,9 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
     return (
         <div
             data-testid="browse-seed-row"
-            className="mb-4 flex flex-wrap items-center gap-1.5 text-left"
+            // 12px between wrapped lines on a touch screen: each 32px chip's 44pt tap floor reaches 6px past it, so
+            // a 6px gap let the next line's chips take 3px of every chip's floor (38pt to a finger; J-HIG-01).
+            className="mb-4 flex flex-wrap items-center gap-1.5 text-left pointer-coarse:gap-y-3"
         >
             <span className="mr-1 whitespace-nowrap text-xs font-semibold text-muted-foreground">Popular searches:</span>
             {seeds.map((seed) => (
