@@ -101,4 +101,10 @@ describe("stripe webhook", () => {
         assert.equal((await run(session("checkout.session.completed"), { signature: null })).result.status, 400);
         assert.equal((await run(session("checkout.session.completed"), { fail: true })).result.status, 500);
     });
+    it("a failed recompute is logged by event type with the error, never an id, so the cause is findable", async () => {
+        const { logs } = await run(session("checkout.session.completed"), { fail: true });
+        assert.equal(logs.length, 1);
+        assert.match(logs[0], /^\[stripe-webhook\] recompute failed type=checkout\.session\.completed: Error: boom$/);
+        assert.doesNotMatch(logs[0], /cus_1|uid_1/);
+    });
 });

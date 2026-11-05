@@ -7,7 +7,7 @@ import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
+import { PageEyebrow, PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = INDEED_ALTERNATIVE;
@@ -23,15 +23,15 @@ const stats = getGhostJobsStats();
 
 export default function IndeedAlternativePage() {
   return (
-    <PageContainer measure="reading" data-testid="indeed-alternative-page" className="py-10">
+    <PageContainer measure="reading" data-testid="indeed-alternative-page" className="page-top pb-10">
       {faqJsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }}
         />
       )}
-      <p className="text-xs font-semibold text-brand">Indeed alternative</p>
-      <PageTitle className="mt-3">
+      <PageEyebrow>Indeed alternative</PageEyebrow>
+      <PageTitle>
         The listing is still up. That doesn&apos;t mean they&apos;re hiring.
       </PageTitle>
       <PageLead>

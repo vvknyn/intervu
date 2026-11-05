@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PricingClient } from "../../src/app/pricing/pricing-client";
 import { SignupGate } from "../../src/components/auth/SignupGate";
 import { PERSONAL_EMAIL_HINT } from "../../src/lib/auth/auth-gate-copy";
-import { PRICING_DESCRIPTION, formatPaidUntil, totalPrice } from "../../src/app/pricing/offer";
+import { PRICING_DESCRIPTION, PRICING_DESCRIPTION_MONTHLY, formatPaidUntil, pricingDescription, totalPrice } from "../../src/app/pricing/offer";
 
 /**
  * /pricing must render at all: release 6 shipped a component that threw on
@@ -116,6 +116,19 @@ describe("pricing offer helpers", () => {
     assert.match(PRICING_DESCRIPTION, /\$6/);
     assert.match(PRICING_DESCRIPTION, /1 to 12 months/);
     assert.match(PRICING_DESCRIPTION, /14-day refund/);
+  });
+  it("the description follows the billing switch: month to month is named only once it is open, and then 'no auto-renew' is gone", () => {
+    assert.equal(pricingDescription(false), PRICING_DESCRIPTION);
+    assert.match(PRICING_DESCRIPTION, /no auto-renew/);
+    assert.doesNotMatch(PRICING_DESCRIPTION, /month to month/);
+    assert.equal(pricingDescription(true), PRICING_DESCRIPTION_MONTHLY);
+    assert.match(PRICING_DESCRIPTION_MONTHLY, /one payment that does not renew, or pay month to month and cancel any time/);
+    assert.doesNotMatch(PRICING_DESCRIPTION_MONTHLY, /no auto-renew/);
+    for (const d of [PRICING_DESCRIPTION, PRICING_DESCRIPTION_MONTHLY]) {
+      assert.match(d, /\$6/);
+      assert.match(d, /1 to 12 months/);
+      assert.match(d, /14-day refund/);
+    }
   });
 });
 

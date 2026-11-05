@@ -10,7 +10,7 @@ export function JobPageSkeleton() {
     return (
         <WaitState
             label="Loading job page"
-            className="shell-row py-6"
+            className="shell-row page-top pb-6"
             skeleton={
                 <>
                     <WaitBar className="mb-4 h-5 w-40" />

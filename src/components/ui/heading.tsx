@@ -15,6 +15,12 @@ export function PageTitle({ className, ...props }: React.ComponentProps<"h1">) {
   return <h1 className={cn(PAGE, className)} {...props} />;
 }
 
+/** The small line above a PageTitle ("Legal", "Pricing", "Blog · date"). It
+ *  owns the gap to the title, so every eyebrowed masthead has the same rhythm. */
+export function PageEyebrow({ className, ...props }: React.ComponentProps<"p">) {
+  return <p className={cn("mb-3 text-xs font-semibold text-muted-foreground", className)} {...props} />;
+}
+
 /** The subtitle paragraph under a PageTitle: holds the reading measure instead of the container's width. */
 export function PageLead({ className, ...props }: React.ComponentProps<"p">) {
   return <p className={cn("mt-1.5 text-base text-muted-foreground", READING_MEASURE, className)} {...props} />;

@@ -32,7 +32,7 @@ export function CompanyPageSkeleton() {
             <WaitState
                 label="Loading company page"
                 skeleton={
-                    <div className="shell-row py-8 pb-12 sm:pb-16">
+                    <div className="shell-row page-top pb-12 sm:pb-16">
                         {/* Identity header — logo, name, the hiring answer, the
                             facts row, and the Follow control's slot on the right. */}
                         <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">

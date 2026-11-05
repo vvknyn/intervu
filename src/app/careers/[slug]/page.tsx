@@ -8,7 +8,7 @@ import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { loadHubFacts } from "@/lib/seo/hub-facts";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle } from "@/components/ui/heading";
+import { PageEyebrow, PageTitle } from "@/components/ui/heading";
 import { HubSections } from "@/components/seo/HubSections";
 import { PageContainer } from "@/components/layout/PageContainer";
 
@@ -48,10 +48,10 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
   const facts = await loadHubFacts(hub);
 
   return (
-    <PageContainer measure="reading" data-testid={`career-hub-${hub.slug}`} className="py-10">
+    <PageContainer measure="reading" data-testid={`career-hub-${hub.slug}`} className="page-top pb-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd) }} />
-      <p className="text-xs font-semibold text-muted-foreground">Career hub</p>
-      <PageTitle className="mt-3">{hub.h1}</PageTitle>
+      <PageEyebrow>Career hub</PageEyebrow>
+      <PageTitle>{hub.h1}</PageTitle>
 
       <Prose className="mt-6">
         {hub.intro.map((paragraph) => (

@@ -8,15 +8,14 @@ import { solidBadgeVariants } from "@/components/ui/badge";
  * The nav ruling: the active-tab underline is the bar's one green accent. So a
  * count badge in the top bar or the phone tab bar is neutral (`tone="muted"`),
  * never the default brand fill. The gate scans every solid/count badge rendered
- * from the chrome (src/components/layout) and the bell, so a new nav badge
- * is covered without being named here.
+ * from the chrome (src/components/layout), so a new nav badge is covered
+ * without being named here.
  */
 const ROOT = join(__dirname, "../..");
 const CHROME_FILES = [
     ...readdirSync(join(ROOT, "src/components/layout"))
         .filter((f) => f.endsWith(".tsx"))
         .map((f) => join("src/components/layout", f)),
-    "src/components/follows/FollowAlertsBell.tsx",
 ];
 const BADGE_TAG = /<(?:CountBadge|SolidBadge)\b[^>]*>/g;
 
@@ -33,8 +32,8 @@ describe("nav count badges are neutral", () => {
         (readFileSync(join(ROOT, f), "utf8").match(BADGE_TAG) ?? []).map((t) => ({ f, t })),
     );
 
-    it("finds the bell badge (negative control: the scan can see a badge)", () => {
-        assert.ok(tags.some((x) => x.t.includes("topbar-follow-alerts-count")));
+    it("finds the docked Filters badge (negative control: the scan can see a badge)", () => {
+        assert.ok(tags.some((x) => x.f.endsWith("TopBar.tsx") && x.t.includes("SolidBadge")));
     });
 
     it("every chrome badge passes tone=\"muted\"", () => {

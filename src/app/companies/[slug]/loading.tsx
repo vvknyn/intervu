@@ -4,7 +4,7 @@ export default function Loading() {
     return (
         <WaitState
             label="Loading company page"
-            className="shell-row py-10"
+            className="shell-row page-top pb-10"
             data-testid="company-truth-page"
             skeleton={
                 <>

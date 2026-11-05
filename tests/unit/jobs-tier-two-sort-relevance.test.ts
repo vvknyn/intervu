@@ -35,9 +35,11 @@ describe("tier 2 requires every word under every sort", () => {
   }
 
   it("the unknown-inclusive pair follows the same rule, relevance included", () => {
-    assert.deepEqual(strategies({ q: "data engineer", salaryMin: 100_000 }), ["all", "all", "all", "all"]);
+    // Four typed-word queries, then any alias and related-role (tier 3) queries: every one requires every word.
+    const relevance = strategies({ q: "data engineer", salaryMin: 100_000 });
+    assert.ok(relevance.length >= 4 && relevance.every((m) => m === "all"), relevance.join());
     const p: JobSearchParams = { q: "data engineer", sort: "newest", salaryMin: 100_000 };
-    assert.deepEqual(strategies(p), ["all", "all", "all", "all"]);
+    assert.ok(strategies(p).length >= 4 && strategies(p).every((m) => m === "all"));
   });
 });
 

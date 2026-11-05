@@ -43,8 +43,6 @@ import { WaitBar, WaitState } from "@/components/ui/wait-state";
 export function HistoryHeader() {
     return (
         <PageHeader
-            fullWidth
-            sticky={false}
             title="Tracker"
             description="Every job you've opened, newest first."
         />

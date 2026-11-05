@@ -43,7 +43,7 @@ export default async function CompanyLetterPage({ params }: { params: Promise<{ 
   ]);
 
   return (
-    <PageContainer measure="reading" data-testid="company-directory-letter" className="py-10">
+    <PageContainer measure="reading" data-testid="company-directory-letter" className="page-top pb-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd) }} />
       <PageTitle>{heading(group.letter)}</PageTitle>
       <p className="mt-3 text-sm text-muted-foreground">{DIRECTORY_DESCRIPTION}</p>

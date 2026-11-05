@@ -5,8 +5,12 @@ import { SectionTitle } from "@/components/ui/heading";
  * "On this page" for long articles. Write each h2 once as a `DocHeading`; the
  * anchor id derives from its title (an explicit `id` wins for anchors other
  * pages already link to) and `DocWithToc` builds the list from those same
- * elements, so a heading is never retyped. At >= lg the list sticks beside a
- * centred 28rem column (~66 chars of body text; rem, not ch, which tracks the container font); on a phone it collapses into a native <details>.
+ * elements, so a heading is never retyped. At >= lg the list sticks in a rail
+ * to the right of the 28rem article (~66 chars of body text; rem, not ch,
+ * which tracks the container font), and the article keeps the page's left
+ * edge — the logo's — like every other page; centring it put the Privacy
+ * title 376px right of the logo. On a phone the list collapses into a native
+ * <details>.
  */
 type DocHeadingProps = { id?: string; children: string };
 
@@ -42,19 +46,19 @@ export function DocWithToc({ children }: { children: React.ReactNode }) {
         </li>
     ));
     return (
-        <div className="lg:grid lg:grid-cols-[1fr_minmax(0,28rem)_1fr] lg:gap-10">
+        <div className="lg:grid lg:grid-cols-[minmax(0,28rem)_14rem] lg:gap-16">
             <details className="mb-6 rounded-panel bg-surface px-4 py-3 lg:hidden">
                 <summary className="cursor-pointer text-sm font-semibold text-foreground">On this page</summary>
                 <ul className="mt-2">{links}</ul>
             </details>
             <nav
                 aria-label="On this page"
-                className="sticky top-[calc(var(--topbar-h)+1rem)] hidden self-start justify-self-end lg:block lg:w-56"
+                className="sticky top-[calc(var(--topbar-h)+1rem)] hidden self-start lg:col-start-2 lg:row-start-1 lg:block"
             >
                 <p className="mb-2 text-xs font-semibold text-muted-foreground">On this page</p>
                 <ul>{links}</ul>
             </nav>
-            <div className="lg:col-start-2 lg:row-start-1">{children}</div>
+            <div className="lg:col-start-1 lg:row-start-1">{children}</div>
         </div>
     );
 }

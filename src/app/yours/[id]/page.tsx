@@ -422,7 +422,7 @@ export default function PursuitDetailPage() {
     // The tracker's own masthead (display size, not sticky) in every state, so
     // the page doesn't jump from a compact bar to a tall one as it loads.
     const header = (title: string, description?: React.ReactNode) => (
-        <PageHeader sticky={false} size="display" title={title} description={description} actions={backLink} />
+        <PageHeader title={title} description={description} actions={backLink} />
     );
 
     if (!hydrated || !authReady || loading || (removed && !pursuit)) {

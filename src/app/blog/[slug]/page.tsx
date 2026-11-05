@@ -17,7 +17,7 @@ import { buildArticleJsonLd, buildBreadcrumbJsonLd, serializeJsonLd } from "@/li
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getSiteUrl, SITE_NAME } from "@/lib/seo/constants";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageEyebrow, PageTitle, SectionTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 // Every post is known at build time; any other slug is a 404, never a render.
@@ -68,17 +68,17 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const morePosts = BLOG_POSTS.filter((other) => other.slug !== post.slug).slice(0, 3);
 
   return (
-    <PageContainer measure="reading" data-testid="blog-post" className="py-10">
+    <PageContainer measure="reading" data-testid="blog-post" className="page-top pb-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd) }} />
-      <p className="text-xs font-semibold text-muted-foreground">
+      <PageEyebrow>
         <Link href={BLOG_PATH} className="hover:text-foreground">
           Blog
         </Link>
         {" · "}
         <time dateTime={post.datePublished}>{formatBlogDate(post.datePublished)}</time>
-      </p>
-      <PageTitle className="mt-3">{post.title}</PageTitle>
+      </PageEyebrow>
+      <PageTitle>{post.title}</PageTitle>
       <div className="mt-2 flex items-center gap-2.5 text-sm text-muted-foreground" data-testid="blog-byline">
         <img
           src={BLOG_AUTHOR.avatar}

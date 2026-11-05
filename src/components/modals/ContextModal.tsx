@@ -25,7 +25,7 @@ export function ContextModal({ isOpen, onClose, context, setContext, onSave }: C
                     <Textarea
                         value={context}
                         onChange={(e) => setContext(e.target.value)}
-                        className="w-full h-32 p-3 text-base md:text-sm bg-muted border border-border rounded-none resize-none"
+                        className="w-full h-32 p-3 text-base md:text-sm bg-muted border border-border rounded-ctl resize-none"
                         placeholder="e.g. The interviewer is a VP of Engineering. Focus heavily on distributed caching strategies..."
                     />
                 </div>

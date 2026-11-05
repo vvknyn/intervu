@@ -131,7 +131,7 @@ function StoriesContent() {
     if (!user) {
         return (
             <PageLayout
-                header={<PageHeader sticky={false} title="Stories" description="Your best interview answers, saved and reusable" />}
+                header={<PageHeader title="Stories" description="Your best interview answers, saved and reusable" />}
             >
                 <div data-testid="stories-guest-empty" className="flex flex-col items-center justify-center py-32 px-4 text-center">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256" className="mb-6 text-muted-foreground"><path d="M216,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H56V56H216V200ZM184,80a8,8,0,0,1,8-8h0a8,8,0,0,1,8,8v64a8,8,0,0,1-8,8h0a8,8,0,0,1-8-8ZM80,96a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,96Zm0,32a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,128Zm0,32a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H88A8,8,0,0,1,80,160Z"></path></svg>
@@ -158,7 +158,6 @@ function StoriesContent() {
         <PageLayout
             header={
                 <PageHeader
-                    sticky={false}
                     title="Stories"
                     description="Your saved answers, ready to reuse"
                     rightRail={<AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} trigger="user" />}

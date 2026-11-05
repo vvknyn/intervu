@@ -31,3 +31,10 @@ export function formatPaidUntil(epochMs: number): string {
 }
 
 export const PRICING_DESCRIPTION = `Velai is free to search with. A paid month is ${PRO_MONTHLY_PRICE}, bought ${MIN_MONTHS} to ${MAX_MONTHS} months at a time with one payment, no auto-renew and a ${REFUND_DAYS}-day refund.`;
+
+/** Once month to month is open, the description says so; prepaid months still never renew on their own. */
+export const PRICING_DESCRIPTION_MONTHLY = `Velai is free to search with. A paid month is ${PRO_MONTHLY_PRICE}: buy ${MIN_MONTHS} to ${MAX_MONTHS} months at a time with one payment that does not renew, or pay month to month and cancel any time, with a ${REFUND_DAYS}-day refund.`;
+
+export function pricingDescription(autoRenewConfigured: boolean): string {
+  return autoRenewConfigured ? PRICING_DESCRIPTION_MONTHLY : PRICING_DESCRIPTION;
+}

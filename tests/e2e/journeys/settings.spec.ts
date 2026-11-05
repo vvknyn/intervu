@@ -131,7 +131,7 @@ test("Daily picks are off until you turn them on, and turning them on says when 
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("The follow-alerts bell links to the companies you follow, not the Elite board", { tag: ["@J-NAV-40"] }, async ({ page }) => {
+test("The account menu's new-roles row opens the list, whose link goes to the companies you follow, not the Elite board", { tag: ["@J-NAV-40"] }, async ({ page }) => {
   await page.addInitScript(() => {
     (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = { uid: "u1", displayName: "Ada Lovelace", email: "ada@example.com" };
     localStorage.setItem("intervu.onboarding.completed", "1");
@@ -144,7 +144,9 @@ test("The follow-alerts bell links to the companies you follow, not the Elite bo
     return undefined;
   });
   await page.goto("/jobs");
-  await page.getByTestId("topbar-follow-alerts").click();
+  await page.getByTestId("topbar-avatar").click();
+  await page.getByTestId("account-menu-follow-alerts").click();
+  await expect(page.getByTestId("follow-alert-row")).toHaveCount(1);
   const cta = page.getByTestId("follow-alerts-cta");
   await expect(cta).toHaveText("Manage companies you follow");
   await expect(cta).toHaveAttribute("href", MANAGE_FOLLOWS_HREF);

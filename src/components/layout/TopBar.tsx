@@ -9,7 +9,6 @@ import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
 import { PlanEndingNotice } from "@/components/layout/PlanEndingNotice";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
@@ -29,7 +28,8 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 /**
  * Frozen coherent chrome:
  * - Mobile (< lg): centered mark + wordmark, auth affordance pinned right — nav lives in MobileTabBar
- * - Desktop (lg+): logo left · Jobs · Tracker · Connect · DP rightmost
+ * - Desktop (lg+): logo left · Jobs · Résumé · Tracker · account avatar rightmost
+ * Nothing else sits in the bar: new roles at followed companies and the plan live in the avatar's menu.
  */
 export function TopBar() {
     const pathname = usePathname();
@@ -187,8 +187,6 @@ export function TopBar() {
                             );
                         })}
                     </TabNav>
-
-                    <FollowAlertsBell />
 
                     {authChrome === "pending" ? (
                         /* Auth unresolved: reserve the row height so the bar

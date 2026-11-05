@@ -38,6 +38,7 @@ import { payPlace } from "./pay-place";
 import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause, salaryMinClause } from "./unknown-inclusive-facets";
 import { expandTitleQuery } from "./title-aliases";
+import { relatedTitlesFor } from "./title-neighbours";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
@@ -982,6 +983,15 @@ const TYPED_WEIGHT = 100;
  * 0.002 (0.01 / 5): the divider is structural, under Relevance and under an explicit sort alike.
  */
 const WHOLE_DOCUMENT_WEIGHT = 0.01;
+/**
+ * Relevance weight of a related-role query (`relatedRoleSpecs`): a band of its own between the title matches (every
+ * tier-1 weight is at least 5) and the whole-document ones (at most `WHOLE_DOCUMENT_WEIGHT`), at one typo or a low
+ * score alike: a tier-1 hit outranks it unless its score falls under a tenth of the related hit's, and it outranks a
+ * whole-document hit unless its own falls under a twenty-fifth.
+ */
+const RELATED_ROLE_WEIGHT = 0.5;
+/** At most this many related titles are searched (two queries each when a filter admits un-derived rows). */
+export const RELATED_ROLE_QUERY_CAP = 4;
 /** Weight multiplier for the unknown-inclusive query pair in `runTieredRetrieval`. */
 const UNKNOWN_TIER_WEIGHT = 0.5;
 
@@ -998,6 +1008,7 @@ export function federationWeights(p: JobSearchParams) {
     typed: TYPED_WEIGHT,
     wholeDocument: WHOLE_DOCUMENT_WEIGHT,
     alias: explicitSort ? TYPED_WEIGHT : TITLE_ALIAS_WEIGHT,
+    related: RELATED_ROLE_WEIGHT,
     unknownFactor: explicitSort ? 1 : UNKNOWN_TIER_WEIGHT,
   };
 }
@@ -1020,6 +1031,26 @@ export function titleAliasSpecs(p: JobSearchParams) {
   return aliases.flatMap((alias) => {
     const known = query(alias, { knownOnly: true }, aliasWeight);
     const inclusive = query(alias, {}, aliasWeight * unknownFactor);
+    return JSON.stringify(inclusive.query.filter) !== JSON.stringify(known.query.filter) ? [known, inclusive] : [known];
+  });
+}
+
+/**
+ * Title-only queries for the roles next to the typed one ("technical account manager" -> "customer success manager",
+ * ...; `relatedTitlesFor`, read out of the title neighbour map). They are not the typed job, so they sit in their own
+ * band (tier 3) under every title match and over the whole-document matches, where the list labels them; under an
+ * explicit sort the band keeps that sort inside it. Known-value and unknown-inclusive variants pair as aliases do.
+ */
+export function relatedRoleSpecs(p: JobSearchParams, titles: string[] = relatedTitlesFor(p.q ?? "", RELATED_ROLE_QUERY_CAP)) {
+  const details = wantsScoreDetails(p) ? { rankingScoreDetails: true } : {};
+  const { related: weight, unknownFactor } = federationWeights(p);
+  const query = (q: string, opts: BuildSearchBodyOpts, w: number) => {
+    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody({ ...p, q }, false, "all", { ...details, titleScoped: true, ...opts });
+    return { tier: 3 as const, title: q, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight: w } } };
+  };
+  return titles.flatMap((title) => {
+    const known = query(title, { knownOnly: true }, weight);
+    const inclusive = query(title, {}, weight * unknownFactor);
     return JSON.stringify(inclusive.query.filter) !== JSON.stringify(known.query.filter) ? [known, inclusive] : [known];
   });
 }
@@ -1239,13 +1270,14 @@ export function buildTieredQuerySpecs(p: JobSearchParams) {
     const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, "all", { ...details, ...opts });
     return { tier, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
   };
-  const specs = [query({ knownOnly: true }, weights.typed, 1), query({ wholeDocument: true, knownOnly: true }, weights.wholeDocument, 2)];
+  const specs: Array<{ tier: 1 | 2 | 3; title?: string; query: ReturnType<typeof query>["query"] }> = [query({ knownOnly: true }, weights.typed, 1), query({ wholeDocument: true, knownOnly: true }, weights.wholeDocument, 2)];
   const inclusive = [
     query({}, weights.typed * weights.unknownFactor, 1),
     query({ wholeDocument: true }, weights.wholeDocument * weights.unknownFactor, 2),
   ];
   if (JSON.stringify(inclusive[0].query.filter) !== JSON.stringify(specs[0].query.filter)) specs.push(...inclusive);
   specs.push(...titleAliasSpecs(p));
+  specs.push(...relatedRoleSpecs(p));
   return specs;
 }
 
@@ -1299,6 +1331,16 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
     configured: true,
     facetDistribution: body.facetsByIndex?.[JOBS_INDEX]?.distribution as FacetDistribution | undefined,
     tier1Total,
+    // The related titles this page holds rows for, in the order they were searched (strongest first).
+    ...(hits.some((hit) => hit.tier === 3)
+      ? {
+          relatedTitles: [
+            ...new Set(
+              specs.flatMap((s, i) => (s.title && (body.hits ?? []).some((hit) => hit._federation?.queriesPosition === i) ? [s.title] : [])),
+            ),
+          ],
+        }
+      : {}),
   };
 }
 

@@ -49,7 +49,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
 
     if (sortedStories.length === 0) {
         return (
-            <div className="text-center py-12 border border-border rounded-none">
+            <div className="text-center py-12 border border-border rounded-panel">
                 <p className="text-muted-foreground text-sm">No stories added yet.</p>
                 <p className="text-muted-foreground text-xs mt-1">Add stories manually or import them with AI</p>
             </div>
@@ -57,7 +57,7 @@ export function StoryList({ stories, onEdit, onDelete }: StoryListProps) {
     }
 
     return (
-        <div className="border border-border rounded-none bg-background overflow-hidden">
+        <div className="border border-border rounded-panel bg-background overflow-hidden">
             {sortedStories.map((story, index) => (
                 <div
                     key={story.id}

@@ -1,6 +1,6 @@
-import { beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type Stripe from "stripe";
+import Stripe from "stripe";
 import { accessUntil, hasPaidAccess } from "../../src/lib/billing/access";
 import { useBillingDb } from "../../src/lib/billing/profile-store";
 import { MONTH_PRICE_USD } from "../../src/app/pricing/offer";
@@ -14,6 +14,7 @@ import {
     readPaidInvoices,
     readPaymentFacts,
     readPaymentRecords,
+    readMonthlyOrNone,
     readSubscriptionSummary,
     recomputeAccess,
     renewalsFromInvoice,
@@ -103,14 +104,20 @@ function fakeStripe(over: {
     invoices?: unknown[];
     charges?: unknown[];
     subscriptions?: unknown[];
+    /** Charges, invoices and subscriptions all refuse with this (a restricted key without those permissions). */
+    monthlyDenied?: Error;
 }) {
     const seen = { list: [] as Stripe.Checkout.SessionListParams[], lineItems: [] as string[], prices: [] as string[], disputes: [] as string[], invoices: [] as Stripe.InvoiceListParams[] };
     const stream = <T,>(items: readonly T[] = []) => (async function* () { yield* items; })();
+    const monthly = <T,>(items: readonly T[] | undefined) =>
+        over.monthlyDenied
+            ? (async function* (): AsyncGenerator<T> { throw over.monthlyDenied; })()
+            : stream(items);
     const stripe = {
         prices: { retrieve: async (id: string) => (seen.prices.push(id), { id, product: over.productOfPrice ?? "prod_velai" }) },
-        charges: { list: () => stream(over.charges) },
-        invoices: { list: (params: Stripe.InvoiceListParams) => (seen.invoices.push(params), stream(over.invoices)) },
-        subscriptions: { list: () => stream(over.subscriptions) },
+        charges: { list: () => monthly(over.charges) },
+        invoices: { list: (params: Stripe.InvoiceListParams) => (seen.invoices.push(params), monthly(over.invoices)) },
+        subscriptions: { list: () => monthly(over.subscriptions) },
         disputes: {
             list: async (p: { charge: string }) => (seen.disputes.push(p.charge), { data: (over.disputes?.[p.charge] ?? []).map((status) => ({ status })) }),
         },
@@ -449,5 +456,60 @@ describe("recomputeAccess with month to month", () => {
         });
         assert.equal(await recomputeAccess("u", null, stripe), T0 + MONTH_MS + 31 * DAY_MS);
         useBillingDb();
+    });
+});
+
+describe("a key without the month-to-month permissions", () => {
+    const denied = () => new Stripe.errors.StripePermissionError({
+        message: "The provided key 'rk_live_********************************XyZ9' does not have the required permissions for this endpoint on account 'acct_1AbCdEfGhIj'. Having the 'rak_invoice_read' permission would allow this request to continue.",
+        statusCode: 403,
+    } as never);
+    const ENV = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_ID", "STRIPE_SUBSCRIPTION_PRICE_ID"] as const;
+    const saved: Record<string, string | undefined> = {};
+    let warned: string[] = [];
+    const warn = console.warn;
+    const paidMonths = [session("a", T0 / 1000, { amount_total: 1200 })];
+    const prepaid = { sessions: paidMonths, lineItems: { a: [{ product: "prod_velai", quantity: 2 }] }, monthlyDenied: denied() };
+    beforeEach(() => {
+        for (const k of ENV) saved[k] = process.env[k];
+        Object.assign(process.env, { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_x", STRIPE_PRICE_ID: "price_new" });
+        delete process.env.STRIPE_SUBSCRIPTION_PRICE_ID;
+        warned = [];
+        console.warn = (line: string) => void warned.push(String(line));
+    });
+    afterEach(() => {
+        console.warn = warn;
+        for (const k of ENV) {
+            if (saved[k] === undefined) delete process.env[k];
+            else process.env[k] = saved[k];
+        }
+        useBillingDb();
+    });
+
+    it("month to month off: prepaid access still computes, the refusal is logged with the missing permission and no key or id", async () => {
+        const { db, docs } = memoryFirestore({ "profiles/u": { stripe_customer_id: "cus_1" } });
+        useBillingDb(db);
+        const until = await recomputeAccess("u", null, fakeStripe(prepaid).stripe);
+        assert.equal(until, T0 + 2 * MONTH_MS);
+        assert.equal(docs.get("profiles/u")?.auto_renew, false);
+        assert.equal(warned.length, 2);
+        assert.ok(warned.every((l) => l.includes("rak_invoice_read") && !l.includes("rk_live") && !l.includes("acct_1")), warned.join("\n"));
+    });
+    it("month to month off: the payments list is the prepaid rows, not an error", async () => {
+        const rows = await readPaymentRecords(fakeStripe(prepaid).stripe, "cus_1", "prod_velai");
+        assert.deepEqual(rows.map((r) => r.kind), ["prepaid"]);
+    });
+    it("month to month on: the same refusal throws, so a missing permission is never read as no renewals", async () => {
+        process.env.STRIPE_SUBSCRIPTION_PRICE_ID = "price_monthly";
+        const { db, docs } = memoryFirestore({ "profiles/u": { stripe_customer_id: "cus_1" } });
+        useBillingDb(db);
+        await assert.rejects(recomputeAccess("u", null, fakeStripe(prepaid).stripe), /permissions/);
+        assert.equal(docs.get("profiles/u")?.access_until, undefined);
+        await assert.rejects(readPaymentRecords(fakeStripe(prepaid).stripe, "cus_1", "prod_velai"), /permissions/);
+    });
+    it("any other failure throws even with month to month off", async () => {
+        await assert.rejects(readMonthlyOrNone(async () => { throw new Error("socket hang up"); }, [], "x"), /socket hang up/);
+        await assert.rejects(readMonthlyOrNone(async () => { throw new Stripe.errors.StripeAPIError({ message: "down", statusCode: 500 } as never); }, [], "x"), /down/);
+        assert.equal(warned.length, 0);
     });
 });

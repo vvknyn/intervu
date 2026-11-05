@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle } from "@/components/ui/heading";
 
 // Overrides the parent watch/layout.tsx title ("Live Application Session"),
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
  */
 export default function WatchAnywherePage() {
     return (
-        <div className="min-h-dvh bg-background flex items-center justify-center p-6">
+        <PageContainer measure="reading" className="page-top pb-16">
             <div className="max-w-sm space-y-6" data-testid="watch-anywhere-guide">
                 <PageTitle>Watch from anywhere</PageTitle>
                 <p className="text-sm text-muted-foreground">
@@ -41,6 +42,6 @@ export default function WatchAnywherePage() {
                     it whenever you&apos;re ready.
                 </p>
             </div>
-        </div>
+        </PageContainer>
     );
 }

@@ -5,8 +5,9 @@ import { EMPTY_BILLING, paymentRows, type BillingView } from "@/lib/billing/bill
 import { isBillingConfigured, readPriceId } from "@/lib/billing/config";
 import { readIdField } from "@/lib/billing/events";
 import { readProfileBilling } from "@/lib/billing/profile-store";
-import { readPaymentRecords, readSubscriptionSummary } from "@/lib/billing/recompute";
+import { readMonthlyOrNone, readPaymentRecords, readSubscriptionSummary } from "@/lib/billing/recompute";
 import { getStripe } from "@/lib/billing/stripe-client";
+import { describeStripeError } from "@/lib/billing/stripe-error";
 
 /**
  * This account's payments and month-to-month state, read from Stripe, for Settings › Account.
@@ -25,10 +26,11 @@ export async function fetchBillingAction(): Promise<{ billing?: BillingView; err
         const productId = readIdField(price.product) ?? "";
         const [records, subscription] = await Promise.all([
             readPaymentRecords(stripe, stripeCustomerId, productId),
-            readSubscriptionSummary(stripe, stripeCustomerId, productId),
+            readMonthlyOrNone(() => readSubscriptionSummary(stripe, stripeCustomerId, productId), null, "subscriptions"),
         ]);
         return { billing: { payments: paymentRows(records), subscription, canManage: true } };
-    } catch {
+    } catch (error) {
+        console.error(`[billing] payments read failed: ${describeStripeError(error)}`);
         return { error: "Couldn't load your payments" };
     }
 }

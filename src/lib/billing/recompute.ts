@@ -5,8 +5,9 @@
  * answer, and a refund is just another fact the next read sees.
  */
 import type Stripe from "stripe";
-import { readPriceId } from "@/lib/billing/config";
+import { isAutoRenewConfigured, readPriceId } from "@/lib/billing/config";
 import { getStripe } from "@/lib/billing/stripe-client";
+import { describeStripeError, isPermissionDenied } from "@/lib/billing/stripe-error";
 import { readIdField } from "@/lib/billing/events";
 import { RENEWAL_GRACE_MS } from "@/lib/billing/access";
 import { readProfile, shapeProfileBilling, writeAccessUntil, type Grant } from "@/lib/billing/profile-store";
@@ -220,11 +221,26 @@ export async function readPaidInvoices(stripe: Stripe, customerId: string, produ
     return out;
 }
 
+/**
+ * Invoices, charges and subscriptions are read for month to month only. While it is off (no recurring
+ * Price set) none can exist, so a key never given those permissions must not break the prepaid path:
+ * its refusal counts as none, and is logged. Once month to month is on, a refusal throws like any failed read.
+ */
+export async function readMonthlyOrNone<T>(read: () => Promise<T>, none: T, what: string): Promise<T> {
+    try {
+        return await read();
+    } catch (error) {
+        if (isAutoRenewConfigured() || !isPermissionDenied(error)) throw error;
+        console.warn(`[billing] ${what} not readable by this Stripe key; month to month is off, so none are counted. ${describeStripeError(error)}`);
+        return none;
+    }
+}
+
 /** Every payment the customer made for the Velai product, prepaid and month to month, newest first. */
 export async function readPaymentRecords(stripe: Stripe, customerId: string, productId: string): Promise<PaymentRecord[]> {
     const [sessions, invoices] = await Promise.all([
         readPaidSessions(stripe, customerId, productId),
-        readPaidInvoices(stripe, customerId, productId),
+        readMonthlyOrNone(() => readPaidInvoices(stripe, customerId, productId), [], "subscription invoices"),
     ]);
     return [...sessions.flatMap((p) => (p.record ? [p.record] : [])), ...invoices.map((i) => i.record)].sort((a, b) => b.paidMs - a.paidMs);
 }
@@ -286,8 +302,8 @@ export async function recomputeAccess(uid: string, customerHint: string | null =
         const productId = readIdField(price.product) ?? "";
         const [paid, invoices, subscription] = await Promise.all([
             readPaymentFacts(stripe, customerId, productId),
-            readPaidInvoices(stripe, customerId, productId),
-            readSubscriptionSummary(stripe, customerId, productId),
+            readMonthlyOrNone(() => readPaidInvoices(stripe, customerId, productId), [], "subscription invoices"),
+            readMonthlyOrNone(() => readSubscriptionSummary(stripe, customerId, productId), null, "subscriptions"),
         ]);
         payments = paid;
         renewals = invoices.flatMap(renewalsFromInvoice);

@@ -164,3 +164,26 @@ test("with month to month on, the plan and Payments say when the next payment is
   await page.getByTestId("payments-manage").click();
   await expect(page).toHaveURL(/\/about$/);
 });
+
+test("the account menu has one billing entry, Plan & payments, and it leads to the plan card with Payments right under it", { tag: ["@J-BILLING-05"] }, async ({ page, baseURL }) => {
+  test.skip(!isLocal(baseURL), "needs the dev-only __INTERVU_E2E_AUTH__ hook, which production builds ignore");
+  await signInWithPlan(page, { plan: FREE, billing: billing() });
+  await page.goto("/jobs");
+  await page.getByTestId("topbar-avatar").click({ timeout: 30_000 });
+  await expect(page.getByRole("menuitem", { name: "Plan & pricing" })).toHaveCount(0);
+  await expect(page.getByTestId("account-menu-plan")).toHaveText("Plan & payments");
+  await expect(page.getByTestId("account-menu-plan")).toHaveAttribute("href", "/settings?tab=account");
+
+  // Where it lands: the plan card above the tabs, then Payments, then the sign-in details.
+  await page.keyboard.press("Escape");
+  await page.goto("/mock/settings?tab=account");
+  const plan = page.getByTestId("plan-card");
+  const payments = page.getByTestId("payments-card");
+  const signIn = page.getByRole("heading", { name: "Sign-in details" });
+  await expect(payments.getByTestId("payments-row")).toHaveCount(3, { timeout: 30_000 });
+  const [p, pay, sign] = await Promise.all([plan.boundingBox(), payments.boundingBox(), signIn.boundingBox()]);
+  expect(p!.y).toBeLessThan(pay!.y);
+  expect(pay!.y).toBeLessThan(sign!.y);
+  // The way to buy is one click from there.
+  await expect(plan.getByRole("link", { name: /See the paid month/ })).toHaveAttribute("href", "/pricing");
+});

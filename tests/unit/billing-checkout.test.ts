@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import type Stripe from "stripe";
+import Stripe from "stripe";
 import { MAX_MONTHS, MIN_MONTHS, MONTH_PRICE_USD } from "../../src/app/pricing/offer";
 import { SERVER_ONLY_PROFILE_FIELDS } from "../../src/lib/billing/profile-store";
 import {
@@ -272,5 +272,73 @@ describe("isAutoRenewConfigured", () => {
         assert.equal(isAutoRenewConfigured({ STRIPE_SUBSCRIPTION_PRICE_ID: "price_m" }), false);
         assert.equal(readSubscriptionPriceId({ STRIPE_SUBSCRIPTION_PRICE_ID: " price_m " }), "price_m");
         assert.throws(() => readSubscriptionPriceId({}), /STRIPE_SUBSCRIPTION_PRICE_ID/);
+    });
+});
+
+describe("a Stripe call that fails while starting checkout", () => {
+    const denied = () =>
+        new Stripe.errors.StripePermissionError({
+            message: "The provided key 'rk_live_********************************O87H' does not have the required permissions for this endpoint on account 'acct_1AbCdEfGhIj'. Having the 'rak_checkout_session_write' permission would allow this request to continue.",
+            statusCode: 403,
+        } as never);
+    const UNAVAILABLE = { error: "Checkout is unavailable right now. Please try again later." };
+    const logged = (logs: string[]) => {
+        assert.equal(logs.length, 1);
+        assert.match(logs[0], /^\[checkout\] failed: StripePermissionError status=403: /);
+        assert.ok(logs[0].includes("rak_checkout_session_write"));
+        assert.doesNotMatch(logs[0], /rk_live|O87H|acct_1AbC/);
+    };
+
+    it("prepaid: a refused session create is 503 and generic for the page, with the missing permission in the log", async () => {
+        const { deps, seen } = fakeDeps();
+        deps.stripe.checkout.sessions.create = async () => {
+            throw denied();
+        };
+        assert.deepEqual(await start(deps), { status: 503, body: UNAVAILABLE });
+        logged(seen.logs);
+    });
+    it("prepaid: a failed price read or customer create is the same 503, not a throw", async () => {
+        const a = fakeDeps();
+        a.deps.stripe.prices.retrieve = async () => {
+            throw denied();
+        };
+        assert.deepEqual(await start(a.deps), { status: 503, body: UNAVAILABLE });
+        logged(a.seen.logs);
+        const b = fakeDeps();
+        b.deps.stripe.customers.create = async () => {
+            throw denied();
+        };
+        assert.deepEqual(await start(b.deps), { status: 503, body: UNAVAILABLE });
+        logged(b.seen.logs);
+    });
+    it("month to month: a refused session create, subscription list or price read is the same 503 with a log", async () => {
+        const a = fakeSubDeps();
+        a.deps.stripe.checkout.sessions.create = async () => {
+            throw denied();
+        };
+        assert.deepEqual(await startSub(a.deps), { status: 503, body: UNAVAILABLE });
+        logged(a.seen.logs);
+        const b = fakeSubDeps();
+        b.deps.stripe.subscriptions.list = async () => {
+            throw denied();
+        };
+        assert.deepEqual(await startSub(b.deps), { status: 503, body: UNAVAILABLE });
+        logged(b.seen.logs);
+        const c = fakeSubDeps();
+        c.deps.stripe.prices.retrieve = async () => {
+            throw denied();
+        };
+        assert.deepEqual(await startSub(c.deps), { status: 503, body: UNAVAILABLE });
+        logged(c.seen.logs);
+    });
+    it("a store failure is also logged and answered 503; the 200 and 409 answers are unchanged", async () => {
+        const { deps, seen } = fakeDeps();
+        deps.readCustomerId = async () => {
+            throw new Error("db down");
+        };
+        assert.deepEqual(await start(deps), { status: 503, body: UNAVAILABLE });
+        assert.deepEqual(seen.logs, ["[checkout] failed: Error: db down"]);
+        assert.equal((await start(fakeDeps().deps)).status, 200);
+        assert.equal((await startSub(fakeSubDeps({ stored: "cus_old", existing: ["active"] }).deps)).status, 409);
     });
 });

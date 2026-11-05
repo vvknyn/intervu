@@ -2,6 +2,7 @@
  * Injectable Stripe webhook processor: verify, route the access events, recompute. No SDK or database imports.
  */
 import { RECOMPUTE_EVENT_TYPES, recomputeTargetFromObject } from "@/lib/billing/events";
+import { describeStripeError } from "@/lib/billing/stripe-error";
 
 export interface WebhookDeps {
     findUidByCustomerId(customerId: string): Promise<string | null>;
@@ -48,7 +49,8 @@ export async function handleStripeWebhook(
         const uid = customerId ? ((await input.deps.findUidByCustomerId(customerId)) ?? target.fallbackUid) : null;
         if (customerId && uid) await input.deps.recompute(uid, customerId);
         else input.deps.log(`[stripe-webhook] unmatched event type=${event.type} customer=${customerId ? "yes" : "no"} uid=${uid ? "yes" : "no"}`);
-    } catch {
+    } catch (error) {
+        input.deps.log(`[stripe-webhook] recompute failed type=${event.type}: ${describeStripeError(error)}`);
         // 500 makes Stripe retry; the recompute is idempotent, so a retry is always safe.
         return { status: 500, body: { error: "processing_failed" } };
     }

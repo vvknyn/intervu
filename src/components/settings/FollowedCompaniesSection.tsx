@@ -17,7 +17,7 @@ import { toast } from "@/lib/toast";
 /**
  * Settings › Account: the one place a signed-in user can see every company
  * they follow and stop following one. Before this, a follow could only be
- * undone from that company's own page, so the bell's alerts had no way out
+ * undone from that company's own page, so the follow alerts had no way out
  * short of remembering which pages to revisit.
  */
 export function FollowedCompaniesSection() {
@@ -65,7 +65,7 @@ export function FollowedCompaniesSection() {
         <section ref={sectionRef} id={FOLLOWED_COMPANIES_ANCHOR} data-testid="followed-companies">
             <h2 className="mb-1 text-base font-semibold leading-snug">Companies you follow</h2>
             <p className="mb-4 text-sm text-muted-foreground">
-                New roles at these companies show under the bell and in your weekly digest.
+                New roles at these companies show in your account menu and in your weekly digest.
             </p>
 
             {loading ? (

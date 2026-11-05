@@ -21,7 +21,7 @@ import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-ha
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { CONNECT_FAQ_NO_MCP_NEEDED, CONNECT_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
-import { PageTitle } from "@/components/ui/heading";
+import { PageEyebrow, PageLead, PageTitle } from "@/components/ui/heading";
 import { READING_MEASURE } from "@/components/ui/prose";
 import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS, CONNECT_SAMPLE_PROMPTS } from "@/lib/agent/permissions-copy";
 
@@ -123,16 +123,14 @@ export function ConnectClient({
     <div className="space-y-8 w-full">
       {/* Header Banner */}
       <div>
-        <p className="mb-3 text-xs font-semibold text-muted-foreground">
-          Model context protocol (MCP) and local agents
-        </p>
+        <PageEyebrow>Model context protocol (MCP) and local agents</PageEyebrow>
         <PageTitle>
           Connect your AI to live, verified job data
         </PageTitle>
-        <p className={`mt-2 ${READING_MEASURE} text-sm text-muted-foreground leading-relaxed`}>
+        <PageLead>
           Query live ATS postings directly inside your favorite AI client with zero hallucinations.
           Screen out stale postings, compare true hiring rates, and analyze market trends.
-        </p>
+        </PageLead>
       </div>
 
       {/* 2-Column Responsive Dashboard Grid */}
@@ -141,7 +139,7 @@ export function ConnectClient({
         <section className="rounded-panel border border-border bg-surface p-6 sm:p-7 space-y-6 shadow-[var(--shadow-bevel-highlight)]">
           <div className="flex items-center justify-between border-b border-border pb-4">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Universal MCP Server</h2>
+              <h2 className="text-base font-semibold text-foreground">Universal MCP Server</h2>
               <p className="text-xs text-muted-foreground">Standard SSE / HTTP transport</p>
             </div>
             <button
@@ -209,7 +207,7 @@ export function ConnectClient({
                 </Tabs>
 
                 {/* Instructions Box */}
-                <div className="rounded-ctl border border-border bg-surface-2 p-4 space-y-3 shadow-[var(--shadow-bevel-inset)]">
+                <div className="rounded-panel border border-border bg-surface-2 p-4 space-y-3 shadow-[var(--shadow-bevel-inset)]">
                   {/* Wraps: on a 320px phone the heading squeezed to four
                       lines beside the Open button. */}
                   <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
@@ -253,7 +251,7 @@ export function ConnectClient({
           <section className="rounded-panel border border-border bg-surface p-6 sm:p-7 space-y-5 shadow-[var(--shadow-bevel-highlight)]">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-foreground">OpenClaw (Autonomous Mac Agent)</h2>
+                <h2 className="text-base font-semibold text-foreground">OpenClaw (Autonomous Mac Agent)</h2>
                 <span className="whitespace-nowrap text-xs font-semibold text-muted-foreground">
                   Self-hosted
                 </span>

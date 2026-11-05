@@ -50,12 +50,12 @@ test("Edit, PDF, and sync are explicit resume auth clicks, not auto nudges", () 
     assert.ok(editHits >= 3, `expected Edit, PDF, and sync to call openResumeAuth, found ${editHits}`);
 });
 
-test("résumé masthead uses display PageHeader so mobile shows the full hero title", () => {
+test("résumé masthead uses the one PageHeader masthead so mobile shows the full hero title", () => {
     assert.match(SOURCE, /function ResumeHeader\(/);
     const headerStart = SOURCE.indexOf("function ResumeHeader(");
     const headerEnd = SOURCE.indexOf("function ResumeAuthSkeleton", headerStart);
     const headerBlock = SOURCE.slice(headerStart, headerEnd);
-    assert.match(headerBlock, /size="display"/);
+    assert.match(headerBlock, /<PageHeader/);
     assert.doesNotMatch(headerBlock, /truncate/);
 });
 

@@ -14,6 +14,9 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { FeedbackModal } from "@/components/modals/FeedbackModal";
+import { FollowAlertsDialog } from "@/components/follows/FollowAlertsDialog";
+import { useFollowAlerts } from "@/lib/follows/use-follow-alerts";
+import { PLAN_AND_PAYMENTS_HREF } from "@/lib/billing/paths";
 import { cn } from "@/lib/utils";
 import { GHOST_JOB_RESEARCH_TITLE } from "@/lib/seo/ghost-job-term";
 import { useShareControl } from "@/components/ui/share-action";
@@ -62,6 +65,10 @@ export interface AccountMenuProps {
  * The 40×40 button is the hit target (rulebook: min touch/click target);
  * the 32px `UserAvatar` inside it is the visible mark, matching the mark's
  * own 32px in the brand lockup.
+ *
+ * This is the header's one account control: the plan and payments, the new roles
+ * at companies the account follows (a dot on the avatar, a row here) and the
+ * setup steps left all live behind it, so the bar itself holds only the nav.
  */
 export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenuProps) {
     // Feedback opens after the menu closes: menus sit a layer above dialogs, so a menu left open would cover it.
@@ -69,6 +76,10 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
     // A new account's setup while it has a step left: the one place it shows (the count on the item below).
     const onboarding = useOnboarding();
     const setupLeft = onboarding.open ? SETUP_STEPS.length - onboarding.answered : 0;
+    // New roles at followed companies. The row opens a dialog after the menu closes, for the same reason as Feedback.
+    const followAlerts = useFollowAlerts();
+    const [followAlertsOpen, setFollowAlertsOpen] = useState(false);
+    const newAtFollowed = followAlerts.rows.length;
     return (
         <>
             <DropdownMenu>
@@ -80,30 +91,47 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                         aria-label="Account menu"
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                            "ctl-md ctl-square inline-flex shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none", // control-type-allow: an avatar, not a labelled button — round like the picture it frames
+                            "ctl-md ctl-square relative inline-flex shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none", // control-type-allow: an avatar, not a labelled button — round like the picture it frames
                             active && "ring-2 ring-live",
                         )}
                     >
                         <UserAvatar name={user.displayName} email={user.email} pictureUrl={user.pictureUrl} size={32} />
+                        {newAtFollowed > 0 ? (
+                            <span
+                                aria-hidden
+                                data-testid="topbar-avatar-dot"
+                                className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-pill bg-live ring-2 ring-background"
+                            />
+                        ) : null}
                     </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 border-border bg-surface-2 shadow-[var(--shadow-overlay)]">
-                    {setupLeft > 0 ? (
+                <DropdownMenuContent align="end" className="w-64 border-border bg-surface-2 shadow-[var(--shadow-overlay)]">
+                    {setupLeft > 0 || newAtFollowed > 0 ? (
                         <>
-                            <DropdownMenuItem data-testid="account-menu-finish-setup" onSelect={() => openSetupSheet("menu")}>
-                                Finish setup
-                                <Badge variant="brand" data-testid="account-menu-setup-badge" aria-label={`${setupLeft} ${setupLeft === 1 ? "step" : "steps"} left`} className="ml-auto">
-                                    {setupLeft}
-                                </Badge>
-                            </DropdownMenuItem>
+                            {setupLeft > 0 ? (
+                                <DropdownMenuItem data-testid="account-menu-finish-setup" onSelect={() => openSetupSheet("menu")}>
+                                    Finish setup
+                                    <Badge variant="brand" data-testid="account-menu-setup-badge" aria-label={`${setupLeft} ${setupLeft === 1 ? "step" : "steps"} left`} className="ml-auto">
+                                        {setupLeft}
+                                    </Badge>
+                                </DropdownMenuItem>
+                            ) : null}
+                            {newAtFollowed > 0 ? (
+                                <DropdownMenuItem data-testid="account-menu-follow-alerts" onSelect={() => setFollowAlertsOpen(true)}>
+                                    New at companies you follow
+                                    <Badge variant="brand" data-testid="account-menu-follow-alerts-count" aria-label={followAlerts.title} className="ml-auto">
+                                        {newAtFollowed}
+                                    </Badge>
+                                </DropdownMenuItem>
+                            ) : null}
                             <DropdownMenuSeparator />
                         </>
                     ) : null}
                     <DropdownMenuItem asChild>
-                        <Link href="/settings">Account</Link>
+                        <Link href={PLAN_AND_PAYMENTS_HREF} data-testid="account-menu-plan">Plan &amp; payments</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                        <Link href="/pricing">Plan &amp; pricing</Link>
+                        <Link href="/settings" data-testid="account-menu-settings">Account</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                         <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>
@@ -132,6 +160,13 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                 </DropdownMenuContent>
             </DropdownMenu>
             <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+            <FollowAlertsDialog
+                open={followAlertsOpen && newAtFollowed > 0}
+                onOpenChange={setFollowAlertsOpen}
+                title={followAlerts.title}
+                rows={followAlerts.rows}
+                acknowledge={followAlerts.acknowledge}
+            />
         </>
     );
 }

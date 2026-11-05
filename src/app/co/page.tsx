@@ -31,7 +31,7 @@ export default async function CompanyDirectoryPage() {
   ]);
 
   return (
-    <PageContainer measure="reading" data-testid="company-directory" className="py-10">
+    <PageContainer measure="reading" data-testid="company-directory" className="page-top pb-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd) }} />
       <PageTitle>Companies hiring</PageTitle>
       <p className="mt-3 text-sm text-muted-foreground">{DIRECTORY_DESCRIPTION}</p>

@@ -97,7 +97,7 @@ export function McpHandoffNote({
     );
 
     return (
-        <div className={cn("rounded-none border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
+        <div className={cn("rounded-panel border border-border bg-muted px-4 py-3 text-sm text-foreground", className)}>
             {dismissible ? (
                 <Dismissible onDismiss={dismiss} dismissTestId="mcp-handoff-dismiss">
                     {body}
