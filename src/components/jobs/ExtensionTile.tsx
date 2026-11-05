@@ -44,8 +44,8 @@ function readBandDismissed(): boolean {
 
 /**
  * The Velai Chrome extension as one dismissible row in the list slot: what it does, and one way in, the Chrome Web
- * Store. A page cannot tell whether the extension is installed (it has no content script on velai.app), so the action
- * is always "Add to Chrome", never "Open".
+ * Store. A page cannot tell whether the extension is installed (its velai.app script only reads the browser's résumé and
+ * never announces itself), so the action is always "Add to Chrome", never "Open".
  */
 export function ExtensionTile({ className }: { className?: string }) {
     const dismissed = useSyncExternalStore(subscribeBand, readBandDismissed, () => true);
