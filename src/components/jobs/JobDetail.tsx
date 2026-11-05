@@ -770,9 +770,9 @@ export function JobDetail({
                         {cleanedCompany && job.company_domain && (
                             <Link
                                 href={jobCompanyHref(cleanedCompany, job.company_domain)}
-                                className="block truncate text-sm text-muted-foreground name-link"
+                                className="block text-sm text-muted-foreground name-link"
                             >
-                                {job.company_domain}
+                                <span className="block truncate">{job.company_domain}</span>
                             </Link>
                         )}
                     </div>

@@ -30,9 +30,11 @@ const posting = (n: number, title: string, company: string) => ({
     ghost_badge: "unscored",
 });
 
-async function listedRows(page: Page) {
+async function listedRows(
+    page: Page,
+    hits = [posting(1, "Product Manager", "Maple Relay"), posting(2, "Product Owner", "Prairie Stack"), posting(3, "Platform Product Manager", "Birch Cloud")],
+) {
     await returningVisitor(page);
-    const hits = [posting(1, "Product Manager", "Maple Relay"), posting(2, "Product Owner", "Prairie Stack"), posting(3, "Platform Product Manager", "Birch Cloud")];
     await page.route("**/api/jobs/search", (route) =>
         route.fulfill({ contentType: "application/json", body: JSON.stringify({ hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "journey-hig" }) }),
     );
@@ -85,14 +87,29 @@ function tapAreas(page: Page) {
 for (const route of ["/jobs", "/pricing", "/login", "/about", "/connect", "/connect/help", "/resume"]) {
     test(`on a phone every control on ${route} is at least 44pt square to a finger, and a link in running text at least line tall`, { tag: ["@J-HIG-01"] }, async ({ page, diagnostics }, testInfo) => {
         test.skip(testInfo.project.name !== "mobile", "a phone width");
-        await returningVisitor(page);
-        await page.goto(route);
+        if (route === "/jobs") {
+            // /jobs with rows: on an empty list the check passed vacuously while every job title was 22pt tall to a
+            // finger (its own line-clamp clipped its tap floor; release gate, 2026-11-05). One title short, one long
+            // enough to clamp.
+            await listedRows(page, [
+                posting(1, "Clinical Research Assistant", "Maple Relay"),
+                posting(2, "Senior Product Manager, Platform Payments and Billing Infrastructure", "Prairie Stack"),
+                posting(3, "Telehealth Registered Nurse", "Birch Cloud"),
+            ]);
+        } else {
+            await returningVisitor(page);
+            await page.goto(route);
+        }
         await page.waitForLoadState("load");
         // The dev server's own badge sits over the first tab; production has none.
         await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
         await page.waitForTimeout(1500);
         const areas = await tapAreas(page);
         expect(areas.length).toBeGreaterThan(3);
+        if (route === "/jobs") {
+            const titles = areas.filter((a) => /Clinical Research|Senior Product Manager|Telehealth/.test(a.text));
+            expect(titles.length, `the list's job titles were measured: ${JSON.stringify(areas.map((a) => a.text))}`).toBeGreaterThanOrEqual(3);
+        }
         // HIG Buttons / Accessibility: a 44x44pt hit region. A link inside running text cannot be 44pt without covering
         // the lines around it; it gets the floor where the lines leave room and at least the line it sits on.
         const small = areas.filter((a) => (a.inText ? a.h < 22 : a.w < 43 || a.h < 43));

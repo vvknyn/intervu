@@ -221,11 +221,10 @@ export function JobCard({
                         href={jobPath(job)}
                         data-testid="job-title"
                         className={cn(
-                            // Three lines below sm: on a 320px phone the title
-                            // column is ~140px, and two lines cut "Registered
-                            // Nurse, Pediatrics - Per Diem" to "Registered
-                            // Nurse,…" (2026-10-02).
-                            "text-base leading-snug line-clamp-2 max-sm:line-clamp-3",
+                            // The clamp is on the inner span, not here: a link that clips its own overflow
+                            // also clips the 44pt tap floor drawn around it (globals.css), which left
+                            // every title 22pt tall to a finger (2026-11-05).
+                            "text-base leading-snug",
                             // Selected row (`active`) freezes `:hover` in some
                             // browsers because the pointer never truly leaves —
                             // so the row that's already selected must not carry
@@ -250,7 +249,10 @@ export function JobCard({
                             onClick();
                         }}
                     >
-                        {presented.title}
+                        {/* Three lines below sm: on a 320px phone the title column is ~140px, and two
+                            lines cut "Registered Nurse, Pediatrics - Per Diem" to "Registered Nurse,…"
+                            (2026-10-02). */}
+                        <span className="line-clamp-2 max-sm:line-clamp-3">{presented.title}</span>
                     </Link>
                     {/* Exception-only word marks beside the title (ATTENTION.md
                         channel 4) — `rowExceptionMark` is the single
