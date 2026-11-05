@@ -56,6 +56,12 @@ describe("/pricing card", () => {
     assert.match(html, /Each month adds/);
   });
 
+  it("lists the Chrome extension as free, linked to its store page", () => {
+    const html = render({ signedIn: false, billingConfigured: true, paidUntil: null });
+    assert.match(html, /<a href="https:\/\/chromewebstore\.google\.com\/detail\/jndkidbobccmcjochgioiiiiaaaldjjd"[^>]*data-testid="pricing-extension-link"[^>]*>Chrome extension<\/a>/);
+    assert.match(html, /your fit on job pages, changes to your résumé for each job and filling in the application/);
+  });
+
   it("configured and signed out: a month picker with 12 choices, the total, and sign-in that returns to /pricing", () => {
     const html = render({ signedIn: false, billingConfigured: true, paidUntil: null });
     assert.equal([...html.matchAll(/<option /g)].length, 12);
