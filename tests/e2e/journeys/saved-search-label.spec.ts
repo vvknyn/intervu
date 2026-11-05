@@ -61,10 +61,11 @@ test.describe('saved-search chip label — pointer device', () => {
 
         await openTooltip(page, chip(page, 'Résumé keywords'));
         await expect(page.getByRole('tooltip')).toHaveText(TERMS);
-        // It never covers the header's Search / Pricing / Sign in / Create account.
+        // It never covers the header's Search / Pricing / Sign in. Quiet nav (#1126) keeps one Sign in;
+        // Create account is not a header control.
         // The role=tooltip node is a 1px screen-reader copy; the visible box is the popper wrapper.
         const tip = (await page.locator('[data-radix-popper-content-wrapper]').boundingBox())!;
-        for (const id of ['search-submit', 'topbar-pricing', 'topbar-signin', 'topbar-create-account']) {
+        for (const id of ['search-submit', 'topbar-pricing', 'topbar-signin']) {
             const nav = await page.locator('header').getByTestId(id).first().boundingBox();
             expect(nav, `${id} is in the header`).not.toBeNull();
             const apart = tip.x + tip.width <= nav!.x || nav!.x + nav!.width <= tip.x || tip.y + tip.height <= nav!.y || nav!.y + nav!.height <= tip.y;

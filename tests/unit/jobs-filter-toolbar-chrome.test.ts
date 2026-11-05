@@ -17,6 +17,47 @@ const CHANGED = [CHIP, FILTER_CHIPS_ROW, PAGE, TOPBAR, SAVED_SEARCHES, GLOBALS];
 const pristine: FilterState = { ...PRISTINE_FILTER_STATE };
 
 /**
+ * The element whose opening tag contains `marker`, from that tag through the matching close.
+ * Comments are skipped so a comment that mentions the tag cannot move the close.
+ */
+function elementByMarker(source: string, marker: string): { innerStart: number; close: number } {
+    const markerAt = source.indexOf(marker);
+    assert.ok(markerAt !== -1, marker);
+    const open = source.lastIndexOf("<", markerAt);
+    const tag = /^<([A-Za-z][\w.-]*)/.exec(source.slice(open))?.[1];
+    assert.ok(tag, "opening tag");
+    const openEnd = source.indexOf(">", open);
+    assert.ok(openEnd > markerAt, "opening tag ends after the marker");
+    if (source[openEnd - 1] === "/") return { innerStart: openEnd + 1, close: openEnd + 1 };
+    let depth = 1;
+    let i = openEnd + 1;
+    while (i < source.length && depth > 0) {
+        if (source.startsWith("<!--", i)) {
+            const end = source.indexOf("-->", i + 4);
+            i = end === -1 ? source.length : end + 3;
+            continue;
+        }
+        if (source[i] !== "<") {
+            i++;
+            continue;
+        }
+        const isClose = source.startsWith(`</${tag}`, i) && /[\s>]/.test(source[i + tag.length + 2] ?? "");
+        const isOpen = source.startsWith(`<${tag}`, i) && /[\s>/]/.test(source[i + tag.length + 1] ?? "");
+        if (isClose || isOpen) {
+            const end = source.indexOf(">", i);
+            assert.ok(end !== -1, "tag ends");
+            if (isClose) depth--;
+            else if (source[end - 1] !== "/") depth++;
+            if (depth === 0) return { innerStart: openEnd + 1, close: i };
+            i = end + 1;
+            continue;
+        }
+        i++;
+    }
+    assert.fail(`unclosed <${tag}> for ${marker}`);
+}
+
+/**
  * Every `chipVariants({...})` call's `active:` value, verbatim — regardless
  * of key order or how many other keys (e.g. `interactive: true`) share the
  * object literal. Assertions below match on the VALUE, not the literal
@@ -207,9 +248,15 @@ describe("jobs filter toolbar chrome", () => {
         const toolbar = page.slice(page.indexOf('data-testid="jobs-toolbar"'), page.indexOf('data-testid="active-filter-row"'));
         assert.doesNotMatch(toolbar, /jobs-toolbar-actions|\{sortEl\}|rankByFitEl|savedSearchControl/);
         assert.doesNotMatch(page, /createPortal\(sortEl|createPortal\(savedSearchMountEl/, "the docked header no longer mounts Sort or Rank");
-        const bar = page.slice(page.indexOf('data-testid="results-bar"'), page.indexOf('data-testid="results-bar"') + 4500);
-        assert.ok(bar.indexOf('data-testid="result-line"') > -1 && bar.indexOf('data-testid="result-line"') < bar.indexOf("{sortEl}"), "count left, Sort right");
-        assert.ok(bar.indexOf("{sortEl}") < bar.indexOf("{resumeReadStripEl}"), "the résumé caption sits under the line");
+        // The relationship, not a character budget: Sort is inside the results bar, to the right of the count,
+        // and the résumé caption is the next sibling after that bar. A longer bar must not move Sort "out".
+        const bar = elementByMarker(page, 'data-testid="results-bar"');
+        const inner = page.slice(bar.innerStart, bar.close);
+        const countAt = inner.indexOf('data-testid="result-line"');
+        const sortAt = inner.indexOf("{sortEl}");
+        assert.ok(countAt !== -1 && sortAt > countAt, "the count and Sort are inside the results line, count on the left");
+        const afterBar = page.slice(bar.close).replace(/^<\/div>/, "");
+        assert.match(afterBar, /^\s*\{resumeReadStripEl\}/, "the résumé caption is the next sibling under the results line");
     });
 
     it("Filters toggle is active only when expanded, not when filter count is nonzero", () => {
