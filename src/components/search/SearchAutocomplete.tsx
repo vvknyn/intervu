@@ -5,7 +5,7 @@ import type { ComboBoxState } from "react-aria-components";
 import { Combobox, ComboboxInput, ComboboxItem, ComboboxLayer, ComboboxList, ComboboxPopover, ComboboxSection } from "@/components/ui/combobox";
 import { ArrowLeft, Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
-import { getSuggestions, groupSuggestions, withQueryRow, SearchSuggestion, SuggestionRow, SuggestionSection } from "@/lib/search-suggestions";
+import { getSuggestions, groupSuggestions, suggestionLabel, withQueryRow, SearchSuggestion, SuggestionRow, SuggestionSection } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
     subscribeRecentSearches,
@@ -67,6 +67,13 @@ interface SearchAutocompleteProps {
      * parallel seed-specific handler.
      */
     seeds?: string[];
+    /**
+     * Optional: runs a picked row itself instead of the default (the row's
+     * text into the box, then `onSearch`). Return true when it did. The jobs
+     * page uses it for an employer row, which filters to that employer (the
+     * employer chip) and keeps only the role words in the box.
+     */
+    onPick?: (row: SearchSuggestion) => boolean;
 }
 
 export interface SearchAutocompleteHandle {
@@ -96,8 +103,8 @@ const LAYER_STYLE: CSSProperties = {
     paddingRight: "env(safe-area-inset-right)",
 };
 
-/** The words a row reads as: the raw-text row names the search it runs. */
-const rowLabel = (row: SearchSuggestion) => (row.type === "query" ? `Search \u201c${row.text}\u201d` : row.text);
+/** The words a row reads as: the raw-text row names the search it runs (`suggestionLabel`). */
+const rowLabel = suggestionLabel;
 
 export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAutocompleteProps>(function SearchAutocomplete({
     value,
@@ -112,6 +119,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     leadingIcon,
     suggest,
     seeds,
+    onPick,
     ariaLabel = "Search jobs",
     name,
 }, ref) {
@@ -159,6 +167,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     //    restart the 150ms timer — but it still needs to invoke whichever
     //    `suggest` closure is freshest when the timer actually fires.
     const onSearchRef = useRef(onSearch);
+    const onPickRef = useRef(onPick);
     const suggestRef = useRef(suggest);
     // `seeds` is typically a freshly-computed array at the call site too (no
     // memo) — same churn as `suggest`, so it gets the same ref treatment:
@@ -169,6 +178,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const seedsRef = useRef(seeds);
     useEffect(() => {
         onSearchRef.current = onSearch;
+        onPickRef.current = onPick;
         suggestRef.current = suggest;
         seedsRef.current = seeds;
     });
@@ -312,6 +322,12 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const handleSelect = (key: Key | null) => {
         const picked = key == null ? undefined : rows[Number(key)];
         if (!picked) return;
+        if (onPickRef.current?.(picked)) {
+            // The caller ran it; the list closes on the same tick a default pick's does.
+            pickedRef.current = true;
+            setTimeout(() => comboboxStateRef.current?.close(), 0);
+            return;
+        }
         onChange(picked.text);
 
         // No history bookkeeping here — the shared store (see the `history`
@@ -351,7 +367,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                                 <span className="flex-1 truncate">
                                                     {row.type === "query"
                                                         ? rowLabel(row)
-                                                        : highlightMatch(row.text, value).map((seg, i) =>
+                                                        : highlightMatch(rowLabel(row), value).map((seg, i) =>
                                                             seg.matched ? (
                                                                 <mark key={i} className="bg-transparent font-semibold text-foreground">
                                                                     {seg.text}

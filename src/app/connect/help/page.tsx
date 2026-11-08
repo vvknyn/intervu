@@ -142,6 +142,8 @@ export default function ConnectHelpPage() {
             away. A search for a job title we know also brings back the roles next to it, after the ones with
             that title, and your AI is told which roles those are. With your résumé on file, the roles next to it
             that fit you well come with the first results, and the search box suggests them as you type.
+            A search that names a role and an employer, such as &ldquo;product manager at Shopify&rdquo;, looks for that
+            role at that employer; when the employer has none, its other roles come first, then that role elsewhere.
           </p>
           <p>
             It can also list the roles that fit your résumé. It matches on what each posting asks for before its

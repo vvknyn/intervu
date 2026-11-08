@@ -29,7 +29,7 @@ import { applyLocationDefault } from "../geo/ip-default";
 import { getDegradedServe, sharedLiveSearch, type SearchServeMeta } from "./search-cache";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 import { restoreDefaults, stripDefaulted } from "./search-defaults";
-import { diffUnderstood, understoodSource, type UnderstoodSearch } from "./understood";
+import { diffUnderstood, understoodSource, withEmployerUnderstood, type UnderstoodSearch } from "./understood";
 export type { SearchServeMeta } from "./search-cache";
 
 export function activeBackend(): JobsBackendKind {
@@ -127,12 +127,17 @@ async function understandWithDiff(raw: JobSearchParams): Promise<{ params: JobSe
 }
 
 /** The request-scoped "we searched without this" facts, spread onto every
- *  return point (see the `unmatchedPlaceMentions` note in searchJobs). */
-const requestMentions = (p: JobSearchParams, understood?: UnderstoodSearch) => ({
-  ...(understood && { understood }),
-  ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
-  ...(p.unmatchedQueryMentions && { unmatchedQueryMentions: p.unmatchedQueryMentions }),
-});
+ *  return point (see the `unmatchedPlaceMentions` note in searchJobs).
+ *  `searched` is what the backend itself searched without (an employer name
+ *  no employer in the index carries, `searchMeili`'s "company not found" path). */
+const requestMentions = (p: JobSearchParams, understood?: UnderstoodSearch, searched: readonly string[] = []) => {
+  const queryMentions = [...new Set([...(p.unmatchedQueryMentions ?? []), ...searched])];
+  return {
+    ...(understood && { understood }),
+    ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+    ...(queryMentions.length > 0 && { unmatchedQueryMentions: queryMentions }),
+  };
+};
 
 export async function searchJobs(
   raw: JobSearchParams,
@@ -213,12 +218,14 @@ export async function searchJobs(
       // Only the success path ever teaches the cache.
       const live = await sharedLiveSearch(p, () => searchMeili(p));
       // A city that is a language ("Spanish") is no place: the row's place reads unknown (non-place-location.ts).
-      const result = { ...live, hits: live.hits.map(withoutNonPlaceLocation), effectiveQ: p.q ?? "" };
+      // The backend's own residual wins when it searched other words than `p.q` (the role of a
+      // role + employer search, employer-role.ts).
+      const result = { ...live, hits: live.hits.map(withoutNonPlaceLocation), effectiveQ: live.effectiveQ ?? p.q ?? "" };
       return {
         ...result,
         meta: { degraded: false, servedFrom: "live" },
         ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
-        ...requestMentions(p, heard),
+        ...requestMentions(p, withEmployerUnderstood(heard, live.employer), live.unmatchedQueryMentions),
       };
     }
     if (backend === "snapshot-preview") {
