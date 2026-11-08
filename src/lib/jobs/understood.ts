@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import type { FilterState } from "@/components/jobs/FilterPanel";
-import type { FacetKey, JobSearchParams } from "./types";
+import type { EmployerRead, FacetKey, JobSearchParams } from "./types";
 
 /**
  * What the understanding stages read out of the typed words, echoed to the
@@ -11,9 +11,11 @@ import type { FacetKey, JobSearchParams } from "./types";
  * any work mode bound to it lifted to the global `work_type` facet.
  */
 export interface UnderstoodSearch {
-  params: Pick<JobSearchParams, "facets" | "salaryMin" | "postedBucket" | "yearsExperience" | "visaOnly">;
+  params: Pick<JobSearchParams, "facets" | "salaryMin" | "postedBucket" | "yearsExperience" | "visaOnly" | "companyDomain">;
   residualQ: string;
   source: "deterministic" | "llm";
+  /** With `params.companyDomain`: the employer's name, for the line that says what was searched. */
+  employerName?: string;
 }
 
 const SCALAR_FIELDS = ["salaryMin", "postedBucket", "yearsExperience"] as const;
@@ -43,6 +45,27 @@ export function diffUnderstood(
   return Object.keys(params).length ? { params, residualQ: after.q ?? "", source } : undefined;
 }
 
+/**
+ * Pure: an employer the search read out of the typed words ("product manager
+ * shopify", `JobSearchResult.employer` with `source: "typed"`) joins what was
+ * understood as the employer filter, and the box keeps only the role words —
+ * the same way a place read from the words becomes a place chip. Only a read
+ * pinned to ONE employer: the filter holds one domain. Anything else leaves
+ * `understood` as it was.
+ */
+export function withEmployerUnderstood(
+  understood: UnderstoodSearch | undefined,
+  employer: EmployerRead | undefined,
+): UnderstoodSearch | undefined {
+  if (!employer || employer.source !== "typed" || employer.domains.length !== 1 || !employer.role.trim()) return understood;
+  return {
+    params: { ...understood?.params, companyDomain: employer.domains[0] },
+    residualQ: employer.role.trim(),
+    source: understood?.source ?? "deterministic",
+    ...(employer.name && { employerName: employer.name }),
+  };
+}
+
 /** Which stage produced the final params: the LLM stage only if it changed what the deterministic one left. */
 export const understoodSource = (deterministic: JobSearchParams, final: JobSearchParams): UnderstoodSearch["source"] =>
   isDeepStrictEqual(deterministic, final) ? "deterministic" : "llm";
@@ -66,6 +89,7 @@ export function mergeUnderstood(state: FilterState, p: UnderstoodSearch["params"
   if (p.postedBucket && !state.postedExplicit) set({ postedBucket: p.postedBucket, postedExplicit: true });
   if (p.yearsExperience && !state.yearsExperience) set({ yearsExperience: p.yearsExperience });
   if (p.visaOnly && !state.visaOnly) set({ visaOnly: true });
+  if (p.companyDomain && !state.companyDomain) set({ companyDomain: p.companyDomain });
   return next;
 }
 

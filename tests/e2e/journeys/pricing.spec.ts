@@ -20,6 +20,12 @@ test("the pricing page is one card with the monthly price and the refund promise
   await expect(card).toContainText("no auto-renew");
   await expect(card).toContainText("14-day refund");
   await expect(card).toContainText("Always free");
+  // The extension is free with the résumé kept in this browser (0.5.0): the free list says so and links its store page.
+  const extension = card.getByTestId("pricing-extension-link");
+  await expect(extension).toHaveText("Chrome extension");
+  await expect(extension).toHaveAttribute("href", /^https:\/\/chromewebstore\.google\.com\/detail\/jndkidbobccmcjochgioiiiiaaaldjjd$/);
+  await expect(extension).toHaveAttribute("target", "_blank");
+  await expect(card).toContainText("your fit on job pages");
   await expect(card).toContainText("Each month adds");
   await expect(page.getByTestId("pricing-page")).not.toContainText(/founding|pledge/i);
   expect(diagnostics.serverErrors).toEqual([]);

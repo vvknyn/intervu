@@ -576,6 +576,37 @@ export interface JobSuggestions {
   companies: string[];
   /** Roles next to what is typed (`relatedSuggestions`, title-neighbours.ts), listed after `titles`. */
   related?: string[];
+  /**
+   * Employers whose name holds what is typed, from a search of the employer
+   * names themselves (`fetchEmployerSuggestions`), each with the domain a pick
+   * filters on. With `role` when the typed words read as role + employer
+   * ("product manager shop" → Shopify, role "product manager"): a pick searches
+   * that role at that employer.
+   */
+  employers?: EmployerSuggestion[];
+  /** The typed words name an employer more than a role: the box lists employers first. */
+  employersFirst?: boolean;
+}
+
+export interface EmployerSuggestion {
+  name: string;
+  domain: string;
+  role?: string;
+}
+
+/** See `JobSearchResult.employer`. */
+export interface EmployerRead {
+  /** The employer domain(s) the search was pinned to. */
+  domains: string[];
+  /** The employer's name as its postings show it; absent when none was read. */
+  name?: string;
+  /** The role words searched at the employer. */
+  role: string;
+  /** Roles at the employer that match `role`. */
+  roleMatches: number;
+  /** With `roleMatches` 0: how many leading rows are the employer's other roles. */
+  employerRoles?: number;
+  source: "typed" | "chosen";
 }
 
 export interface JobSearchResult {
@@ -638,4 +669,15 @@ export interface JobSearchResult {
    * for or the search is not scoped to an employer (see `assembleCompanyLanePool`).
    */
   inPlace?: number;
+  /**
+   * A search for a role at one employer — named in the typed words ("product
+   * manager shopify", `source: "typed"`) or chosen as the employer filter with
+   * role words typed (`source: "chosen"`). Its rows are that role at that
+   * employer, or, when the employer has none (`roleMatches` 0), the employer's
+   * other roles (the first `employerRoles` rows) and then that role at other
+   * employers. Absent on every other search.
+   */
+  employer?: EmployerRead;
+  /** Typed words the search could not use and searched without (the whole query matched nothing). */
+  unmatchedQueryMentions?: string[];
 }

@@ -35,7 +35,7 @@ export const WRAP_ROUTES: Record<string, WrapRoute> = {
     "/contact": { audit: ["/contact"] },
     "/eluta-alternative": { audit: ["/eluta-alternative"] },
     "/indeed-alternative": { audit: ["/indeed-alternative"] },
-    "/jobs": { audit: ["/jobs"] },
+    "/jobs": { audit: ["/jobs", "/mock/search-alert", "/mock/email-nudge"] },
     "/jobs/[slug]": { skip: "the job detail's MetaLine keeps its dot at a line's end by contract (J-MOB-24/26)" },
     "/jobs/first-rows": { audit: ["/jobs/first-rows"] },
     "/jobs/front-door": { audit: ["/jobs/front-door"] },
@@ -64,6 +64,8 @@ export const WRAP_FIXTURE_READY: Record<string, string[]> = {
     "/mock/trends": ["trends-pulse-coverage", "trends-work-types", "trends-experience-levels"],
     "/mock/career-hub": ["career-hub-total", "career-hub-companies", "career-hub-roles"],
     "/mock/company-page": ["company-section-identity"],
+    "/mock/search-alert": ["search-alert-case-results", "search-alert-case-empty"],
+    "/mock/email-nudge": ["email-nudge-mock"],
 };
 
 export const isFixture = (path: string) => path.startsWith("/mock/");

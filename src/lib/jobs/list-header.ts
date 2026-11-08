@@ -29,7 +29,7 @@ export const HEADER_BAND_PRIORITY = ["prompt", "resume", "extension", "visit"] a
 export type HeaderBand = (typeof HEADER_BAND_PRIORITY)[number];
 
 /** The notes about how a search was read, highest priority first: the one that changes what the person is looking at leads. */
-export const HEADER_NOTE_PRIORITY = ["degraded", "widened", "unmatched", "understood", "elsewhere", "level"] as const;
+export const HEADER_NOTE_PRIORITY = ["degraded", "widened", "unmatched", "employer", "understood", "elsewhere", "level"] as const;
 export type HeaderNote = (typeof HEADER_NOTE_PRIORITY)[number];
 
 export interface ListHeaderState {

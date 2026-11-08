@@ -13,7 +13,7 @@ import type {
   JobSearchParams, JobSearchResult, JobSortMode, PanelFacetKey, PlaceClause, PostedBucket, PublicJob,
   YearsExperienceBucket,
 } from "../jobs/types";
-import { degradedResultsNote } from "../jobs/result-state";
+import { degradedResultsNote, employerReadNote, employerRoleNote, unmatchedPlaceNote } from "../jobs/result-state";
 import { canonicalFacetValues } from "../jobs/meilisearch";
 import { matchLabel, relevanceTerms, termAsWritten, type MatchScore } from "../match/score";
 import { latestCheckAt } from "../jobs/badges";
@@ -665,7 +665,18 @@ export async function toolSearchJobs(
   // render normally, so this isn't `unavailable`, but the agent deserves the
   // same honest disclosure the web UI already shows via `degradedResultsNote`
   // (result-state.ts) rather than a stale serve silently reading as fresh.
-  const note = joinNotes(limitNote, bucketNote, result.note, degradedResultsNote(result));
+  // A role + employer query ("product manager at Shopify") says how it was read: the role at that
+  // employer, or, when it has none, its other roles and then the role at other employers
+  // (`employerRoleNote`, the line the site shows); words it searched without say so too.
+  const note = joinNotes(
+    limitNote,
+    bucketNote,
+    result.note,
+    degradedResultsNote(result),
+    employerReadNote(result.employer),
+    employerRoleNote(result.employer, result.total),
+    unmatchedPlaceNote(undefined, result.unmatchedQueryMentions),
+  );
   // MC3 — fetched once per call, not once per hit, and only once the backend
   // is confirmed up (the early `isBackendDown` return above skips this read
   // entirely, so a down backend never costs a wasted résumé fetch).

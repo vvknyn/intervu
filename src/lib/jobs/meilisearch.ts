@@ -15,9 +15,20 @@ import {
   dominantCompanyDomains,
   extractCompoundRoleCompanyCandidates,
   isCompanyNameQuery,
+  MAX_COMPOUND_PROBES,
   normalizeCompanyName,
+  pickCompoundEmployer,
+  unresolvedCompoundSplit,
   type CompanyNameSample,
 } from "./company-intent";
+import {
+  chosenEmployerRole,
+  employerFallbackWindow,
+  employerNameFromHits,
+  joinEmployerFallback,
+  pinToEmployer,
+  withoutEmployer,
+} from "./employer-role";
 import {
   assembleCompanyLanePool,
   buildCompanyScopedSearchLanes,
@@ -41,7 +52,7 @@ import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause, hasUnknownRequestedFacet, salaryMinClause } from "./unknown-inclusive-facets";
 import { expandTitleQuery } from "./title-aliases";
 import { relatedSuggestions, relatedTitlesFor } from "./title-neighbours";
-import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
+import type { EmployerSuggestion, FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
 
@@ -1447,11 +1458,18 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
   // (lanes' early return included), not just the plain-search tail. An
   // EXPLICIT `companyDomain`/`board` param never reaches here scoped — only
   // an inferred `intent.companyScoped` triggers the retry.
-  const runWithIntent = async (intent: CompanyIntentResult): Promise<JobSearchResult> => {
+  // `base` is the request a pass runs (the search as asked, or one half of the
+  // employer fallback below); `employerLanes` runs the employer's lanes (its
+  // roles in the asked-for place first) for a pass pinned to one employer.
+  const runWithIntent = async (
+    intent: CompanyIntentResult,
+    base: JobSearchParams = p,
+    employerLanes = Boolean(intent.residualRoleQ && intent.companyDomains.length > 0),
+  ): Promise<JobSearchResult> => {
     const companyScoped = intent.companyScoped;
-    const isCompoundEmployerSearch = Boolean(intent.residualRoleQ && intent.companyDomains.length > 0);
-    const searchParams = applyCompanyDomainPin(p, intent);
-    const effectiveQ = searchParams.q ?? p.q ?? "";
+    const isCompoundEmployerSearch = employerLanes;
+    const searchParams = applyCompanyDomainPin(base, intent);
+    const effectiveQ = searchParams.q ?? base.q ?? "";
 
     const runSearch = async (params: JobSearchParams = searchParams): Promise<JobSearchResult> => {
       const needsDomain = needsDomainFilters(params);
@@ -1547,7 +1565,7 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
       return mergeExpandedIntoStrict(strict, expanded);
     };
 
-    const isRelevance = resolveEffectiveSort(p) === "relevance";
+    const isRelevance = resolveEffectiveSort(base) === "relevance";
     let result: JobSearchResult;
 
     if (shouldRunCompanyScopedLanes(companyScoped || isCompoundEmployerSearch, searchParams)) {
@@ -1555,8 +1573,8 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
       const pool = assembleCompanyLanePool(lanes, (hits) =>
         isRelevance ? applyRelevanceQualityReranking(hits, effectiveQ, Date.now(), searchParams) : hits,
       );
-      const offset = p.offset ?? 0;
-      const limit = p.limit ?? 40;
+      const offset = base.offset ?? 0;
+      const limit = base.limit ?? 40;
       // A page past the pooled rows is served by the tail lane (the pooled ids
       // excluded), so the total can be the true match count instead of the pool size.
       const tailWindow = pool.tail ? companyLaneTailWindow(pool.hits.length, offset, limit) : null;
@@ -1594,8 +1612,8 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
       const { facetDistribution } = fetched;
       // A lane whose own phrase names a role past Senior ("Staff Product Manager") was asked for by
       // that phrase, so it keeps its rows: only the résumé's other phrases drop them.
-      const keepWithinSenior = (lane: PublicJob[]) => (p.omitPastSenior ? lane.filter(withinSenior) : lane);
-      const lanes = p.omitPastSenior
+      const keepWithinSenior = (lane: PublicJob[]) => (base.omitPastSenior ? lane.filter(withinSenior) : lane);
+      const lanes = base.omitPastSenior
         ? fetched.lanes.map((lane, i) => (titlePastSenior(fitPhrases[i] ?? "") ? lane : lane.filter(withinSenior)))
         : fetched.lanes;
       const seen = new Set<string>();
@@ -1609,8 +1627,8 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
         seen.add(hit.id);
         unique.push(hit);
       }
-      const offset = p.offset ?? 0;
-      const limit = p.limit ?? 40;
+      const offset = base.offset ?? 0;
+      const limit = base.limit ?? 40;
       // Relevance: the content lanes' roles lead the first page; every title lane then gets a share of what is
       // left (`interleaveFitPhraseLanes`), each ranked against its own phrase, and, when a deck asked for them
       // (`unplacedRemote`), the roles that name no country take a few places at its end (`composeContentFirstPool`).
@@ -1627,7 +1645,7 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
               // a deeper first page (`FOR_YOU_READ_DEPTH`) or a later page reads on into the same composed list.
               window: offset === 0 ? Math.min(limit, FOR_YOU_POOL_WINDOW) : FOR_YOU_POOL_WINDOW,
             })
-          : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p))),
+          : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(base))),
         searchParams,
       );
       return {
@@ -1651,11 +1669,11 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
       const ranked = isRelevance
         ? applyRelevanceQualityReranking(unique, effectiveQ, Date.now(), searchParams)
         : partitionKnownRequestedFacetsFirst(
-            [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p))),
+            [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(base))),
             searchParams,
           );
-      const offset = p.offset ?? 0;
-      const limit = p.limit ?? 40;
+      const offset = base.offset ?? 0;
+      const limit = base.limit ?? 40;
       // `ranked` is already in final order (relevance rerank, or compareJobsBySort
       // for an explicit sort), so return directly and skip applySortIntegrityGuard —
       // same as the company-scoped lane above. The guard's retry calls runSearch(),
@@ -1689,14 +1707,69 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
     return applySortIntegrityGuard(result, searchParams, () => runSearch());
   };
 
-  const result = await runWithIntent(intent);
+  // A role at one employer (employer-role.ts): named in the words ("product manager shopify",
+  // the compound read above) or chosen as the employer filter with role words typed. Both
+  // run the same pass — the employer's lanes, the role words as the query — and the same
+  // fallback when the employer has no such role.
+  // Words that ARE an employer's name ("globex" with Globex chosen) are not role words: that
+  // search stays the company-scoped one.
+  const chosen = intent.companyScoped ? null : chosenEmployerRole(p);
+  const employerIntent: CompanyIntentResult | null = chosen
+    ? { companyScoped: false, companyDomains: [chosen.domain], residualRoleQ: chosen.role }
+    : intent.residualRoleQ && intent.companyDomains.length > 0
+      ? intent
+      : null;
+  const read = employerIntent
+    ? {
+        domains: employerIntent.companyDomains,
+        ...(employerIntent.companyName && { name: employerIntent.companyName }),
+        role: employerIntent.residualRoleQ ?? "",
+        source: chosen ? ("chosen" as const) : ("typed" as const),
+      }
+    : null;
+
+  const noIntent: CompanyIntentResult = { companyScoped: false, companyDomains: [] };
+  const result = await runWithIntent(employerIntent ?? intent);
   // A counts-only search's lanes hold no rows, so their total is no sign the company reading found nothing.
-  if (!p.facetCountsOnly && (intent.companyScoped || Boolean(intent.residualRoleQ)) && result.total === 0) {
-    const fallback = await runWithIntent({ companyScoped: false, companyDomains: [] });
+  if (p.facetCountsOnly) return result;
+
+  if (read) {
+    if (result.total > 0) {
+      return {
+        ...result,
+        effectiveQ: read.role,
+        employer: { ...read, name: read.name ?? employerNameFromHits(result.hits, read.domains), roleMatches: result.total },
+      };
+    }
+    // None of that role at the employer: its other roles, then the role at other employers.
+    const offset = p.offset ?? 0;
+    const limit = p.limit ?? 40;
+    const employerRoles = await runWithIntent(noIntent, pinToEmployer({ ...p, q: "" }, read.domains), true);
+    const window = employerFallbackWindow(employerRoles.total, offset, limit);
+    // Past the employer's roles the page reads into the role elsewhere; inside them this pass
+    // is only for its total, so it asks for one row.
+    const roleElsewhere = await runWithIntent(noIntent, { ...withoutEmployer(p), q: read.role, ...(window ?? { offset: 0, limit: 1 }) });
+    return {
+      ...joinEmployerFallback(employerRoles, roleElsewhere, read, window !== null),
+      companyIntent: { domains: read.domains, scopedTotal: 0, fallback: true },
+    };
+  }
+
+  if (intent.companyScoped && result.total === 0) {
+    const fallback = await runWithIntent(noIntent);
     return {
       ...fallback,
       companyIntent: { domains: intent.companyDomains, scopedTotal: 0, fallback: true },
     };
+  }
+
+  // The words read as role + employer, no employer by that name is in the corpus, and the
+  // whole query matched nothing: search the role words and say the employer's words were
+  // searched without (the "company not found" path).
+  if (intent.unresolvedSplit && result.total === 0) {
+    const { roleQ, companyQ } = intent.unresolvedSplit;
+    const fallback = await runWithIntent(noIntent, { ...p, q: roleQ });
+    if (fallback.total > 0) return { ...fallback, effectiveQ: roleQ, unmatchedQueryMentions: [companyQ] };
   }
   return result;
 }
@@ -2805,6 +2878,7 @@ const EMPTY_SUGGESTIONS: JobSuggestions = { titles: [], companies: [] };
 export interface MeiliSuggestBody {
   q: string;
   limit: number;
+  matchingStrategy?: "all";
   attributesToSearchOn: string[];
   attributesToRetrieve: string[];
   distinct?: string;
@@ -2837,6 +2911,11 @@ export function buildSuggestBody(q: string): MeiliSuggestBody {
   return {
     q,
     limit: 20,
+    // Every typed word must be in the suggestion (2026-11-08). Meili's default ("last")
+    // drops typed words from the end until something matches, so "integral ad science"
+    // suggested "Integral Project Manager": a role that holds none of "ad science". Typo
+    // tolerance still applies per word, and the last word still matches as a prefix.
+    matchingStrategy: "all",
     attributesToSearchOn: ["title", "company"],
     // `company_domain` isn't matched against `q` (attributesToSearchOn above
     // stays title+company only) — retrieved so `dedupeJobSuggestionHits` can
@@ -2845,6 +2924,130 @@ export function buildSuggestBody(q: string): MeiliSuggestBody {
     attributesToRetrieve: ["title", "company", "company_domain"],
     distinct: "title",
   };
+}
+
+/** Most employers the box lists for one typed query. */
+export const EMPLOYER_SUGGEST_CAP = 3;
+
+export interface MeiliEmployerSuggestBody {
+  q: string;
+  limit: number;
+  matchingStrategy: "all";
+  attributesToSearchOn: string[];
+  attributesToRetrieve: string[];
+  filter: string[];
+  distinct?: string;
+}
+
+/**
+ * Pure: the search behind the box's Companies section. It reads the employer
+ * names themselves (`attributesToSearchOn: ["company"]`, every typed word,
+ * the last as a prefix), one row per employer (`distinct: "company_domain"`),
+ * and only employers with a live role (`buildFilter`'s vacancy clause). The
+ * title search above cannot do this: its 20 rows are one per TITLE, ranked by
+ * title, so an employer whose name shares a word with many titles ("integral",
+ * "capital", "health") never reached it, and an employer reached it only when
+ * one of its titles did.
+ */
+export function buildEmployerSuggestBody(companyQ: string, distinct = true): MeiliEmployerSuggestBody {
+  return {
+    q: companyQ,
+    limit: distinct ? 10 : 40,
+    matchingStrategy: "all",
+    attributesToSearchOn: ["company"],
+    attributesToRetrieve: ["company", "company_domain", "title"],
+    filter: buildFilter({ q: companyQ }),
+    ...(distinct && { distinct: "company_domain" }),
+  };
+}
+
+/**
+ * Pure: employer rows from `buildEmployerSuggestBody`'s hits. A name is shown
+ * the way the list shows it (`displayCompanyBrand`; a domain squashed into a
+ * name is repaired first, as `dedupeJobSuggestionHits` does), every typed
+ * word must start a word of it (`titleMatchesQuery`), one row per domain, and
+ * a row with no domain is left out: a pick filters on the domain.
+ */
+export function buildEmployerSuggestions(
+  hits: Array<{ title?: string | null; company?: string | null; company_domain?: string | null }>,
+  companyQ: string,
+  role?: string,
+): EmployerSuggestion[] {
+  const out: EmployerSuggestion[] = [];
+  const seen = new Set<string>();
+  for (const hit of hits) {
+    const domain = (hit.company_domain ?? "").trim().toLowerCase();
+    let name = stripGenderSuffixArtifact((hit.company ?? "").trim());
+    if (!domain || !name || seen.has(domain)) continue;
+    if (isDomainSquashName(name, domain)) name = humanizeTenantSubdomain(domain);
+    name = displayCompanyBrand(name, domain, hit.title) || name;
+    if (!titleMatchesQuery(name, companyQ)) continue;
+    seen.add(domain);
+    out.push({ name, domain, ...(role && { role }) });
+  }
+  return out;
+}
+
+/**
+ * Pure: the employer-name searches one typed query asks — the whole text (it
+ * may be an employer's name: "integral ad science"), then the employer half of
+ * each role + employer reading (`extractCompoundRoleCompanyCandidates`:
+ * "product manager shop" → "shop", role "product manager"), the first two.
+ */
+export function employerSuggestQueries(q: string): Array<{ companyQ: string; role?: string }> {
+  const text = q.trim();
+  if (!text) return [];
+  return [
+    { companyQ: text },
+    ...extractCompoundRoleCompanyCandidates(text)
+      .slice(0, 2)
+      .map((c) => ({ companyQ: c.companyQ, role: c.roleQ })),
+  ];
+}
+
+/**
+ * Pure: one employer list from the searches' answers, in the order asked
+ * (the whole text's employers first), one row per domain, capped. The box
+ * lists employers before roles when the typed words read as role + employer,
+ * or when the whole text IS an employer's name.
+ */
+export function mergeEmployerSuggestions(
+  q: string,
+  answers: readonly EmployerSuggestion[][],
+): { employers: EmployerSuggestion[]; employersFirst: boolean } {
+  const employers: EmployerSuggestion[] = [];
+  const seen = new Set<string>();
+  for (const row of answers.flat()) {
+    if (seen.has(row.domain) || employers.length >= EMPLOYER_SUGGEST_CAP) continue;
+    seen.add(row.domain);
+    employers.push(row);
+  }
+  const typed = normalizeCompanyName(q);
+  const employersFirst = employers.some((e) => Boolean(e.role) || normalizeCompanyName(e.name) === typed);
+  return { employers, employersFirst };
+}
+
+async function fetchEmployerSuggestions(h: string, companyQ: string, role?: string): Promise<EmployerSuggestion[]> {
+  const post = (distinct: boolean) =>
+    meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(buildEmployerSuggestBody(companyQ, distinct)),
+    });
+  try {
+    let res = await post(true);
+    // An index without `company_domain` filterable refuses `distinct` on it (see
+    // `companyDomainFilterUnsupported`): fetch more rows and fold them by domain here.
+    if (res.status === 400) res = await post(false);
+    if (!res.ok) return [];
+    const body = (await res.json()) as {
+      hits?: Array<{ title?: string; company?: string | null; company_domain?: string | null }>;
+    };
+    return buildEmployerSuggestions(body.hits ?? [], companyQ, role);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -2858,6 +3061,10 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
   const query = q.trim();
   const h = host();
   if (!h || !query) return EMPTY_SUGGESTIONS;
+  // The Companies section's own searches run beside the title search, so it costs no extra wait.
+  const employerAnswers = Promise.all(
+    employerSuggestQueries(query).map(({ companyQ, role }) => fetchEmployerSuggestions(h, companyQ, role)),
+  );
   try {
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
@@ -2865,13 +3072,17 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
       cache: "no-store",
       body: JSON.stringify(buildSuggestBody(query)),
     });
-    if (!res.ok) return EMPTY_SUGGESTIONS;
-    const body = (await res.json()) as {
-      hits?: Array<{ title?: string; company?: string | null; company_domain?: string | null }>;
-    };
+    const body = res.ok
+      ? ((await res.json()) as { hits?: Array<{ title?: string; company?: string | null; company_domain?: string | null }> })
+      : { hits: [] };
     const suggestions = dedupeJobSuggestionHits(body.hits ?? [], query);
     const related = relatedSuggestions(query, suggestions.titles);
-    return related.length > 0 ? { ...suggestions, related } : suggestions;
+    const { employers, employersFirst } = mergeEmployerSuggestions(query, await employerAnswers);
+    return {
+      ...suggestions,
+      ...(related.length > 0 && { related }),
+      ...(employers.length > 0 && { employers, ...(employersFirst && { employersFirst }) }),
+    };
   } catch {
     return EMPTY_SUGGESTIONS;
   }
@@ -2958,6 +3169,12 @@ export interface CompanyIntentResult {
    *  `residualRoleQ` holds the role query ("Product Manager") and `companyDomains` holds the
    *  employer's domain(s) (["tesla.com"]). */
   residualRoleQ?: string;
+  /** The employer's name as the corpus shows it ("Tesla"), with `residualRoleQ`. */
+  companyName?: string;
+  /** The query reads as role + employer words, but no employer in the corpus has that name
+   *  (`unresolvedCompoundSplit`): what to search, and what to say was not found, when the
+   *  whole query matches nothing. */
+  unresolvedSplit?: { roleQ: string; companyQ: string };
 }
 
 const companyIntentCache = new Map<string, { value: CompanyIntentResult; atMs: number }>();
@@ -2996,18 +3213,21 @@ async function probeCompanyIntent(query: string, key: string): Promise<CompanyIn
   };
 
   if (!companyScoped) {
-    const candidates = extractCompoundRoleCompanyCandidates(query);
-    for (const candidate of candidates) {
-      const subSample = await probeCompanyNames(candidate.companyQ, COMPANY_INTENT_SAMPLE);
-      const domains = dominantCompanyDomains(candidate.companyQ, subSample);
-      if (domains.length > 0) {
-        value = {
-          companyScoped: false,
-          companyDomains: domains,
-          residualRoleQ: candidate.roleQ,
-        };
-        break;
-      }
+    // Every split is asked at once (a query has at most MAX_COMPOUND_PROBES), so a
+    // longer employer name tried first costs no extra wait over the old one-by-one walk.
+    const candidates = extractCompoundRoleCompanyCandidates(query).slice(0, MAX_COMPOUND_PROBES);
+    const samples = await Promise.all(candidates.map((c) => probeCompanyNames(c.companyQ, COMPANY_INTENT_SAMPLE)));
+    const picked = pickCompoundEmployer(candidates, samples);
+    const unresolved = picked ? null : unresolvedCompoundSplit(candidates);
+    if (picked) {
+      value = {
+        companyScoped: false,
+        companyDomains: picked.domains,
+        residualRoleQ: picked.roleQ,
+        ...(picked.name && { companyName: picked.name }),
+      };
+    } else if (unresolved) {
+      value = { ...value, unresolvedSplit: unresolved };
     }
   }
 

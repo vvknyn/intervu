@@ -3,7 +3,7 @@ import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
 import { checkFreshness, latestCheckAt } from "@/lib/jobs/badges";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
-import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
+import type { GhostBadge, GhostChecked, JobSearchResult, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
 import { capitalizeWords } from "@/lib/text-case";
 import { FUNCTION_WORDS } from "@/lib/geo/common-words";
@@ -1831,6 +1831,17 @@ export function interleaveByCompany(jobs: PublicJob[], maxRun = 2): PublicJob[] 
         lastKey = picked;
     }
     return resultIndices.map((i) => jobs[i]!);
+}
+
+/**
+ * The rows of one fetched page in the order the list shows them: interleaved
+ * by company (`interleaveByCompany`), except a list whose order IS its answer
+ * — a role at an employer that has none of it lists the employer's other roles
+ * first, then the role at other employers (`JobSearchResult.employer`,
+ * employer-role.ts), and interleaving would pull the others up between them.
+ */
+export function pageRowsInListOrder(result: Pick<JobSearchResult, "hits" | "employer">, hits: PublicJob[] = result.hits): PublicJob[] {
+    return result.employer?.roleMatches === 0 ? hits : interleaveByCompany(hits);
 }
 
 /** Shared "role"/"roles" + "is"/"are" agreement for the seam lines below —

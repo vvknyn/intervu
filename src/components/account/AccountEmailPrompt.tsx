@@ -76,8 +76,8 @@ export function AccountEmailPrompt({
                     Click the link in that email and we&apos;ll start sending your job alerts there.
                     Wrong address? Enter a different one below.
                 </p>
-                <form onSubmit={(e) => void submit(e)} className="mt-3 flex flex-wrap items-end gap-2">
-                    <Field label={EMAIL_FIELD_LABEL} htmlFor="account-email-input-pending" className="min-w-[200px] flex-1">
+                <form onSubmit={(e) => void submit(e)} className="form-stack mt-3 max-w-md">
+                    <Field label={EMAIL_FIELD_LABEL} htmlFor="account-email-input-pending">
                         <Input
                             id="account-email-input-pending"
                             type="email"
@@ -86,13 +86,15 @@ export function AccountEmailPrompt({
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="you@example.com"
                             autoComplete="email"
-                            className="ctl-md w-full max-w-[260px] text-base"
+                            className="ctl-md w-full text-base"
                             data-testid="account-email-input"
                         />
                     </Field>
-                    <Button type="submit" size="sm" disabled={submitting} data-testid="account-email-submit">
-                        {submitting ? "Sending…" : "Send again"}
-                    </Button>
+                    <div className="action-row">
+                        <Button type="submit" size="sm" disabled={submitting} data-testid="account-email-submit">
+                            {submitting ? "Sending…" : "Send again"}
+                        </Button>
+                    </div>
                 </form>
                 <p className="mt-2 text-xs text-muted-foreground">{PERSONAL_EMAIL_HINT}</p>
             </div>
@@ -106,8 +108,8 @@ export function AccountEmailPrompt({
                 You signed up with a username, so we have no way to reach you. Add an address and
                 we&apos;ll send new roles from your saved searches and followed companies.
             </p>
-            <form onSubmit={(e) => void submit(e)} className="mt-3 flex flex-wrap items-end gap-2">
-                <Field label={EMAIL_FIELD_LABEL} htmlFor="account-email-input-needs" className="min-w-[200px] flex-1">
+            <form onSubmit={(e) => void submit(e)} className="form-stack mt-3 max-w-md">
+                <Field label={EMAIL_FIELD_LABEL} htmlFor="account-email-input-needs">
                     <Input
                         id="account-email-input-needs"
                         type="email"
@@ -116,24 +118,26 @@ export function AccountEmailPrompt({
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@example.com"
                         autoComplete="email"
-                        className="ctl-md w-full max-w-[260px] text-base"
+                        className="ctl-md w-full text-base"
                         data-testid="account-email-input"
                     />
                 </Field>
-                <Button type="submit" size="sm" disabled={submitting} data-testid="account-email-submit">
-                    {submitting ? "Sending…" : "Send confirmation"}
-                </Button>
-                {onDismiss ? (
-                    <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={onDismiss}
-                        data-testid="account-email-dismiss"
-                    >
-                        Not now
+                <div className="action-row">
+                    <Button type="submit" size="sm" disabled={submitting} data-testid="account-email-submit">
+                        {submitting ? "Sending…" : "Send confirmation"}
                     </Button>
-                ) : null}
+                    {onDismiss ? (
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={onDismiss}
+                            data-testid="account-email-dismiss"
+                        >
+                            Not now
+                        </Button>
+                    ) : null}
+                </div>
             </form>
             <p className="mt-2 text-xs text-muted-foreground">{PERSONAL_EMAIL_HINT}</p>
         </div>

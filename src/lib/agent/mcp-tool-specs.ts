@@ -286,7 +286,11 @@ export const MCP_TOOL_SPECS = {
             `titled with the query: those hits carry related_role:true and the response names them in ` +
             `related_titles. On the first page, when the user's résumé is on file, up to ${RELATED_AGENT_CAP} of those ` +
             `roles that fit the résumé as Strong or Good follow the page's hits even when the query's own postings fill ` +
-            `it (related_role:true; ones that fit less are left out). Postings that look stale (unlikely to lead to an ` +
+            `it (related_role:true; ones that fit less are left out). A query that names a role and an employer ` +
+            `("product manager at Shopify", "product manager shopify", "integral ad science product manager") searches that ` +
+            `role at that employer and the note says so; when the employer has none of that role, its other roles come ` +
+            `first and then the role at other employers, and the note says that instead. Words the search could not use ` +
+            `(an employer name no employer here carries, when nothing matched with them) are named in the note. Postings that look stale (unlikely to lead to an ` +
             `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
             `Returns up to ${AGENT.RESULT_CAP} results per page (default ${AGENT.SEARCH_DEFAULT_LIMIT}), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
             `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +

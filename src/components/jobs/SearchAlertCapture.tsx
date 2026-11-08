@@ -128,7 +128,7 @@ export function SearchAlertCapture({
       <p className={cn("text-xs text-muted-foreground", !compact && "mt-1")}>
         {compact ? "Unsubscribe anytime." : "Weekly. Unsubscribe anytime."} {confirmLinkCreatesAccountLine()} {PERSONAL_EMAIL_HINT}
       </p>
-      <form onSubmit={handleSubmit} className={cn("flex flex-wrap items-center gap-2", compact ? "mt-2" : "mt-3")}>
+      <form onSubmit={handleSubmit} className={cn("form-stack", compact ? "mt-2" : "mt-3")}>
         <Input
           type="email"
           required
@@ -138,31 +138,33 @@ export function SearchAlertCapture({
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
           data-testid="search-alert-email-input"
-          className="ctl-md w-full max-w-[260px] text-base"
+          className="ctl-md w-full text-base"
         />
-        <TurnstileWidget surface="search_alert" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
+        <TurnstileWidget surface="search_alert" onVerify={setTurnstileToken} resetKey={turnstileResetKey} className="justify-start" />
         {status === "error" && (
-          <p className="w-full text-xs text-destructive" data-testid="search-alert-error">
+          <p className="text-xs text-destructive" data-testid="search-alert-error">
             {rejectMessage ?? "Couldn't send that — try again."}
           </p>
         )}
-        <Button
-          type="submit"
-          size="sm"
-          disabled={status === "submitting"}
-          data-testid="search-alert-submit"
-        >
-          {status === "submitting" ? "Sending…" : "Email me new jobs"}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={handleDismiss}
-          data-testid="search-alert-dismiss"
-        >
-          Not now
-        </Button>
+        <div className="action-row">
+          <Button
+            type="submit"
+            size="sm"
+            disabled={status === "submitting"}
+            data-testid="search-alert-submit"
+          >
+            {status === "submitting" ? "Sending…" : "Email me new jobs"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={handleDismiss}
+            data-testid="search-alert-dismiss"
+          >
+            Not now
+          </Button>
+        </div>
       </form>
     </div>
   );

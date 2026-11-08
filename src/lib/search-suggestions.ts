@@ -1,3 +1,5 @@
+import type { JobSuggestions } from "@/lib/jobs/types";
+
 export const POPULAR_COMPANIES = [
     "Google", "Amazon", "Meta", "Apple", "Microsoft", "Netflix",
     "Stripe", "Uber", "Airbnb", "Datadog", "Salesforce", "Oracle",
@@ -24,6 +26,17 @@ export interface SearchSuggestion {
     /** `related` = a role next to the typed one (`relatedSuggestions`, lib/jobs/title-neighbours.ts), listed after
      *  the titles that hold what is typed. */
     type: 'company' | 'role' | 'related' | 'history' | 'full' | 'seed' | 'query';
+    /** A `company` row's employer domain: picking the row filters to that employer (the employer chip) instead of searching its text. */
+    domain?: string;
+    /** A `company` row read from role + employer words ("product manager shop"): the role searched at that employer. */
+    role?: string;
+}
+
+/** The words a row reads as. A role + employer row names both: "product manager at Shopify". */
+export function suggestionLabel(row: SearchSuggestion): string {
+    if (row.type === 'query') return `Search \u201c${row.text}\u201d`;
+    if (row.type === 'company' && row.role) return `${row.role} at ${row.text}`;
+    return row.text;
 }
 
 /**
@@ -125,4 +138,25 @@ export function getSuggestions(query: string, history: string[] = []): SearchSug
     const uniqueSuggestions = suggestions.filter((v, i, a) => a.findIndex(t => t.text === v.text) === i);
 
     return uniqueSuggestions.slice(0, 8); // Max 8 suggestions
+}
+
+/**
+ * Task 9 — typeahead: adapt `/api/jobs/suggest`'s answer into
+ * `SearchAutocomplete`'s `SearchSuggestion` shape, one section per kind:
+ * Roles, Related roles, Companies. Employers come from the employer-name
+ * search (`employers`, with the domain a pick filters on and, for role +
+ * employer words, the role); an older answer's plain `companies` names still
+ * list, as text searches. Employers lead when the typed words name one
+ * (`employersFirst`: "integral ad science", "product manager shop").
+ */
+export function suggestionsFromAnswer(data: JobSuggestions): SearchSuggestion[] {
+    const roles = [
+        ...data.titles.map((text): SearchSuggestion => ({ text, type: 'role' })),
+        // The roles next to what is typed, from the same table as the search's related band (`relatedSuggestions`).
+        ...(data.related ?? []).map((text): SearchSuggestion => ({ text, type: "related" })),
+    ];
+    const companies: SearchSuggestion[] = data.employers?.length
+        ? data.employers.map((e) => ({ text: e.name, type: "company", domain: e.domain, ...(e.role && { role: e.role }) }))
+        : data.companies.map((text) => ({ text, type: "company" }));
+    return data.employersFirst ? [...companies, ...roles] : [...roles, ...companies];
 }

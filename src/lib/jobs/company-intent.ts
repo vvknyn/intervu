@@ -168,6 +168,40 @@ export function dominantCompanyDomains(q: string, sample: CompanyNameSample): st
   return qualified.sort();
 }
 
+/**
+ * The name to show for the employer a sample named: the display form of the
+ * first company in it whose name IS the query (the rows `dominantCompanyDomains`
+ * counted). Undefined when none is.
+ */
+export function employerDisplayName(q: string, sample: CompanyNameSample): string | undefined {
+  const needle = companyNameStem(q);
+  const company = sample.companies.find((c) => companyStemMatches(needle, c ?? ""));
+  return company ? displayCompanyName(company) || company : undefined;
+}
+
+/** How many role + employer splits one query may ask the corpus about (asked at once). */
+export const MAX_COMPOUND_PROBES = 4;
+
+/**
+ * Pure: the first split (in `extractCompoundRoleCompanyCandidates`' order)
+ * whose employer words name an employer in the corpus, read from one company
+ * probe per split (`samples[i]` answers `candidates[i]`). Null when none does.
+ */
+export function pickCompoundEmployer(
+  candidates: readonly { roleQ: string; companyQ: string }[],
+  samples: readonly CompanyNameSample[],
+): { roleQ: string; companyQ: string; domains: string[]; name?: string } | null {
+  for (let i = 0; i < candidates.length; i++) {
+    const sample = samples[i];
+    if (!sample) continue;
+    const domains = dominantCompanyDomains(candidates[i].companyQ, sample);
+    if (domains.length > 0) {
+      return { ...candidates[i], domains, name: employerDisplayName(candidates[i].companyQ, sample) };
+    }
+  }
+  return null;
+}
+
 /** Pin retrieve to probed employer domains unless `?company=` already set. */
 export function applyCompanyDomainPin(
   p: JobSearchParams,
@@ -263,6 +297,8 @@ function cleanWord(w: string): string {
 
 function isRolePhraseWords(words: readonly string[]): boolean {
   if (words.length === 0) return false;
+  // "director of" is half a role: the connector belongs between its words, never at an end.
+  if (ROLE_CONNECTORS.has(cleanWord(words[0])) || ROLE_CONNECTORS.has(cleanWord(words[words.length - 1]))) return false;
   const cleaned = words.map(cleanWord).filter(Boolean);
   if (cleaned.length === 0) return false;
   const allRoleOrConnector = cleaned.every((w) => ROLE_VOCABULARY_TOKENS.has(w) || ROLE_CONNECTORS.has(w));
@@ -270,18 +306,43 @@ function isRolePhraseWords(words: readonly string[]): boolean {
   return cleaned.some((w) => ROLE_HEAD_NOUNS.has(w));
 }
 
+/** Most words an employer name in a role + employer query may hold ("Integral Ad Science", "Bank of Nova Scotia"). */
+export const MAX_COMPANY_WORDS = 4;
+
+const isConnectorWord = (w: string) => ROLE_CONNECTORS.has(w.toLowerCase());
+
+/**
+ * Can these words be an employer's name? An employer's name may hold role
+ * words ("Integral Ad SCIENCE", "CAPITAL One", "Bank OF America") and a
+ * connector inside it ("Johnson & Johnson"), but never only role words, and
+ * never a connector at either end. Before 2026-11-08 every word had to be a
+ * non-role word and the name at most two words long, so "product manager
+ * integral ad science" was never read as role + employer (Vivek's report);
+ * whether the words ARE an employer is still the corpus's call
+ * (`dominantCompanyDomains`), never this function's.
+ */
 function isCandidateCompanyWords(words: readonly string[]): boolean {
-  if (words.length === 0 || words.length > 2) return false;
-  const cleaned = words.map(cleanWord).filter(Boolean);
-  if (cleaned.length !== words.length) return false;
-  return cleaned.every((w) => w.length >= 2 && !ROLE_VOCABULARY_TOKENS.has(w) && !ROLE_CONNECTORS.has(w));
+  if (words.length === 0 || words.length > MAX_COMPANY_WORDS) return false;
+  if (isConnectorWord(words[0]) || isConnectorWord(words[words.length - 1])) return false;
+  const cleaned = words.map(cleanWord);
+  if (cleaned.some((w, i) => !w && words[i] !== "&")) return false;
+  return cleaned.some((w) => w.length >= 2 && !ROLE_VOCABULARY_TOKENS.has(w) && !ROLE_CONNECTORS.has(w));
 }
 
 /**
  * Pure: extracts candidate `{ roleQ, companyQ }` splits from a multi-word query
- * like `"Product Manager tesla"`, `"tesla Product Manager"`, or `"Product Manager at Tesla"`.
- * Returns `[]` for pure role queries (`"product manager"`, `"registered nurse"`, `"director brand"`)
- * so they never trigger an extra company probe.
+ * like `"Product Manager tesla"`, `"tesla Product Manager"`, `"Product Manager at Tesla"`
+ * or `"product manager integral ad science"`. Returns `[]` for pure role queries
+ * (`"product manager"`, `"registered nurse"`, `"director brand"`) so they never
+ * trigger an extra company probe.
+ *
+ * Order is the order the corpus is asked in, and the first split whose words
+ * name an employer wins: the employer named after the role (suffix: "product
+ * manager shopify", the way people type it) before the one named before it,
+ * and within each the LONGER employer name first, because a role word next to
+ * the name may belong to either ("integral ad science product manager" is
+ * tried as "integral ad science" before "integral ad"). A split whose employer
+ * the corpus does not know costs one probe and is dropped.
  */
 export function extractCompoundRoleCompanyCandidates(
   q: string,
@@ -289,7 +350,7 @@ export function extractCompoundRoleCompanyCandidates(
   const trimmed = q.trim();
   if (!trimmed || trimmed.includes('"') || /\bOR\b/.test(trimmed)) return [];
   const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length < 2 || words.length > 6) return [];
+  if (words.length < 2 || words.length > 8) return [];
 
   // Explicit "at" / "@" connector: e.g. "Product Manager at Tesla"
   const atIdx = words.findIndex((w, i) => i >= 1 && i <= words.length - 2 && /^(?:at|@)$/i.test(w));
@@ -319,17 +380,27 @@ export function extractCompoundRoleCompanyCandidates(
     out.push({ roleQ, companyQ });
   };
 
-  // Suffix company (1 word, then 2 words): e.g. "Product Manager tesla", "Product Manager jpmorgan chase"
-  for (const k of [1, 2]) {
-    if (words.length > k) {
-      push(words.slice(0, -k), words.slice(-k));
-    }
-  }
-  // Prefix company (1 word, then 2 words): e.g. "tesla Product Manager", "jpmorgan chase Product Manager"
-  for (const k of [1, 2]) {
-    if (words.length > k) {
-      push(words.slice(k), words.slice(0, k));
-    }
-  }
+  const maxK = Math.min(MAX_COMPANY_WORDS, words.length - 1);
+  const longestFirst = Array.from({ length: maxK }, (_, i) => maxK - i);
+  // Employer after the role: "Product Manager tesla", "product manager integral ad science"
+  for (const k of longestFirst) push(words.slice(0, -k), words.slice(-k));
+  // Employer before the role: "tesla Product Manager", "jpmorgan chase Product Manager"
+  for (const k of longestFirst) push(words.slice(k), words.slice(0, k));
   return out;
+}
+
+/**
+ * Pure: when no split's employer is in the corpus, the split whose role words
+ * are the most: without the corpus's word that a role word is part of a name,
+ * it reads as role ("tesla product manager" names "tesla", not "tesla
+ * product"). Null when the query never read as role + employer.
+ */
+export function unresolvedCompoundSplit(
+  candidates: readonly { roleQ: string; companyQ: string }[],
+): { roleQ: string; companyQ: string } | null {
+  let best: { roleQ: string; companyQ: string } | null = null;
+  for (const c of candidates) {
+    if (!best || c.roleQ.split(/\s+/).length > best.roleQ.split(/\s+/).length) best = c;
+  }
+  return best;
 }
