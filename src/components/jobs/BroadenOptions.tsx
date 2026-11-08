@@ -6,6 +6,7 @@ import { chipVariants } from "@/components/ui/chip";
 import { resolveBroadenOptions, type BroadenContext, type BroadenOption, type ResolveBroadenInput } from "@/lib/jobs/broaden";
 import { jobsBoardHref, serializeJobsUrl, type JobsUrlState } from "@/lib/jobs/url-state";
 import { cn } from "@/lib/utils";
+import { rolesLabel } from "@/lib/format";
 
 export interface BroadenOptionsProps extends Pick<ResolveBroadenInput, "search"> {
     /** The filters whose results are thin or empty. */
@@ -52,7 +53,7 @@ export function BroadenOptions({ state, total, ctx, search, onApply, className, 
                     const label = (
                         <>
                             {option.label}
-                            <span className="text-muted-foreground">{option.count.toLocaleString()} roles</span>
+                            <span className="text-muted-foreground">{rolesLabel(option.count)}</span>
                         </>
                     );
                     // A chip that is a control takes the button face's type (globals.css `.ctl-button`); the chip keeps its pill.

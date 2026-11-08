@@ -170,3 +170,33 @@ test("a request with its own location signal never has one invented, across succ
   assert.equal(unavailable.unavailable, true);
   assert.equal(unavailable.defaultedLocation, undefined, "unavailable: no invented default");
 });
+
+test("an employer named in the words lists its roles everywhere, while a role search keeps the guessed country", async (t) => {
+  // The company-name probe (attributesToSearchOn ["company"]) knows one employer, "Northwind Ad Labs", by ten rows.
+  const searches: Array<{ q?: string; filter?: unknown }> = [];
+  t.mock.method(globalThis, "fetch", async (url: string | URL, init?: RequestInit) => {
+    const urlStr = String(url);
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    if (urlStr.includes("/facet-search")) return jsonResponse(200, { facetHits: [{ value: body.facetQuery, count: 1_000 }] });
+    if (body.attributesToSearchOn?.length === 1 && body.attributesToSearchOn[0] === "company") {
+      const rows = /northwind/i.test(body.q ?? "")
+        ? Array.from({ length: 10 }, (_, i) => ({ company: "Northwind Ad Labs", company_domain: "northwind.example", title: `Role ${i}` }))
+        : [];
+      return jsonResponse(200, { hits: rows, totalHits: rows.length });
+    }
+    for (const q of body.queries ?? [body]) searches.push(q);
+    if (urlStr.includes("multi-search")) return jsonResponse(200, { results: (body.queries ?? []).map(() => ({ hits: [], totalHits: 0 })), hits: [] });
+    return jsonResponse(200, { hits: [], totalHits: 0 });
+  });
+  const { searchJobs } = await import("../../src/lib/jobs/search");
+  const { resetCompanyIntentCacheForTests } = await import("../../src/lib/jobs/meilisearch");
+  resetCompanyIntentCacheForTests();
+  const opts = { clientIp: "1.2.3.4", countryLookup: CA_LOOKUP };
+
+  const employer = await searchJobs({ q: "northwind ad labs" }, opts);
+  assert.equal(employer.defaultedLocation, undefined, "the employer's name: no guessed country");
+  const role = await searchJobs({ q: "data analyst" }, opts);
+  assert.equal(role.defaultedLocation, "CA", "a role: the guess stands");
+  const picked = await searchJobs({ companyDomain: "northwind.example" }, opts);
+  assert.equal(picked.defaultedLocation, undefined, "the employer picked from the box: no guessed country");
+});

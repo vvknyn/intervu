@@ -4,8 +4,9 @@ import { expect, test } from "./fixtures";
 import { answerListSearch } from "./list-search";
 
 /**
- * Journeys for a search that names an employer — see tests/journeys/CATALOG.md (J-SRCH-46 to J-SRCH-50). Read-only:
- * J-SRCH-46 to 49 replace the answers in the browser; J-SRCH-50 reads the live index, as the release check did.
+ * Journeys for a search that names an employer — see tests/journeys/CATALOG.md (J-SRCH-46 to J-SRCH-52). Read-only:
+ * J-SRCH-46 to 49 and 51 replace the answers in the browser; J-SRCH-50 and 52 read the live index, as the release
+ * checks did.
  *
  * Vivek, 2026-11-08: "I'm not seeing faceted type ahead results in the search bar... searching product manager
  * integral ad science should search for product manager jobs in that company if it exists...if not, show integral ad
@@ -202,5 +203,48 @@ test("an employer whose name holds a place word is searched as the employer, nev
     expect(new URL(page.url()).searchParams.get("q") ?? "").not.toBe("of");
     await expect(searchBox(page)).not.toHaveValue(/^(product manager )?of$/);
   }
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("a detected location that leaves no roles offers to remove it, counting one role as \"1 role\"", { tag: ["@J-SRCH-51"] }, async ({ page, diagnostics }) => {
+  // Release 75's live check: an employer pick at a Canadian address showed no roles, and the chip read "1 roles".
+  await returningVisitor(page);
+  await page.route("**/api/jobs/search", (route) => {
+    const asked = (route.request().postDataJSON() ?? {}) as { facets?: Record<string, string[]>; suppressLocationDefault?: boolean };
+    const anywhere = Boolean(asked.suppressLocationDefault) || Boolean(asked.facets?.location_country?.length);
+    return answerListSearch(route, {
+      hits: anywhere ? [role("ga-1", "Data Analyst", "Contoso Media", "contoso.example")] : [],
+      total: anywhere ? 1 : 0,
+      backend: "meilisearch",
+      configured: true,
+      searchId: anywhere ? "e2e-anywhere" : "e2e-detected-empty",
+      effectiveQ: "data analyst",
+      ...(!anywhere && { defaultedLocation: "CA", remoteAnywhere: true }),
+    });
+  });
+  await page.goto("/jobs?q=data%20analyst");
+  const remove = page.getByTestId("broaden-remove_location");
+  await expect(remove).toBeVisible({ timeout: 60_000 });
+  await expect(remove).toContainText(/1 role$/);
+  await expect(page.getByTestId("broaden-options")).not.toContainText(/\b1 roles\b/);
+  expect(diagnostics.pageErrors).toEqual([]);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("an employer named in the words lists its roles without a detected location", { tag: ["@J-SRCH-52"] }, async ({ page, diagnostics }) => {
+  // Release 75 on the live index, from a Canadian address: "Bank of America" picked from the box listed no roles under
+  // "Canada · Remote (detected)", its one role being elsewhere. An employer the searcher names or picks is what they
+  // asked for, so the country is not guessed. Locally the address has no country and nothing is guessed either way;
+  // on prod from a country with roles, this is the check.
+  test.setTimeout(180_000);
+  await returningVisitor(page);
+  await page.goto("/jobs?q=bank%20of%20america");
+  const answered = page
+    .getByTestId("job-row")
+    .or(page.getByTestId("search-empty-results"))
+    .or(page.getByTestId("jobs-search-error"))
+    .or(page.getByText(/We can't load results right now|Job search is being connected/));
+  await expect(answered.first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("default-location-chip")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
-import { applyLocationDefault, hasLocationSignal, resolveLocationDefault } from "../../src/lib/geo/ip-default";
+import { applyLocationDefault, choseEmployer, hasLocationSignal, resolveLocationDefault } from "../../src/lib/geo/ip-default";
 import { createMmdbCountryLookup } from "../../src/lib/geo/ip-country";
 import type { CorpusValueChecker } from "../../src/lib/geo/corpus-values";
 import type { CountryLookup } from "../../src/lib/geo/ip-country";
@@ -188,4 +188,38 @@ test("createMmdbCountryLookup: an empty/unknown IP fails open without touching t
   const lookup = createMmdbCountryLookup("/nonexistent/path/does-not-exist.mmdb");
   assert.equal(await lookup(""), null);
   assert.equal(await lookup("unknown"), null);
+});
+
+test("applyLocationDefault: an employer the searcher chose or named is no search to guess a country for", async () => {
+  // Release 75's live check: "Bank of America" picked from the search box at a Canadian address listed no roles,
+  // because its one role sat outside the guessed "Canada or remote". The employer's roles are what was asked for.
+  const lookup: CountryLookup = async () => "CA";
+  for (const params of [{ companyDomain: "bofa.example" }, { q: "teller", companyDomain: "bofa.example" }, { companyDomains: ["a.example", "b.example"] }]) {
+    assert.equal(choseEmployer(params), true);
+    const calls: number[] = [];
+    const result = await applyLocationDefault(params, "1.2.3.4", lookup, fakeLoadContext(["Canada"], calls));
+    assert.equal(result.defaultedLocation, undefined, JSON.stringify(params));
+    assert.equal(result.params, params, "same reference: nothing to change");
+    assert.deepEqual(calls, [], "never loads the gazetteer for it");
+  }
+  // Named in the words, as the search reads them.
+  const named = await applyLocationDefault({ q: "bank of america" }, "1.2.3.4", lookup, fakeLoadContext(["Canada"]), async () => true);
+  assert.equal(named.defaultedLocation, undefined);
+  // Words that name no employer keep the guess, and a failed read keeps it too.
+  const role = await applyLocationDefault({ q: "bank teller" }, "1.2.3.4", lookup, fakeLoadContext(["Canada"]), async () => false);
+  assert.equal(role.defaultedLocation, "CA");
+  const failed = await applyLocationDefault({ q: "bank teller" }, "1.2.3.4", lookup, fakeLoadContext(["Canada"]), async () => {
+    throw new Error("index down");
+  });
+  assert.equal(failed.defaultedLocation, "CA");
+  assert.equal(choseEmployer({ companyDomain: "  " }), false);
+  assert.equal(choseEmployer({ companyDomains: [] }), false);
+});
+
+test("applyLocationDefault: a place the searcher chose still applies with an employer, and is never replaced", async () => {
+  const lookup: CountryLookup = async () => "CA";
+  const params = { companyDomain: "bofa.example", places: [{ any: [{ field: "location_city" as const, value: "Toronto" }] }] };
+  const result = await applyLocationDefault(params, "1.2.3.4", lookup, fakeLoadContext(["Canada"]));
+  assert.equal(result.params, params);
+  assert.equal(result.defaultedLocation, undefined);
 });

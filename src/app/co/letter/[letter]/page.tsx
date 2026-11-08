@@ -12,6 +12,7 @@ import { openCountLabel } from "@/lib/companies/presentation";
 import { listedCompanies } from "@/lib/seo/sitemap-entries";
 import { PageTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { rolesLabel } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function CompanyLetterPage({ params }: { params: Promise<{ 
           return (
             <li key={domain}>
               <Link href={companyBoardPath(domain)}>{name}</Link>
-              {count && <> <span>{openCountLabel(count)} roles</span></>}
+              {count && <> <span>{rolesLabel(count.value, openCountLabel(count))}</span></>}
             </li>
           );
         })}

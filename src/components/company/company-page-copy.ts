@@ -13,6 +13,7 @@
 import { countNotRecentlyVerified } from "@/lib/companies/freshness";
 import { openCountText, sampleCoversAllRoles } from "@/lib/companies/presentation";
 import type { CompanyPageData } from "@/lib/companies/types";
+import { rolesLabel } from "@/lib/format";
 
 /**
  * The ghost-flagged share as a plain sentence, e.g.
@@ -44,7 +45,7 @@ export function staleShareText(
   const unverified = countNotRecentlyVerified(data.jobs, data.nowMs);
   // The denominator is the page's one open-roles number. A window that is only a sample of it states
   // the flagged count of the loaded roles without naming the window's size as a second count.
-  const tracked = sampleCoversAllRoles(data) ? `the ${openCountText(data)} roles` : "the newest roles";
+  const tracked = sampleCoversAllRoles(data) ? `the ${rolesLabel(data.openCount, openCountText(data))}` : "the newest roles";
   const sentences = [
     count > 0 && `${count} of ${tracked} tracked here may no longer be live.`,
     unverified > 0 && `${unverified} of ${tracked} ${unverified === 1 ? "is" : "are"} not recently verified.`,

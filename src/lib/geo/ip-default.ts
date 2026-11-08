@@ -43,6 +43,18 @@ export function hasLocationSignal(
   );
 }
 
+/**
+ * True when the searcher chose an employer: the search box's Companies pick
+ * (`?company=`), or a company page's link to its roles. That employer's roles
+ * are what they asked for, wherever they are, so the country guess must not
+ * narrow them: release 75's live check picked "Bank of America" from a
+ * Canadian address and saw no roles, because its one role sat outside the
+ * guessed "Canada or remote". A place they choose still applies.
+ */
+export function choseEmployer(p: Pick<JobSearchParams, "companyDomain" | "companyDomains">): boolean {
+  return Boolean(p.companyDomain?.trim()) || Boolean(p.companyDomains?.length);
+}
+
 export interface LocationDefault {
   places: PlaceClause[];
   /** ISO2 the default was resolved from — the caller stamps this onto the
@@ -117,17 +129,24 @@ export interface LocationDefaultApplication {
  * says the default might apply). `ip`/`countryLookup` missing (every caller
  * except the browser-facing action) is itself a no-op, same as
  * `hasLocationSignal` returning true.
+ *
+ * An employer the searcher chose (`choseEmployer`), or named in the words
+ * (`namesEmployer`: "bank of america", "product manager shopify", read the
+ * way the search itself reads them), is no search to guess a country for.
+ * `namesEmployer` is asked beside the country lookup, so it adds no wait.
  */
 export async function applyLocationDefault(
   params: JobSearchParams,
   ip: string | undefined,
   countryLookup: CountryLookup | undefined,
   loadContext: () => Promise<{ gazetteer: Gazetteer; corpusChecker: CorpusValueChecker }>,
+  namesEmployer?: (p: JobSearchParams) => Promise<boolean>,
 ): Promise<LocationDefaultApplication> {
-  if (!ip || !countryLookup || params.id || hasLocationSignal(params)) return { params };
+  if (!ip || !countryLookup || params.id || hasLocationSignal(params) || choseEmployer(params)) return { params };
+  const named = namesEmployer ? namesEmployer(params).catch(() => false) : Promise.resolve(false);
   const { gazetteer, corpusChecker } = await loadContext();
   const ipDefault = await resolveLocationDefault(ip, gazetteer, corpusChecker, countryLookup);
-  if (!ipDefault) return { params };
+  if (!ipDefault || (await named)) return { params };
   return {
     params: { ...params, places: ipDefault.places },
     defaultedLocation: ipDefault.countryCode,

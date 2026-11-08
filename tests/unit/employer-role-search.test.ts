@@ -11,6 +11,7 @@ import {
     fetchJobSuggestions,
     resetCompanyDomainFilterSupportForTests,
     resetCompanyIntentCacheForTests,
+    resetDomainCountCacheForTests,
     searchMeili,
 } from "../../src/lib/jobs/meilisearch";
 import type { PublicJob } from "../../src/lib/jobs/types";
@@ -23,6 +24,7 @@ before(() => {
 beforeEach(() => {
     resetCompanyDomainFilterSupportForTests();
     resetCompanyIntentCacheForTests();
+    resetDomainCountCacheForTests();
 });
 
 afterEach(() => mock.reset());
@@ -75,6 +77,9 @@ function mockIndex(opts: {
     employerRows: PublicJob[];
     elsewhere: PublicJob[];
     wholeText?: PublicJob[];
+    /** Holds the box's title search this long, and logs when each request arrives and that search answers. */
+    titleSearchMs?: number;
+    events?: string[];
 }) {
     const seen: MeiliBody[] = [];
     const answer = (b: MeiliBody): { hits: PublicJob[] | object[]; totalHits: number; facetDistribution?: object } => {
@@ -104,6 +109,12 @@ function mockIndex(opts: {
     mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
         const body = JSON.parse(String(init.body)) as MeiliBody;
         seen.push(body);
+        const isTitleSearch = body.attributesToSearchOn?.join() === "title,company" && body.distinct === "title";
+        opts.events?.push(isTitleSearch ? "title asked" : body.queries?.some((q) => q.facets?.includes("company_domain")) ? "counts asked" : "search asked");
+        if (isTitleSearch && opts.titleSearchMs) {
+            await new Promise((resolve) => setTimeout(resolve, opts.titleSearchMs));
+            opts.events?.push("title answered");
+        }
         if (!String(url).includes("multi-search")) return jsonResponse(answer(body));
         const results = (body.queries ?? []).map(answer);
         if (body.federation) {
@@ -234,6 +245,24 @@ describe("the search box's Companies section", () => {
         mockIndex({ known: false, few: true, roleAtEmployer: [], employerRows: [], elsewhere: [] });
         const suggestions = await fetchJobSuggestions("northwind ad labs");
         assert.deepEqual(suggestions.employers, [{ name: EMPLOYER.name, domain: EMPLOYER.domain }]);
+    });
+
+    it("asks every employer's ownership in one request, beside the title search, and not again on the next keystroke", async () => {
+        // Release 75's live check: "bank of america" took 0.82 s to 1.28 s against 0.44 s before the counts, which
+        // went out after the title search, one request per employer name, again on every keystroke.
+        const events: string[] = [];
+        const seen = mockIndex({ known: false, few: true, roleAtEmployer: [], employerRows: [], elsewhere: [], titleSearchMs: 60, events });
+        const counts = () => seen.filter((b) => b.queries?.some((q) => q.facets?.includes("company_domain"))).length;
+        const first = await fetchJobSuggestions("northwind ad labs");
+        assert.deepEqual(first.employers, [{ name: EMPLOYER.name, domain: EMPLOYER.domain }]);
+        assert.equal(counts(), 1, "one request holds every count");
+        assert.ok(events.indexOf("counts asked") < events.indexOf("title answered"), events.join(" → "));
+        // The next keystrokes bring the same employer back: the counts are known, nothing more is asked.
+        for (const q of ["northwind ad labs ", "Northwind Ad Labs"]) {
+            const next = await fetchJobSuggestions(q);
+            assert.deepEqual(next.employers, [{ name: EMPLOYER.name, domain: EMPLOYER.domain }], q);
+        }
+        assert.equal(counts(), 1);
     });
 
     it("lists no employer when no employer's name holds the words", async () => {
