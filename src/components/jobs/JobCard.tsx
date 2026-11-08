@@ -195,7 +195,7 @@ export function JobCard({
                 // the list's edges (Apple's list highlight).
                 // rounded-none: KEEP — an employer group's rows stay one flush block on its own fill, so they
                 // keep square corners and the full width.
-                group ? "w-full rounded-none px-[var(--list-inset)]" : "list-row active:bg-surface-hover",
+                group ? "w-full rounded-none poster-list-inset-x" : "list-row active:bg-surface-hover",
                 // No stripe. hover = --surface-hover (Tailwind v4 gates `hover:` behind
                 // @media (hover:hover), so touch never sticks it). The open row = the brand
                 // tint (a different hue, within 1.03x of hover in luminance) PLUS a 1px inset

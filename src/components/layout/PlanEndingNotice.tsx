@@ -43,7 +43,8 @@ export function PlanEndingNotice() {
                 role="status"
                 aria-live="polite"
                 data-testid="plan-ending-notice"
-                className="pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-none border border-live bg-background px-4 py-3 text-sm enter-reveal"
+                data-state="open"
+                className="pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-panel material-glass px-4 py-3 text-sm motion-modal animate-in fade-in-0 slide-in-from-bottom-2"
             >
                 <div className="flex-1">
                     <p className="leading-snug text-foreground">

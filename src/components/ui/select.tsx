@@ -30,14 +30,14 @@ function SelectTrigger({
   children,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
-  size?: "default" | "lg"
+  size?: "sm" | "default" | "lg"
 }) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "border border-border data-[placeholder]:text-placeholder-text [&_svg:not([class*='text-'])]:text-muted-foreground aria-invalid:border-destructive bg-card flex w-full items-center justify-between gap-2 rounded-ctl px-3 text-base whitespace-nowrap transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:ctl-md data-[size=lg]:ctl-lg *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "border border-border data-[placeholder]:text-placeholder-text [&_svg:not([class*='text-'])]:text-muted-foreground aria-invalid:border-destructive bg-card flex w-full items-center justify-between gap-2 rounded-ctl px-3 text-base whitespace-nowrap transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-50 data-[size=sm]:ctl-md data-[size=sm]:text-sm data-[size=default]:ctl-lg data-[size=lg]:ctl-lg *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         CONTROL_FOCUS_VISIBLE,
         className
       )}
@@ -77,7 +77,7 @@ function SelectContent({
           className={cn(
             "p-1",
             position === "popper" &&
-            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
+            "h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width) scroll-my-1"
           )}
         >
           {children}

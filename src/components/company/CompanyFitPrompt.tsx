@@ -29,7 +29,7 @@ export function CompanyFitPrompt({
     // where the résumé is kept shows from `sm` up, and in the importer.
     <div
       data-testid="company-fit-prompt"
-      className="mb-6 flex items-center gap-3 rounded-panel border border-border bg-surface p-3 shadow-[var(--shadow-bevel-highlight)] sm:mb-8 sm:gap-6 sm:p-4"
+      className="mb-6 flex items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:mb-8 sm:gap-6 sm:p-4"
     >
       <div className="min-w-0 flex-1">
         <p className="flex items-start gap-2 text-sm font-semibold text-foreground sm:text-base">

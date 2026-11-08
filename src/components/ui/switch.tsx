@@ -30,9 +30,9 @@ export function Switch({
             disabled={disabled}
             aria-label={ariaLabel}
             aria-busy={disabled || undefined}
-            className="relative ctl-sm inline-flex w-11 shrink-0 cursor-pointer items-center rounded-ctl border border-border-strong bg-surface-2 text-brand-foreground shadow-[var(--shadow-bevel-inset)] transition-colors focus-visible:outline-2 focus-visible:outline-live focus-visible:-outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-live"
+            className="relative ctl-sm inline-flex w-11 shrink-0 cursor-pointer items-center rounded-ctl border border-border-strong bg-surface-2 text-brand-foreground transition-colors focus-visible:outline-2 focus-visible:outline-live focus-visible:-outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-live data-[state=checked]:bg-live"
         >
-            <SwitchPrimitive.Thumb className="absolute left-0.5 inline-block h-4 w-4 translate-x-0 rounded-ctl border border-border bg-surface-3 shadow-[var(--shadow-bevel-highlight)] transition-transform data-[state=checked]:translate-x-5" />
+            <SwitchPrimitive.Thumb className="absolute left-0.5 inline-block h-4 w-4 translate-x-0 rounded-ctl border border-border bg-foreground transition-transform data-[state=checked]:translate-x-5 data-[state=checked]:border-transparent data-[state=checked]:bg-brand-foreground" />
         </SwitchPrimitive.Root>
     )
 }

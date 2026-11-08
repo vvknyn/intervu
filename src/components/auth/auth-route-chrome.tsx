@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 /** Poster canvas + raised panel — shared by chrome-free auth routes. */
 export const authRaisedPanelClassName =
-    "w-full max-w-100 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]";
+    "w-full max-w-100 rounded-panel border border-border bg-surface";
 
 export function AuthRouteLayout({
     children,

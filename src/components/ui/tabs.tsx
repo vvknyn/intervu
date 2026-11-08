@@ -84,7 +84,7 @@ export const tabItemVariants = cva(
     variants: {
       size: {
         // Full header height: a tall hit area, a light visual.
-        bar: "h-[var(--topbar-h)]", // control-scale-allow: spans the header row, its height is the bar's, not a control step
+        bar: "h-(--topbar-h)", // control-scale-allow: spans the header row, its height is the bar's, not a control step
         inline: "ctl-md",
       },
     },

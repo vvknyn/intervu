@@ -678,6 +678,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-TRACKER-75 | The Chrome extension's "Save" (POST /api/extension/track with stage "saved") without a velai.app sign-in answers 401 "Signed out" and adds nothing | anon | POST /api/extension/track (JSON, no session) | signed-out | no | covered | extension-api.spec.ts |
 | J-TRACKER-76 | The Chrome extension's "I applied" (POST /api/extension/track, the Applied stage) without a velai.app sign-in answers 401 "Signed out" and adds nothing | anon | POST /api/extension/track (JSON, no session) | signed-out | no | covered | extension-api.spec.ts |
 | J-TRACKER-77 | The extension's tracker call refuses a body that isn't JSON with 415, so no other site's form can add to someone's tracker | anon | POST /api/extension/track (form-encoded body) | signed-out | no | covered | extension-api.spec.ts |
+| J-TRACKER-80 | Switch `/yours` between `Board` and `Table` views (`tracker-view-switch`) and press `/` to focus `tracker-search` and filter tracked roles | anon | `/yours` (seeded applied + interviewing pursuits) | signed-out | no | covered | tracker.spec.ts |
 
 ## ALERTS
 

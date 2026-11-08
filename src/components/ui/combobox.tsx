@@ -110,7 +110,7 @@ function ComboboxLayer({ active, ...props }: React.ComponentProps<"div"> & { act
 }
 
 function ComboboxList<T extends object>({ className, ...props }: Omit<ListBoxProps<T>, "className"> & { className?: string }) {
-  return <ListBox data-slot="combobox-list" className={cn("max-h-[300px] overflow-y-auto py-2 outline-none", className)} {...props} />
+  return <ListBox data-slot="combobox-list" className={cn("max-h-72 overflow-y-auto py-2 outline-none", className)} {...props} />
 }
 
 function ComboboxSection<T extends object>({

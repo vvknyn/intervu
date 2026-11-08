@@ -75,7 +75,7 @@ export function WaitState({ label, skeleton, status, stage: pinned, fill, classN
             role="status"
             aria-busy="true"
             data-wait-stage={stage}
-            className={cn(fill && "flex min-h-[40vh] flex-col items-center justify-center gap-2", className)}
+            className={cn(fill && "wait-state-fill flex flex-col items-center justify-center gap-2", className)}
             {...rest}
         >
             <span className="sr-only">{label}</span>

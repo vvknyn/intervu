@@ -85,7 +85,7 @@ export function FrontDoorReturnCard({
     return (
         <div
             data-testid="front-door-return-card"
-            className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-[var(--list-inset)] pb-3 pt-2 text-sm"
+            className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border poster-list-inset-x pb-3 pt-2 text-sm"
         >
             <div className="min-w-0">
                 <p className="truncate font-semibold text-foreground">{recentQuery}</p>

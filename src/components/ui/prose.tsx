@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 /** The ONE reading column: 28rem ~ 66 characters of 16px body text. A rem width,
  *  not ch: ch resolves against the container's font (Prose is prose-sm, 14px),
  *  so one ch token rendered two widths. */
-export const READING_MEASURE = "max-w-[28rem]";
+export const READING_MEASURE = "max-w-md";
 
 export function Prose({ className, ...props }: React.ComponentProps<"article">) {
   return (

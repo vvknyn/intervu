@@ -285,22 +285,22 @@
      means exactly one thing, "this fact is live/verified" — so these tints
      are green again too, and it's the SAME reasoning as above, not a new
      one: the name was always the role, not a hue.) */
-  --live-tint-bg: 240 253 244;
-  --live-tint-bg-alt: 236 253 245;
-  --live-tint-border: 187 247 208;
-  --warn: 180 83 9;
+  --live-tint-bg: 14 37 23;
+  --live-tint-bg-alt: 14 37 23;
+  --live-tint-border: 22 101 52;
+  --warn: 245 158 11;
   --warn-dot: 245 158 11;
-  --danger-tint-border: 254 205 211;
+  --danger-tint-border: 120 30 45;
 
   /* Verdict channel */
   --verdict-live: var(--live);
-  --verdict-good: var(--live);
-  --verdict-caution: var(--warn);
-  --verdict-risk: 218 30 40;
+  --verdict-good: 74 222 128;
+  --verdict-caution: 251 191 36;
+  --verdict-risk: 255 59 105;
   --verdict-live-bg: var(--live-tint-bg);
-  --verdict-good-bg: 232 245 236;
-  --verdict-caution-bg: 254 243 199;
-  --verdict-risk-bg: 255 241 242;
+  --verdict-good-bg: 14 37 23;
+  --verdict-caution-bg: 38 31 16;
+  --verdict-risk-bg: 42 16 22;
 
   /* Pipeline / status colors — progress states, not live facts, so they ride
      --brand (Ledger palette, 2026-08-27) and never --live. */
@@ -561,6 +561,7 @@ html {
   --color-warn: rgb(var(--warn));
   --color-warn-dot: rgb(var(--warn-dot));
   --color-danger-tint-border: rgb(var(--danger-tint-border));
+  --color-danger-wash: rgb(var(--danger-text) / 0.12);
   --color-verdict-live: rgb(var(--verdict-live));
   --color-verdict-good: rgb(var(--verdict-good));
   --color-verdict-caution: rgb(var(--verdict-caution));
@@ -2499,4 +2500,14 @@ body[data-scroll-locked] [data-testid="apply-return-prompt"] {
   background-image:
     radial-gradient(ellipse 80% 60% at 70% 40%, rgb(255 255 255 / 0.03), transparent 60%),
     url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* Checkbox glyph corner (4px rounded square, distinct from circular radio pills) */
+@utility ctl-check {
+  border-radius: 0.25rem;
+}
+
+/* Route-level WaitState fill height without arbitrary size utility */
+.wait-state-fill {
+  min-height: 40vh;
 }

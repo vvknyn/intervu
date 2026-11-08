@@ -4,7 +4,7 @@ import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 function JobCardSkeleton() {
     return (
-        <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 rounded-none bg-surface pt-4">
+        <div aria-hidden="true" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 bg-surface pt-4">
             <div className="self-start">
                 <WaitBar className="h-12 w-12 rounded-panel" />
             </div>
@@ -36,7 +36,7 @@ export function JobsListSkeletonRows({ count }: { count: number }) {
 
 export function JobsListSplash({ rowCount = 5 }: { rowCount?: number }) {
     return (
-        <div className="px-[var(--list-inset)]">
+        <div className="poster-list-inset-x">
             <p className="pt-8 text-sm text-muted-foreground">
                 Finding live roles… checking each posting is still active.
             </p>

@@ -65,12 +65,13 @@ function Badge({
  * above is for words; this is for a count or a one-word flag that has to stand
  * out on a control: the bell, a tab, a corner "New").
  *
- * 16px high, square (rulebook radius 0), 12/600 text. Pin it to a corner with
- * `className` (e.g. `absolute right-0 top-1`) — never restyle its shape, and
- * never hand-roll a rounded count pill (tests/unit/tab-primitive-gate.test.ts).
+ * 16px high, pill-shaped (docs/design-language.md §1: `rounded-pill` for count
+ * badges), 12/600 text. Pin it to a corner with `className` (e.g. `absolute
+ * right-0 top-1`) — never hand-roll a count pill (tests/unit/tab-primitive-gate.test.ts).
  */
 const solidBadgeVariants = cva(
-  "inline-flex h-4 min-w-4 shrink-0 items-center justify-center whitespace-nowrap rounded-none px-1 text-xs font-semibold leading-none tabular-nums",
+  // tab-kit: KEEP — SolidBadge is the canonical count badge primitive
+  "inline-flex h-4 min-w-4 shrink-0 items-center justify-center whitespace-nowrap rounded-pill px-1 text-xs font-semibold leading-none tabular-nums",
   {
     variants: {
       tone: {

@@ -39,7 +39,7 @@ export function RecommendedListNotes({
         else if (row.action?.kind === "include") onInclude(row);
     };
     return (
-        <div data-testid="list-notes" data-header-line="disclosure" className="mb-3 space-y-2 px-[var(--list-inset)] text-sm text-muted-foreground">
+        <div data-testid="list-notes" data-header-line="disclosure" className="mb-3 space-y-2 poster-list-inset-x text-sm text-muted-foreground">
             {notice ? (
                 <p data-testid="list-notice" data-kind={kind}>
                     {notice.text}
