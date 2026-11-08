@@ -172,7 +172,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
+        className={`${display.variable} ${sans.variable} ${mono.variable} relative isolate antialiased bg-background text-foreground min-h-screen flex flex-col`}
         suppressHydrationWarning
       >
         {/* WebSite graph (SearchAction, for a sitelinks search box pointed at

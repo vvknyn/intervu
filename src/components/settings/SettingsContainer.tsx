@@ -57,7 +57,7 @@ function TabBar({ tab, onChange }: { tab: AccountTab; onChange: (t: AccountTab) 
 
 function SettingsCard({ children }: { children: React.ReactNode }) {
     return (
-        <div className="panel-enter mb-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
+        <div className="panel-enter mb-3 rounded-panel border border-border bg-surface p-4">
             {children}
         </div>
     );

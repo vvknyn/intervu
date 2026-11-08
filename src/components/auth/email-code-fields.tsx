@@ -20,7 +20,7 @@ export function EmailCodeFields({ isPending }: { isPending: boolean }) {
                     required
                     maxLength={7}
                     disabled={isPending}
-                    className="text-center font-mono text-lg"
+                    className="text-center tabular-nums text-lg"
                 />
             </Field>
             <Button type="submit" disabled={isPending} className="w-full">

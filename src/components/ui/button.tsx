@@ -4,14 +4,13 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils"
 
-// Calm pass R6: outline / quiet share ONE borderless shape, so they can't drift
-// apart: brand-coloured text, no border, no fill at rest, brand-tint hover
-// (rulebook "ghost = accent text", like the green text links). `secondary` is
-// the same brand text on a faint brand-tint fill (helium.computer's calm
-// secondary), stronger on hover. Neither is grey-filled, so
-// button-variants.test.ts rule (a) holds; `ghost` is brand text with a neutral
-// hover.
-const TERTIARY_BUTTON_CLASSES = "bg-transparent text-brand hover:bg-live-tint-bg"
+// Button hierarchy (docs/design-language.md §5 + @coss/button):
+// - Primary (`default` / `brand` / `accent`): one filled `bg-brand` CTA per region
+// - Secondary (`secondary`): `border border-border bg-card` neutral surface action
+// - Outline (`outline`): `border border-border bg-transparent` crisp hairline action
+// - Ghost (`ghost`): borderless neutral action (`hover:bg-muted`)
+// - Quiet (`quiet`): soft brand-wash tertiary action
+// - Destructive (`destructive` / `destructive-outline`): filled or hairline danger action
 
 const buttonVariants = cva(
   cn(
@@ -32,16 +31,12 @@ const buttonVariants = cva(
         default: "bg-brand text-brand-foreground hover:bg-brand-hover",
         brand: "bg-brand text-brand-foreground hover:bg-brand-hover",
         destructive: "bg-danger-text text-white hover:opacity-90",
-        outline: TERTIARY_BUTTON_CLASSES,
-        secondary: "bg-brand-wash text-brand hover:bg-brand-wash-hover",
-        // One tertiary look (Interaction §9): ghost, outline and quiet were three names for green text on
-        // no fill, with two different hover fills. They now share it.
-        ghost: TERTIARY_BUTTON_CLASSES,
+        "destructive-outline": "border border-danger-tint-border bg-transparent text-danger-text hover:bg-danger-wash",
+        outline: "border border-border bg-transparent text-foreground hover:bg-muted",
+        secondary: "border border-border bg-card text-foreground hover:bg-muted",
+        ghost: "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
         link: "text-action",
-        // Alias of tertiary — not in the rulebook's own variant set, kept
-        // because CompletenessMock.tsx (outside this change's scope) still
-        // references it.
-        quiet: TERTIARY_BUTTON_CLASSES,
+        quiet: "bg-brand-wash text-brand hover:bg-brand-wash-hover",
         // One filled look: accent was the primary with a brightness hover of its own.
         accent: "bg-brand text-brand-foreground hover:bg-brand-hover",
       },

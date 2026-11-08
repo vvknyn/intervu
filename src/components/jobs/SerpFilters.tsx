@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { CheckboxChoice } from "@/components/ui/checkbox";
+import { RadioChoice } from "@/components/ui/radio-group";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Disclosure, DisclosureCaret, DisclosureSummary } from "@/components/ui/disclosure";
 import { filterCountBadgeClass } from "@/components/ui/chip";
 import type { FacetDistribution, FacetKey, PanelFacetKey, PostedBucket, YearsExperienceBucket } from "@/lib/jobs/types";
@@ -73,19 +76,16 @@ export function Affordance({
         <label
             data-testid={testId}
             className={cn(
-                "flex min-h-8 cursor-pointer items-center gap-2 rounded-ctl px-1.5 text-xs leading-tight text-foreground transition-colors hover:bg-muted",
+                "flex min-h-8 cursor-pointer items-center gap-2 rounded-ctl px-1.5 text-xs leading-tight text-foreground press-fill transition-colors hover:bg-muted",
                 active && inputType === "radio" && "font-semibold text-live",
                 className,
             )}
         >
-            <input
-                type={inputType}
-                checked={active}
-                readOnly
-                onClick={onClick}
-                // control-scale-allow: checkbox/radio glyph (dynamic `type`), not a scale control
-                className="h-3.5 w-3.5 shrink-0 accent-brand"
-            />
+            {inputType === "radio" ? (
+                <RadioChoice checked={active} onClick={onClick} />
+            ) : (
+                <CheckboxChoice checked={active} onClick={onClick} />
+            )}
             <span className="min-w-0 flex-1">{children}</span>
             {typeof count === "number" && (
                 <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{count.toLocaleString()}</span>
@@ -146,34 +146,36 @@ export function SalaryCustomMinInput({
         // Wraps the field under its label when the column is narrow (a
         // 320px phone cut the placeholder to "$ e.g."); the field takes the
         // control corner like every other input (2026-10-02).
-        <label className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1.5 text-xs text-foreground">
+        <label className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-xs text-foreground">
             <span className="shrink-0 text-muted-foreground">Custom minimum</span>
-            <span className="flex min-w-0 items-center gap-1 rounded-ctl border border-border px-1.5 py-1">
-                <span className="text-muted-foreground">$</span>
-                <input
-                    type="text"
-                    inputMode="numeric"
-                    enterKeyHint="done"
-                    value={draft}
-                    onChange={(e) => {
-                        setDraft(e.target.value);
-                        setInvalid(false);
-                    }}
-                    onBlur={commit}
-                    onKeyDown={(e) => {
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        commit();
-                    }}
-                    placeholder="e.g. 65000"
-                    aria-label="Custom minimum salary"
-                    aria-invalid={invalid || undefined}
-                    data-testid="salary-custom-min"
-                    className="w-20 min-w-0 bg-transparent text-xs text-foreground outline-none"
-                />
-            </span>
+            <InputGroup size="sm" className="w-32">
+                <InputGroupAddon>$</InputGroupAddon>
+                <InputGroupInput asChild>
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        enterKeyHint="done"
+                        value={draft}
+                        onChange={(e) => {
+                            setDraft(e.target.value);
+                            setInvalid(false);
+                        }}
+                        onBlur={commit}
+                        onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            commit();
+                        }}
+                        placeholder="e.g. 65000"
+                        aria-label="Custom minimum salary"
+                        aria-invalid={invalid || undefined}
+                        data-testid="salary-custom-min"
+                        className="pl-1.5 pr-2"
+                    />
+                </InputGroupInput>
+            </InputGroup>
             {invalid && (
-                <span role="alert" className="w-full text-destructive" data-testid="salary-custom-min-error">
+                <span role="alert" className="w-full text-danger-text" data-testid="salary-custom-min-error">
                     {SALARY_MIN_ERROR}
                 </span>
             )}
@@ -299,9 +301,11 @@ function SearchPillsFacetSection({
     return (
         <FilterSection id={facetKey} label={label} count={selected.length}>
             <div className="flex flex-col gap-2.5 px-1.5">
-                <div className="flex min-h-8 items-center gap-2 rounded-ctl border border-border bg-background px-2.5 py-1 focus-within:border-foreground">
-                    <MagnifyingGlass size={16} className="shrink-0 text-muted-foreground" aria-hidden />
-                    <input
+                <InputGroup size="sm" className="bg-background text-sm">
+                    <InputGroupAddon>
+                        <MagnifyingGlass size={16} className="shrink-0 text-muted-foreground" aria-hidden />
+                    </InputGroupAddon>
+                    <InputGroupInput
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -315,19 +319,21 @@ function SearchPillsFacetSection({
                         }}
                         placeholder={SEARCH_PILLS_PLACEHOLDER[facetKey] ?? `Search ${label.toLowerCase()}…`}
                         aria-label={`Search ${label}`}
-                        className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+                        className="pl-2"
                     />
                     {searchQuery && (
-                        <button
-                            type="button"
-                            aria-label={`Clear ${label} search`}
-                            onClick={() => setSearchQuery("")}
-                            className="flex items-center justify-center text-muted-foreground hover:text-foreground"
-                        >
-                            <X size={16} aria-hidden />
-                        </button>
+                        <InputGroupAddon align="inline-end">
+                            <button
+                                type="button"
+                                aria-label={`Clear ${label} search`}
+                                onClick={() => setSearchQuery("")}
+                                className="flex items-center justify-center text-muted-foreground hover:text-foreground"
+                            >
+                                <X size={16} aria-hidden />
+                            </button>
+                        </InputGroupAddon>
                     )}
-                </div>
+                </InputGroup>
 
                 {selected.length > 0 && (
                     <div className="flex flex-wrap gap-x-1.5 gap-y-3">

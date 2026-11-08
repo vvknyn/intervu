@@ -106,7 +106,7 @@ function HistoryRow({ view, stage }: { view: JobView; stage: Pursuit | undefined
                     <div className="truncate text-base font-semibold leading-snug text-foreground">{snapshot.title}</div>
                     <div className="mt-1 truncate text-sm text-muted-foreground">{companyName}</div>
                     <FactLine
-                        className="mt-1 font-mono text-sm text-muted-foreground"
+                        className="mt-1 tabular-nums text-sm text-muted-foreground"
                         items={[
                             formatRelativeAge(view.last_viewed_at, Date.now()),
                             view.view_count > 1 && `viewed ${view.view_count}×`,
@@ -171,7 +171,7 @@ function HistoryLoading() {
             skeleton={
                 <div className="divide-y divide-border border-t border-border">
                     {[0, 1, 2, 3, 4].map((i) => (
-                        <div key={i} className="px-[var(--list-inset)] pt-4">
+                        <div key={i} className="poster-list-inset-x pt-4">
                             <div className="space-y-1.5 border-b border-border pb-4">
                                 <WaitBar className="h-4 w-2/3" />
                                 <WaitBar className="h-3 w-1/3" />

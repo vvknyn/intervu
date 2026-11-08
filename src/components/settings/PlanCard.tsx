@@ -18,7 +18,7 @@ export function PlanCard() {
     return (
         <div
             data-testid="plan-card"
-            className="mb-4 min-h-[5.5rem] rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]"
+            className="mb-4 min-h-22 rounded-panel border border-border bg-surface p-4"
         >
             {!result ? null : !plan ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">

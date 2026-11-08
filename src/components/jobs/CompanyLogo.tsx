@@ -120,11 +120,11 @@ export function CompanyLogo({
     return (
         <div
             className={cn(
-                "relative flex shrink-0 items-center justify-center overflow-hidden border border-border bg-surface-2 shadow-[var(--shadow-bevel-inset)]",
+                "relative flex shrink-0 items-center justify-center overflow-hidden border border-border bg-surface-2",
                 sizeCls,
             )}
         >
-            {loading && <CompanyInitialTile name={cleanedName} className="absolute inset-0 rounded-none" />}
+            {loading && <CompanyInitialTile name={cleanedName} className="absolute inset-0" />}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
                 ref={checkFailedBeforeHydration}

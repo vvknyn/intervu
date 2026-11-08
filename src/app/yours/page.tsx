@@ -7,7 +7,9 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
+import { TabItem, TabNav } from "@/components/ui/tabs";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { getCurrentUser, getSignedInUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { createApplication, deleteApplication, updateApplication } from "@/actions/application";
@@ -35,6 +37,7 @@ import {
     countAppliedToday,
 } from "@/lib/pursuits/daily-apply-plan";
 import { TrackerKanbanBoard } from "@/components/tracker/TrackerKanbanBoard";
+import { TrackerTableView } from "@/components/tracker/TrackerTableView";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
 import { removeAppliedResumeFromRole } from "@/lib/pursuits/applied-resume-client";
@@ -152,6 +155,21 @@ function YoursContent() {
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [addOpen, setAddOpen] = useState(searchParams.get("view") === "new");
     const [search, setSearch] = useState("");
+    const [viewMode, setViewMode] = useState<"board" | "table">("board");
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+            const target = e.target as HTMLElement | null;
+            if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+            if (!searchInputRef.current) return;
+            e.preventDefault();
+            searchInputRef.current.focus();
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, []);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -353,21 +371,33 @@ function YoursContent() {
                 <TrackerTabs active="tracker" />
                 {pursuits.length > 0 ? (
                     <div className="mb-4 mt-4 flex flex-wrap items-center gap-3">
-                        <div className="relative min-w-0 flex-1">
-                            <MagnifyingGlass
-                                size={16}
-                                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                            />
-                            <Input
+                        <InputGroup className="min-w-0 flex-1 bg-surface-2">
+                            <InputGroupAddon>
+                                <MagnifyingGlass size={16} aria-hidden />
+                            </InputGroupAddon>
+                            <InputGroupInput
+                                ref={searchInputRef}
                                 type="search"
                                 enterKeyHint="search"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Search tracker…"
                                 data-testid="tracker-search"
-                                className="ctl-lg rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
                             />
-                        </div>
+                            {!search && (
+                                <InputGroupAddon align="inline-end" className="hidden sm:flex">
+                                    <Kbd>/</Kbd>
+                                </InputGroupAddon>
+                            )}
+                        </InputGroup>
+                        <TabNav aria-label="Tracker layout" data-testid="tracker-view-switch" className="shrink-0">
+                            <TabItem current={viewMode === "board"} onClick={() => setViewMode("board")}>
+                                Board
+                            </TabItem>
+                            <TabItem current={viewMode === "table"} onClick={() => setViewMode("table")}>
+                                Table
+                            </TabItem>
+                        </TabNav>
                         <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
                     </div>
                 ) : null}
@@ -395,6 +425,14 @@ function YoursContent() {
                             </Button>
                         </div>
                     )
+                ) : viewMode === "table" ? (
+                    <TrackerTableView
+                        pursuits={filtered}
+                        selectedId={selectedId}
+                        detailOpen={detailOpen}
+                        onRowClick={openDetail}
+                        stage={parseTrackerStage(searchParams.get("stage"))}
+                    />
                 ) : (
                     <TrackerKanbanBoard
                         pursuits={filtered}

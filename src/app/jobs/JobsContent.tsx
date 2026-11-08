@@ -893,7 +893,7 @@ function EmptyResults({
 /** The foot of a ranked list that has not ranked the whole search: the button that reads and ranks the next page (it does not scroll on by itself). */
 function RankMore({ count, loading, onClick }: { count: number; loading: boolean; onClick: () => void }) {
     return (
-        <div className="px-[var(--list-inset)] py-5 text-left">
+        <div className="poster-list-inset-x py-5 text-left">
             <button
                 type="button"
                 data-testid="rank-more"
@@ -937,7 +937,7 @@ function ListTail({
 }) {
     if (endOfListState === "more-available") return null;
     return (
-        <div className="px-[var(--list-inset)] py-5 text-left">
+        <div className="poster-list-inset-x py-5 text-left">
             {endOfListState === "cap-reached" ? (
                 // A4 — the honest cap-reached line: `hasMore` stopped
                 // because pagination hit MAX_REACHABLE, not because the
@@ -4527,7 +4527,7 @@ export function JobsContent({
                 // The raw action: a count probe must not become `lastSearchId` (open attribution).
                 search={searchJobsActionRaw}
                 onApply={applyFilterState}
-                className="mb-3 px-[var(--list-inset)]"
+                className="mb-3 poster-list-inset-x"
             />
         ) : null;
     const notConnectedPanel = jobsNotConnectedPanelCopy({
@@ -5596,7 +5596,7 @@ export function JobsContent({
                         data-testid="jobs-toolbar-scroller"
                         className={cn(
                             "no-scrollbar scroll-hit flex shrink-0 items-center gap-2 overflow-x-auto [&>*]:shrink-0 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:gap-3 @2xl:overflow-x-clip",
-                            atRest ? "px-0" : "px-[var(--list-inset)]",
+                            atRest ? "px-0" : "poster-list-inset-x",
                         )}
                     >
                         {!headerDockActive && (
@@ -5858,7 +5858,7 @@ export function JobsContent({
                                     banners sit flush with the panel's rounded corner instead
                                     of restating px-4 (see globals.css's `--list-inset`
                                     comment for the full adopter list). */}
-                                <div data-testid="list-header" className="px-[var(--list-inset)]">
+                                <div data-testid="list-header" className="poster-list-inset-x">
                                 {/* The band slot: ONE of the address prompt, the résumé invite, the Chrome tile or the
                                     board's "new since you were here" (`pickHeaderBand`, list-header.ts), in that order.
                                     A résumé-ranked list says what is new on its own status line (`listNew`): a count of
@@ -5895,7 +5895,7 @@ export function JobsContent({
                             this state (see `resultCountLine`) because the relaxed total
                             counts word-dropped matches — a number that doesn't describe
                             the query the user actually typed. */}
-                        <div className="px-[var(--list-inset)]">
+                        <div className="poster-list-inset-x">
                             {/* ONE note, the highest priority (`pickHeaderNote`, list-header.ts): the others
                                 explain the same difference from what was typed, so they wait their turn rather than
                                 stack. */}
@@ -5996,7 +5996,7 @@ export function JobsContent({
                                    between rows so each 44pt tap area is its own, and
                                    the clip on an inner span (a clipping button cut
                                    its own 44pt area to its 16px text). */
-                                <div className="px-[var(--list-inset)] text-left" data-testid="serp-ask">
+                                <div className="poster-list-inset-x text-left" data-testid="serp-ask">
                                     <p className="text-xs text-faint">
                                         Suggested roles
                                     </p>
@@ -6022,13 +6022,13 @@ export function JobsContent({
                             ) : resultsPanel === "not-connected" ? (
                                 <div
                                     role="status"
-                                    className="border-l-2 border-brand px-[var(--list-inset)] py-6 pl-4 text-left"
+                                    className="border-l-2 border-brand px-4 py-6 text-left"
                                 >
                                     <p className="text-xs text-foreground">{notConnectedPanel.title}</p>
                                     <p className="mt-1.5 max-w-md text-xs text-muted-foreground">{notConnectedPanel.body}</p>
                                     {notConnectedPanel.operatorDetail && (
-                                        <p className="mt-2 max-w-md font-mono text-xs text-muted-foreground">
-                                            {notConnectedPanel.operatorDetail}
+                                        <p className="mt-2 max-w-md text-xs text-muted-foreground">
+                                            <code>{notConnectedPanel.operatorDetail}</code>
                                         </p>
                                     )}
                                 </div>
@@ -6046,7 +6046,7 @@ export function JobsContent({
                                     detail={displaySearchError}
                                     onRetry={retrySearch}
                                     testId="jobs-search-error"
-                                    className="px-[var(--list-inset)]"
+                                    className="poster-list-inset-x"
                                 />
                             ) : resultsPanel === "loading" ? (
                                 <JobsListSplash />
@@ -6097,7 +6097,7 @@ export function JobsContent({
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
                                             {(listHeader.lines.includes("status") || listHeader.lines.includes("scope")) && (
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-2 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-2 poster-list-inset-x pb-2 text-sm text-muted-foreground">
                                                 {/* The ONE status line (list-header.ts), plain inline text so it wraps
                                                     like a sentence: the count, what is new, the window, and the way
                                                     to change the résumé it ranks by. */}
@@ -6186,7 +6186,7 @@ export function JobsContent({
                                                 list says it in its disclosure below (left-out-copy.ts, the words the daily picks and
                                                 the MCP tools use). One note at a time (`headerNote`). */}
                                             {headerNote === "level" && (
-                                                <p className="mb-2 px-[var(--list-inset)] text-xs text-muted-foreground" data-testid="level-left-out" data-header-line="note">
+                                                <p className="mb-2 poster-list-inset-x text-xs text-muted-foreground" data-testid="level-left-out" data-header-line="note">
                                                     {pastSeniorLeftOut} {pastSeniorLeftOut === 1 ? "role" : "roles"} past Senior left out, as your Experience level in Settings asks.
                                                 </p>
                                             )}
@@ -6196,7 +6196,7 @@ export function JobsContent({
                                             {/* The alerts switch's email form, right under the switch
                                                 that opened it (signed out). */}
                                             {!user && manualAlertOpen && (
-                                                <div className="mb-3 px-[var(--list-inset)]">
+                                                <div className="mb-3 poster-list-inset-x">
                                                     <SearchAlertCapture
                                                         surface="results"
                                                         searchName={searchAlertName}
@@ -6261,7 +6261,7 @@ export function JobsContent({
                                             above (`clusterJobs`, lib/jobs/cluster.ts)
                                             for why a cluster can never straddle it. */}
                                         {recommendedReady && recommended && recommended.slots.length === 0 && (
-                                            <div data-testid="list-none-fit" className="px-[var(--list-inset)] py-8 text-sm text-muted-foreground">
+                                            <div data-testid="list-none-fit" className="poster-list-inset-x py-8 text-sm text-muted-foreground">
                                                 <p className="font-semibold text-foreground">
                                                     {placeDropped
                                                         ? `No roles in ${formatPlaceList(fitPlaces)} yet.`
@@ -6310,7 +6310,7 @@ export function JobsContent({
                                                               roles={employerMore.roles}
                                                               hidden={employerMore.hidden}
                                                               nowMs={nowMs}
-                                                              className="px-[var(--list-inset)]"
+                                                              className="poster-list-inset-x"
                                                           />,
                                                       ]
                                                     : []),
@@ -6322,7 +6322,7 @@ export function JobsContent({
                                                         key="ranked-lower"
                                                         id={RANKED_LOWER_ANCHOR}
                                                         data-testid="ranked-lower-divider"
-                                                        className="mt-2 px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
+                                                        className="mt-2 poster-list-inset-x pt-4 pb-1 text-xs text-muted-foreground"
                                                     >
                                                         Ranked lower · {rankedLowerTotal(recommended.summary).toLocaleString()}
                                                     </p>,
@@ -6428,7 +6428,7 @@ export function JobsContent({
                                         exactly once, here at the end of the results list —
                                         not in the masthead, not in the search well. */}
                                     {liveCountEl && (
-                                        <div className="px-[var(--list-inset)] pt-4 pb-3">{liveCountEl}</div>
+                                        <div className="poster-list-inset-x pt-4 pb-3">{liveCountEl}</div>
                                     )}
                                 </div>
                                 </>

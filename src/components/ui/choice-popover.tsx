@@ -29,7 +29,8 @@ function ChoicePopover({
     // An arrow key moving a radio group fires a synthetic click; that browses, it does not commit.
     // Space/Enter on the already-checked radio fires no click, so they close from the key itself.
     const arrowing = React.useRef(false)
-    const onRadio = (event: React.SyntheticEvent) => !!(event.target as HTMLElement).closest("input[type=radio]")
+    const onRadio = (event: React.SyntheticEvent) =>
+        !!(event.target as HTMLElement).closest("input[type=radio],[role=radio]")
     const pick = {
         onPointerDown: () => { arrowing.current = false },
         onKeyDown: (event: React.KeyboardEvent) => {
@@ -46,7 +47,7 @@ function ChoicePopover({
         return (
             <Sheet open={open} onOpenChange={setOpen}>
                 <SheetTrigger asChild>{trigger}</SheetTrigger>
-                <SheetContent side="bottom" hideCloseButton className="mx-auto w-full max-w-[720px] gap-0 border-b-0 p-0">
+                <SheetContent side="bottom" hideCloseButton className="mx-auto w-full max-w-3xl gap-0 border-b-0 p-0">
                     <SheetBar title={title} />
                     <SheetBody {...pick} className="flex flex-col p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] [&_label]:min-h-11 [&_label]:text-sm">
                         {children}
@@ -59,7 +60,7 @@ function ChoicePopover({
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-            <PopoverContent align="start" sideOffset={6} {...pick} className="flex w-56 flex-col gap-0.5 rounded-panel border border-border bg-surface p-2">
+            <PopoverContent align="start" sideOffset={6} {...pick} className="flex w-56 flex-col gap-0.5 p-2">
                 {children}
             </PopoverContent>
         </Popover>

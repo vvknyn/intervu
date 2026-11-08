@@ -57,7 +57,8 @@ export function LandingNotice({ surface }: { surface: LandingSurface }) {
                 aria-live={isError ? "assertive" : "polite"}
                 data-testid="landing-notice"
                 data-tone={notice.tone}
-                className={`pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-none border bg-background px-4 py-3 text-sm enter-reveal ${isError ? "border-danger-text" : "border-live"}`}
+                data-state="open"
+                className="pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-panel material-glass px-4 py-3 text-sm motion-modal animate-in fade-in-0 slide-in-from-bottom-2"
             >
                 {isError ? (
                     <WarningCircle weight="fill" className="text-danger-text shrink-0" />

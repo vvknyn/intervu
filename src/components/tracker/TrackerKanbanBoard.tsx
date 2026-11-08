@@ -63,7 +63,9 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
             <div
                 className={cn(
                     "flex gap-3 overflow-x-auto scroll-pl-0 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-                    stage || layout === "tabs" ? "flex-col" : "md:grid md:grid-cols-5 md:overflow-visible md:snap-none",
+                    stage || layout === "tabs"
+                        ? "flex-col"
+                        : "md:grid md:grid-flow-col md:auto-cols-fr xl:grid-cols-5 xl:overflow-visible xl:snap-none",
                 )}
             >
                 {lanes.map(({ column, label }) => {
@@ -73,14 +75,14 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
                             key={column}
                             aria-label={label}
                             className={cn(
-                                "flex shrink-0 scroll-ml-0 snap-start flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)]",
-                                stage || layout === "tabs" ? "w-full" : "md:w-auto md:min-w-0",
+                                "flex shrink-0 scroll-ml-0 snap-start flex-col rounded-panel border border-border bg-surface",
+                                stage || layout === "tabs" ? "w-full" : "md:min-w-56 xl:w-auto xl:min-w-0",
                             )}
                         >
-                            <header className="border-b border-border px-[var(--list-inset)] py-2">
-                                <h3 className="text-sm text-muted-foreground">
-                                    {label}
-                                    <span className="ml-2 font-semibold text-foreground tabular-nums">{items.length}</span>
+                            <header className="border-b border-border poster-list-inset-x py-2.5">
+                                <h3 className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                                    <span>{label}</span>
+                                    <span className="font-semibold text-foreground tabular-nums">{items.length}</span>
                                 </h3>
                             </header>
                             <div className="flex flex-col divide-y divide-border">

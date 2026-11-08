@@ -161,3 +161,41 @@ test("on a phone the tracker shows one stage at a time behind Saved / Applied / 
   await expect(board.getByText("Platform Lead")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test("switches /yours between Board and Table views and focuses search on /", { tag: ["@J-TRACKER-80"] }, async ({ page, diagnostics }) => {
+  const now = new Date().toISOString();
+  const row = (id: string, position: string, status: string) => ({
+    id,
+    user_id: "guest",
+    company_name: "Acme Corp",
+    position,
+    status,
+    created_at: now,
+    updated_at: now,
+  });
+  await page.addInitScript(
+    ([key, rows]) => localStorage.setItem(key as string, JSON.stringify(rows)),
+    [GUEST_PURSUITS_KEY, [row("guest-table-applied", "Staff Engineer", "applied"), row("guest-table-interview", "Platform Lead", "interviewing")]] as const,
+  );
+  await page.goto("/yours");
+
+  await expect(page.getByTestId("tracker-kanban")).toBeVisible({ timeout: 30_000 });
+  const switcher = page.getByTestId("tracker-view-switch");
+  await switcher.getByRole("button", { name: "Table" }).click();
+
+  const table = page.getByTestId("tracker-table");
+  await expect(table).toBeVisible();
+  await expect(table).toContainText("Staff Engineer");
+  await expect(table).toContainText("Platform Lead");
+
+  await page.keyboard.press("/");
+  const search = page.getByTestId("tracker-search");
+  await expect(search).toBeFocused();
+  await search.fill("Platform");
+  await expect(table).toContainText("Platform Lead");
+  await expect(table).not.toContainText("Staff Engineer");
+
+  await switcher.getByRole("button", { name: "Board" }).click();
+  await expect(page.getByTestId("tracker-kanban")).toBeVisible();
+  expect(diagnostics.pageErrors).toEqual([]);
+});

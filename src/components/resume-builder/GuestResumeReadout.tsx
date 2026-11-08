@@ -4,6 +4,7 @@ import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { getSectionOrder, type ResumeData, type ResumeEducation, type ResumeSection } from "@/types/resume";
 import { cn } from "@/lib/utils";
 import { FactLine } from "@/components/ui/fact-line";
+import { SectionTitle } from "@/components/ui/heading";
 
 const DEFAULT_HEADINGS: Record<ResumeSection, string> = {
     summary: "Professional summary",
@@ -204,13 +205,13 @@ export function GuestResumeReadout({ data, className }: GuestResumeReadoutProps)
         <div
             data-testid="guest-resume-readout"
             className={cn(
-                "w-full rounded-panel border border-border bg-surface-2 px-5 py-5 text-foreground shadow-[var(--shadow-bevel-inset)]",
+                "w-full rounded-panel border border-border bg-surface-2 px-5 py-5 text-foreground",
                 className,
             )}
         >
             <div className="border-b border-border pb-4">
                 {profile.name?.trim() ? (
-                    <h2 className="text-lg font-semibold text-foreground">{profile.name.trim()}</h2>
+                    <SectionTitle>{profile.name.trim()}</SectionTitle>
                 ) : null}
                 {/* Facts wrap whole and a "·" never ends a line (FactLine); joined text ended a line on one. */}
                 <FactLine items={subtitleParts} className="mt-0.5 text-sm text-foreground" />
