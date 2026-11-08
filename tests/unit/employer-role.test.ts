@@ -15,11 +15,14 @@ import { HEADER_NOTE_PRIORITY } from "../../src/lib/jobs/list-header";
 import { suggestionLabel, suggestionsFromAnswer } from "../../src/lib/search-suggestions";
 import { EMPLOYER_OWNS_DOMAIN_SHARE, namedCompoundEmployer, ownedDomains } from "../../src/lib/jobs/company-intent";
 import {
-    buildDomainNameCountQueries,
     buildRoleTitleCheckBody,
+    domainAllKey,
+    domainNameCountsFrom,
+    domainNamedKey,
     mergeEmployerSuggestions,
+    planDomainNameCounts,
     rankOwnedRows,
-    readDomainNameCounts,
+    readDomainCountAnswers,
     titlesHoldRole,
 } from "../../src/lib/jobs/meilisearch";
 import { PRISTINE_FILTER_STATE } from "../../src/components/jobs/FilterPanel";
@@ -215,21 +218,48 @@ test("an employer the corpus knows by name below the floors is still named, with
 });
 
 test("a domain is an employer's own when most of its live rows carry the name; a board that lists one is not", () => {
-    const counts = readDomainNameCounts(
-        ["board.example", "bofa.example"],
-        [{ facetDistribution: { company_domain: { "Board.example": 1, "bofa.example": 2 } } }, { facetDistribution: { company_domain: { "board.example": 50, "bofa.example": 2 } } }],
-    );
-    assert.deepEqual([...(counts ?? [])], [["board.example", { named: 1, total: 50 }], ["bofa.example", { named: 2, total: 2 }]]);
-    assert.deepEqual(ownedDomains(["board.example", "bofa.example"], counts), ["bofa.example"]);
-    assert.equal(EMPLOYER_OWNS_DOMAIN_SHARE, 0.5);
-    // No counts (the index cannot count by domain, or the call failed): the domains stand, as before the check.
-    assert.equal(readDomainNameCounts(["a.example"], [{}]), null);
-    assert.deepEqual(ownedDomains(["a.example"], null), ["a.example"]);
-    const queries = buildDomainNameCountQueries("Bank of America", ["bofa.example"]);
-    assert.deepEqual(queries.map((q) => [q.q, q.attributesToSearchOn ?? null, q.limit, q.facets]), [
+    const ask = { name: "Bank of America", domains: ["board.example", "bofa.example"] };
+    const plan = planDomainNameCounts([ask], () => false);
+    assert.deepEqual(plan.queries.map((q) => [q.q, q.attributesToSearchOn ?? null, q.limit, q.facets]), [
         ["Bank of America", ["company"], 0, ["company_domain"]],
         ["", null, 0, ["company_domain"]],
     ]);
+    const answers = new Map(
+        readDomainCountAnswers(plan, [
+            { facetDistribution: { company_domain: { "Board.example": 1, "bofa.example": 2 } } },
+            { facetDistribution: { company_domain: { "board.example": 50, "bofa.example": 2 } } },
+        ]),
+    );
+    const counts = domainNameCountsFrom(ask, (key) => answers.get(key));
+    assert.deepEqual([...(counts ?? [])], [["board.example", { named: 1, total: 50 }], ["bofa.example", { named: 2, total: 2 }]]);
+    assert.deepEqual(ownedDomains(ask.domains, counts), ["bofa.example"]);
+    assert.equal(EMPLOYER_OWNS_DOMAIN_SHARE, 0.5);
+    // No counts (the index cannot count by domain, or the call failed): the domains stand, as before the check.
+    assert.deepEqual(readDomainCountAnswers(plan, [{}, undefined]), []);
+    assert.equal(domainNameCountsFrom(ask, () => undefined), null);
+    assert.deepEqual(ownedDomains(["a.example"], null), ["a.example"]);
+});
+
+test("one keystroke's ownership counts go in one request, and a count already known is not asked again", () => {
+    // Release 75 sent two searches per employer name, each name in a request of its own, after the employer searches.
+    const asks = [
+        { name: "Bank of America", domains: ["bofa.example", "board.example"] },
+        { name: "Bank of Montreal", domains: ["bmo.example", "board.example"] },
+    ];
+    const cold = planDomainNameCounts(asks, () => false);
+    assert.equal(cold.queries.length, 3, "a named count per name, then one count of all rows shared by both");
+    assert.deepEqual(cold.keys[2].map((k) => k.domain), ["bofa.example", "board.example", "bmo.example"]);
+    // The next keystroke ("bank of a") brings the same employers back: nothing left to ask.
+    const known = new Set(cold.keys.flat().map((k) => k.key));
+    assert.deepEqual(planDomainNameCounts(asks, (key) => known.has(key)).queries, []);
+    // A new domain for a known name asks only for that domain.
+    const more = planDomainNameCounts([{ name: "Bank of America", domains: ["bofa.example", "bofa2.example"] }], (key) => known.has(key));
+    assert.deepEqual(more.keys, [
+        [{ domain: "bofa2.example", key: domainNamedKey("Bank of America", "bofa2.example") }],
+        [{ domain: "bofa2.example", key: domainAllKey("bofa2.example") }],
+    ]);
+    // A legal suffix does not make a second name.
+    assert.equal(domainNamedKey("Bank of America Corp", "BofA.example"), domainNamedKey("bank of america", "bofa.example"));
 });
 
 test("the box lists an employer once, on the domain it owns best, and never on a domain it does not own", () => {

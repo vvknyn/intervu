@@ -5,6 +5,7 @@ import type { TrendFacetItem } from "@/lib/jobs/market-trends";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { BarRow, TrendSection } from "./TrendSection";
 import { TREND_SERIES } from "./chart-palette";
+import { rolesLabel } from "@/lib/format";
 
 interface WorkArrangementDistributionProps {
   workTypes?: TrendFacetItem[];
@@ -37,7 +38,7 @@ export function WorkArrangementDistribution({
           <div
             key={item.key}
             style={{ width: `${item.pct}%`, backgroundColor: segmentColor(i) }}
-            title={`${item.label}: ${item.pct}% (${item.count.toLocaleString()} roles)`}
+            title={`${item.label}: ${item.pct}% (${rolesLabel(item.count)})`}
           />
         ))}
       </div>

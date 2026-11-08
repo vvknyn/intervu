@@ -5,6 +5,7 @@
  */
 import { PACK_MAX_AGE_DAYS, type DeckLeftOutSummary, type ListLeftOut } from "@/lib/jobs/for-you/band-order";
 import { languageLabel } from "@/lib/match/posting-language";
+import { rolesLabel } from "@/lib/format";
 
 const REASON_TEXT: Record<ListLeftOut, string> = {
     level: "above your level",
@@ -52,8 +53,8 @@ export function leftOutParts(summary: DeckLeftOutSummary): string[] {
 function readOfFound(summary: DeckLeftOutSummary): string {
     const read = summary.considered.toLocaleString();
     return summary.found != null && summary.found > summary.considered
-        ? `the first ${read} of ${summary.found.toLocaleString()} roles found`
-        : `the ${read} roles found`;
+        ? `the first ${read} of ${rolesLabel(summary.found)} found`
+        : `the ${rolesLabel(summary.considered, read)} found`;
 }
 
 /** The roles left out and why, or null when the list left none out: the same words on the hub and at the foot of the deck. */

@@ -1840,48 +1840,138 @@ export function titlesHoldRole(titles: readonly string[], roleQ: string): boolea
 }
 
 /**
- * Pure: the two counts behind `ownedDomains` (company-intent.ts), as one
- * `/multi-search`: each domain's live rows whose employer name holds `name`'s
- * words, and each domain's live rows in all, counted by `company_domain`.
+ * Live-row counts behind `ownedDomains` (company-intent.ts), the same for
+ * everyone, kept 10 minutes like the employer-name answers: a domain's rows
+ * that carry an employer's name (`domainNamedKey`), and its rows in all
+ * (`domainAllKey`). The type-ahead asks them on every keystroke, and the
+ * same employers come back keystroke after keystroke ("bank o", "bank of",
+ * "bank of a"); release 75's live check timed "bank of america" at 0.82 s
+ * to 1.28 s against 0.44 s before the counts.
  */
-export function buildDomainNameCountQueries(name: string, domains: readonly string[]): Array<Record<string, unknown>> {
-  const filter = buildFilter({ companyDomains: [...domains] });
-  const counts = { indexUid: JOBS_INDEX, limit: 0, filter, facets: ["company_domain"] };
-  return [
-    { ...counts, q: name.trim(), matchingStrategy: "all", attributesToSearchOn: ["company"] },
-    { ...counts, q: "" },
-  ];
+const DOMAIN_COUNT_TTL_MS = 10 * 60_000;
+const DOMAIN_COUNT_CACHE_MAX = 4000;
+const domainCountCache = new Map<string, { n: number; atMs: number }>();
+
+export function resetDomainCountCacheForTests(): void {
+  domainCountCache.clear();
 }
 
-/** Pure: `buildDomainNameCountQueries`' answers as counts per domain; null when either is missing. */
-export function readDomainNameCounts(
-  domains: readonly string[],
-  results: ReadonlyArray<{ facetDistribution?: Record<string, Record<string, number>> } | undefined>,
-): DomainNameCounts | null {
-  const [named, all] = results.map((r) => r?.facetDistribution?.company_domain);
-  if (!named || !all) return null;
-  const lower = (m: Record<string, number>) => new Map(Object.entries(m).map(([d, n]) => [d.trim().toLowerCase(), n]));
-  const namedBy = lower(named);
-  const allBy = lower(all);
-  return new Map(domains.map((d) => [d, { named: namedBy.get(d) ?? 0, total: allBy.get(d) ?? 0 }]));
+export const domainNamedKey = (name: string, domain: string): string =>
+  `named:${companyNameStem(name)}|${domain.trim().toLowerCase()}`;
+export const domainAllKey = (domain: string): string => `all:${domain.trim().toLowerCase()}`;
+
+function cachedDomainCount(key: string): number | undefined {
+  const hit = domainCountCache.get(key);
+  return hit && Date.now() - hit.atMs < DOMAIN_COUNT_TTL_MS ? hit.n : undefined;
 }
 
-/** Counts per domain for `ownedDomains`; null (fail open) when the index cannot count by domain or the call fails. */
-async function probeDomainNameCounts(h: string, name: string, domains: readonly string[]): Promise<DomainNameCounts | null> {
-  if (domains.length === 0 || companyDomainFilterUnsupported) return null;
-  try {
-    const res = await meiliFetch(`${h}/multi-search`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
-      cache: "no-store",
-      body: JSON.stringify({ queries: buildDomainNameCountQueries(name, domains) }),
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { results?: Array<{ facetDistribution?: Record<string, Record<string, number>> }> };
-    return readDomainNameCounts(domains, body.results ?? []);
-  } catch {
-    return null;
+function rememberDomainCount(key: string, n: number): void {
+  domainCountCache.delete(key);
+  if (domainCountCache.size >= DOMAIN_COUNT_CACHE_MAX) {
+    const oldest = domainCountCache.keys().next().value;
+    if (oldest !== undefined) domainCountCache.delete(oldest);
   }
+  domainCountCache.set(key, { n, atMs: Date.now() });
+}
+
+/** One employer name and the domains its rows sit on, whose ownership is asked. */
+export interface DomainCountAsk {
+  name: string;
+  domains: readonly string[];
+}
+
+/** The searches one ownership check sends, and the count key each answer's domains go under. */
+export interface DomainCountPlan {
+  queries: Array<Record<string, unknown>>;
+  keys: Array<Array<{ domain: string; key: string }>>;
+}
+
+const domainCountQuery = (domains: readonly string[]) => ({
+  indexUid: JOBS_INDEX,
+  limit: 0,
+  filter: buildFilter({ companyDomains: [...domains] }),
+  facets: ["company_domain"],
+});
+
+/**
+ * Pure: every count several names' ownership needs that `known` does not
+ * hold, as ONE `/multi-search`: per name, its domains' rows whose employer
+ * name holds the name's words; then one count of all rows for every domain
+ * not yet counted, shared by every name. Release 75 sent two searches per
+ * name in a request of its own, after the employer searches came back.
+ */
+export function planDomainNameCounts(asks: readonly DomainCountAsk[], known: (key: string) => boolean): DomainCountPlan {
+  const queries: DomainCountPlan["queries"] = [];
+  const keys: DomainCountPlan["keys"] = [];
+  const uncounted = new Set<string>();
+  for (const ask of asks) {
+    const domains = [...new Set(ask.domains.map((d) => d.trim().toLowerCase()).filter(Boolean))];
+    const unnamed = domains.filter((d) => !known(domainNamedKey(ask.name, d)));
+    if (unnamed.length > 0) {
+      queries.push({ ...domainCountQuery(unnamed), q: ask.name.trim(), matchingStrategy: "all", attributesToSearchOn: ["company"] });
+      keys.push(unnamed.map((d) => ({ domain: d, key: domainNamedKey(ask.name, d) })));
+    }
+    for (const d of domains) if (!known(domainAllKey(d))) uncounted.add(d);
+  }
+  if (uncounted.size > 0) {
+    const domains = [...uncounted];
+    queries.push({ ...domainCountQuery(domains), q: "" });
+    keys.push(domains.map((d) => ({ domain: d, key: domainAllKey(d) })));
+  }
+  return { queries, keys };
+}
+
+/** Pure: a plan's answers as count key → count. A domain the counts leave out has no such rows; an answer with no counts (a failed one) gives none. */
+export function readDomainCountAnswers(
+  plan: DomainCountPlan,
+  results: ReadonlyArray<{ facetDistribution?: Record<string, Record<string, number>> } | undefined>,
+): Array<[string, number]> {
+  return plan.keys.flatMap((keys, i) => {
+    const facet = results[i]?.facetDistribution?.company_domain;
+    if (!facet) return [];
+    const by = new Map(Object.entries(facet).map(([d, n]) => [d.trim().toLowerCase(), n]));
+    return keys.map(({ domain, key }): [string, number] => [key, by.get(domain) ?? 0]);
+  });
+}
+
+/** Pure: one name's counts per domain from `count` (key → count); null (fail open) when any is missing. */
+export function domainNameCountsFrom(ask: DomainCountAsk, count: (key: string) => number | undefined): DomainNameCounts | null {
+  if (ask.domains.length === 0) return null;
+  const out = new Map<string, { named: number; total: number }>();
+  for (const d of ask.domains) {
+    const named = count(domainNamedKey(ask.name, d));
+    const total = count(domainAllKey(d));
+    if (named === undefined || total === undefined) return null;
+    out.set(d, { named, total });
+  }
+  return out;
+}
+
+/** Counts per domain for `ownedDomains`, for every name at once; null for a name (fail open) when the index cannot count by domain or the call fails. */
+async function probeDomainNameCountsFor(h: string, asks: readonly DomainCountAsk[]): Promise<Array<DomainNameCounts | null>> {
+  if (companyDomainFilterUnsupported) return asks.map(() => null);
+  const plan = planDomainNameCounts(asks, (key) => cachedDomainCount(key) !== undefined);
+  if (plan.queries.length > 0) {
+    try {
+      const res = await meiliFetch(`${h}/multi-search`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+        cache: "no-store",
+        body: JSON.stringify({ queries: plan.queries }),
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { results?: Array<{ facetDistribution?: Record<string, Record<string, number>> }> };
+        for (const [key, n] of readDomainCountAnswers(plan, body.results ?? [])) rememberDomainCount(key, n);
+      }
+    } catch {
+      // A count that did not come back is missing below: that name's domains stand.
+    }
+  }
+  return asks.map((ask) => domainNameCountsFrom(ask, cachedDomainCount));
+}
+
+async function probeDomainNameCounts(h: string, name: string, domains: readonly string[]): Promise<DomainNameCounts | null> {
+  return (await probeDomainNameCountsFor(h, [{ name, domains }]))[0];
 }
 
 export function pageRoleTitleHits(ranked: PublicJob[], offset: number, limit: number): PublicJob[] {
@@ -3177,7 +3267,8 @@ interface EmployerRowOwnership {
 
 /**
  * Which employer rows sit on a domain their employer owns (`ownedDomains`):
- * one count per employer name, asked at once. A row past the first
+ * every name's counts in one request, none for a count asked in the last
+ * 10 minutes (`probeDomainNameCountsFor`). A row past the first
  * `EMPLOYER_OWNERSHIP_ROWS`, or any row when a count failed, is kept, as
  * before the check.
  */
@@ -3190,10 +3281,9 @@ async function employerRowOwnership(h: string, rows: readonly EmployerSuggestion
     if (!entry.domains.includes(row.domain)) entry.domains.push(row.domain);
     byName.set(key, entry);
   }
-  const counts = new Map<string, DomainNameCounts | null>();
-  await Promise.all(
-    [...byName].map(async ([key, { name, domains }]) => counts.set(key, await probeDomainNameCounts(h, name, domains))),
-  );
+  const names = [...byName];
+  const answered = await probeDomainNameCountsFor(h, names.map(([, ask]) => ask));
+  const counts = new Map<string, DomainNameCounts | null>(names.map(([key], i) => [key, answered[i]]));
   const countsFor = (row: EmployerSuggestion) => counts.get(normalizeCompanyName(row.name));
   return {
     owns: (row) => {
@@ -3238,10 +3328,20 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
   const query = q.trim();
   const h = host();
   if (!h || !query) return EMPTY_SUGGESTIONS;
-  // The Companies section's own searches run beside the title search, so it costs no extra wait.
-  const employerAnswers = Promise.all(
+  // The Companies section (its employer searches, then whether each employer owns the domain
+  // its row sits on) runs beside the title search, so it waits only when it is the slower half.
+  const employerSection = Promise.all(
     employerSuggestQueries(query).map(({ companyQ, role }) => fetchEmployerSuggestions(h, companyQ, role)),
-  );
+  )
+    .then(async (answers) => {
+      const ownership = await employerRowOwnership(h, answers.flat());
+      return mergeEmployerSuggestions(
+        query,
+        answers.map((rows) => rankOwnedRows(rows, ownership)),
+        (row) => ownership.owns(row),
+      );
+    })
+    .catch(() => ({ employers: [] as EmployerSuggestion[], employersFirst: false }));
   try {
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
       method: "POST",
@@ -3254,13 +3354,7 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
       : { hits: [] };
     const suggestions = dedupeJobSuggestionHits(body.hits ?? [], query);
     const related = relatedSuggestions(query, suggestions.titles);
-    const answers = await employerAnswers;
-    const ownership = await employerRowOwnership(h, answers.flat());
-    const { employers, employersFirst } = mergeEmployerSuggestions(
-      query,
-      answers.map((rows) => rankOwnedRows(rows, ownership)),
-      (row) => ownership.owns(row),
-    );
+    const { employers, employersFirst } = await employerSection;
     return {
       ...suggestions,
       ...(related.length > 0 && { related }),

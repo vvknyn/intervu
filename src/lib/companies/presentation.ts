@@ -21,7 +21,7 @@ import { STALE_CLEAR_META, formatSalaryAmount, isAnnualSalaryPeriod, normalizeSa
 import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
-import { formatCount } from "@/lib/format";
+import { formatCount, rolesLabel } from "@/lib/format";
 import { STATUS_FILL } from "@/lib/ui/status-tokens";
 import { hiringFreshness, newestCheckAt, type HiringFreshness } from "@/lib/companies/freshness";
 
@@ -399,7 +399,7 @@ export function roleCountLabel(a: {
 }): string {
   if (!a.hasQuery) return `${formatCount(a.displayed)} of ${a.openCountLabel} shown`;
   if (a.windowSize != null) {
-    return `${formatCount(a.matched)} of the ${formatCount(a.windowSize)} roles listed here ${a.matched === 1 ? "matches" : "match"}`;
+    return `${formatCount(a.matched)} of the ${rolesLabel(a.windowSize)} listed here ${a.matched === 1 ? "matches" : "match"}`;
   }
   if (a.displayed === a.matched) return `${formatCount(a.matched)} match${a.matched === 1 ? "" : "es"}`;
   return `${formatCount(a.displayed)} of ${formatCount(a.matched)} matches shown`;

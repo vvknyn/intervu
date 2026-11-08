@@ -423,7 +423,7 @@ test("a board search with zero results offers to broaden, each option with its c
   await page.goto("/jobs?q=engineer&country=Iceland&exp=entry&posted=1d");
   const broaden = page.getByTestId("broaden-options");
   await expect(broaden).toBeVisible({ timeout: 30_000 });
-  await expect(broaden.getByRole("button").first()).toContainText(/\d[\d,]* roles/);
+  await expect(broaden.getByRole("button").first()).toContainText(/\d[\d,]* roles?\b/);
   await broaden.getByRole("button").first().click();
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   expect(diagnostics.serverErrors).toEqual([]);

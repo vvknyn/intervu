@@ -349,6 +349,7 @@ import {
 import { decideSaveAttempt } from "@/lib/auth/guest-save-gate";
 import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
 import { PageTitle, SubTitle } from "@/components/ui/heading";
+import { rolesLabel } from "@/lib/format";
 
 /**
  * Every search-action call on this page goes through this one
@@ -860,7 +861,7 @@ function EmptyResults({
                     onClick={onRevealGhosts}
                     className="mt-2 w-full text-center text-xs text-foreground text-link"
                 >
-                    {ghostRevealCount.toLocaleString()} roles hidden as possibly stale — show them
+                    {rolesLabel(ghostRevealCount)} hidden as possibly stale — show them
                 </button>
             )}
             {/* A3 — same component, same `submitSearch` chokepoint, same
@@ -6279,7 +6280,7 @@ export function JobsContent({
                                                 Elite matches
                                                 <span className="ml-2 text-xs font-normal text-[color:var(--elite-muted)]">
                                                     {result?.total != null
-                                                        ? `${formatCorpusCount(totalCount)} roles · board allowlist`
+                                                        ? `${rolesLabel(totalCount.value, formatCorpusCount(totalCount))} · board allowlist`
                                                         : "board allowlist"}
                                                 </span>
                                             </h2>

@@ -74,7 +74,7 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateEntry> = {
     company: { title: "Open the full hiring record", line: "It's free: how this employer's postings close and what their hiring runs on, plus alerts and a tracker." },
     depth: {
         title: "See every result",
-        titleWithCount: (hidden) => `See the other ${hidden} roles that match`,
+        titleWithCount: (hidden) => (hidden === "1" ? "See the other role that matches" : `See the other ${hidden} roles that match`),
         line: "It's free, and it also gets you saved searches and email alerts.",
     },
 };
