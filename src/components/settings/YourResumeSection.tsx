@@ -32,6 +32,7 @@ import type { ResumeData } from "@/types/resume";
 import { LOCKED_RESUME_DETAIL, LOCKED_RESUME_TITLE } from "@/lib/resume/locked-copy";
 import { KEPT_ON_DEVICE_MESSAGE, PRICING_HREF, failureOf, isPaymentRequired, toastFailure, toastKeptOnDevice } from "@/lib/resume/payment-required";
 
+import { SubTitle } from "@/components/ui/heading";
 interface YourResumeSectionProps {
     user: User | null;
     onLoginClick: () => void;
@@ -332,7 +333,7 @@ function ResumeSummaryBody({
                     <LockSimple size={24} />
                 </div>
                 <div className="space-y-1 max-w-sm mx-auto">
-                    <h3 className="text-sm font-semibold text-foreground">{LOCKED_RESUME_TITLE}</h3>
+                    <SubTitle>{LOCKED_RESUME_TITLE}</SubTitle>
                     <p className="text-xs text-muted-foreground">{LOCKED_RESUME_DETAIL}</p>
                     {updatedLabel && <p className="text-xs text-muted-foreground">Saved {updatedLabel}</p>}
                 </div>
@@ -361,7 +362,7 @@ function ResumeSummaryBody({
                     <FileText size={24} />
                 </div>
                 <div className="space-y-1 max-w-sm mx-auto">
-                    <h3 className="text-sm font-semibold text-foreground">No resume on file</h3>
+                    <SubTitle>No resume on file</SubTitle>
                     <p className="text-xs text-muted-foreground">
                         Edit the standard template in your browser, or upload an existing PDF or Word file. A file is read in your browser; saving it to your account needs a paid month.
                     </p>

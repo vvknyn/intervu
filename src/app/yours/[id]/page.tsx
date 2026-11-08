@@ -51,6 +51,7 @@ import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { FactLine } from "@/components/ui/fact-line";
 
+import { GroupLabel, SubTitle } from "@/components/ui/heading";
 const savedDay = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 
@@ -186,7 +187,7 @@ function InterviewDateField({
                     type="date"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    className="ctl-lg w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
+                    className="w-auto"
                 />
                 <Button disabled={disabled || !value || value === initial} onClick={() => onSave(value)} className="gap-2">
                     <CalendarBlank size={16} />
@@ -532,7 +533,7 @@ export default function PursuitDetailPage() {
                     className="space-y-5 rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]"
                 >
                     <div data-testid="pursuit-stage">
-                        <h2 className="mb-1.5 text-xs text-muted-foreground">Status</h2>
+                        <GroupLabel as="h2" className="mb-1.5">Status</GroupLabel>
                         <PursuitStatusPicker status={pursuit.status} disabled={saving} onChange={(status) => void changeStatus(status)} />
                         <FactLine data-testid="pursuit-dates" items={pursuitDateFacts(pursuit, nowMs)} className="mt-2 text-sm text-muted-foreground" />
                         {/* Honest about a dead listing (spec §7): the snapshot carries the
@@ -607,9 +608,9 @@ export default function PursuitDetailPage() {
                         aria-labelledby="pursuit-about"
                         className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]"
                     >
-                        <h2 id="pursuit-about" className="mb-3 text-xs font-semibold">
+                        <SubTitle as="h2" id="pursuit-about" className="mb-3">
                             About this role
-                        </h2>
+                        </SubTitle>
                         <div data-testid="pursuit-description" className={READING_MEASURE}>
                             <FormattedJobDescription description={snapshot?.description} headingLevel={3} />
                         </div>

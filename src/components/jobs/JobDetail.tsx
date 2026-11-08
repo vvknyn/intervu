@@ -81,6 +81,7 @@ import { FactLine } from "@/components/ui/fact-line";
  *  layout hook); re-exported for the callers that import it from here. */
 export { JobDescription } from "@/components/jobs/JobDescription";
 
+import { SubTitle } from "@/components/ui/heading";
 // MetaLine / KpiStat / PostingCheckSignalsGrid live in job-detail-primitives.tsx
 // so list rows can use them without pulling this file (and its PDF export
 // chain) into the first-load bundle. Re-exported for existing importers.
@@ -118,7 +119,7 @@ export function PostingCheckHeader({
                 {/* The "N/M favorable · N not tracked" counts that sat here
                     are the chips under this row now (PostingCheckSummary). */}
                 <div className="text-sm">
-                    <HeadingTag className="inline font-semibold text-foreground">Posting check</HeadingTag>
+                    <SubTitle as={HeadingTag} className="inline">Posting check</SubTitle>
                 </div>
                 <div className="flex items-center justify-between gap-2 @min-[480px]:justify-end">
                     {/* Verdict as a plain colored WORD, not a bordered/bg pill
@@ -416,7 +417,7 @@ export function RelatedJobsSection({
     if (jobs.length === 0) return null;
     return (
         <div data-testid="job-detail-related" className="py-4">
-            <Heading className="mb-2 text-sm font-semibold text-foreground">{relatedJobsHeading(basis, companyBrand)}</Heading>
+            <SubTitle as={Heading} className="mb-2">{relatedJobsHeading(basis, companyBrand)}</SubTitle>
             {/* -mx-4 undoes the pane's and the page column's 16px inset so
                 each row's hover band runs edge to edge (RelatedJobRow). */}
             <div className="-mx-4">
@@ -828,7 +829,7 @@ export function JobDetail({
                 {/* Title row */}
                 <div className="px-4 pb-3 pt-3 sm:px-6">
                     {/* page-scale-allow: a job's title heads its detail pane at the page-title step; the h1 is the list masthead */}
-                    <h2 className="font-display text-2xl font-semibold leading-tight text-balance text-foreground">{jobTitle}</h2>
+                    <h2 className="text-2xl font-semibold leading-snug text-balance text-foreground">{jobTitle}</h2>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -1110,7 +1111,7 @@ export function JobDetail({
                     32px of space (no rule) — no card/panel
                     per section. Body copy sits at the READING_MEASURE. */}
                 <div className="py-4">
-                    <h3 className="mb-2 text-sm font-semibold text-foreground">About this role</h3>
+                    <SubTitle className="mb-2">About this role</SubTitle>
                     {(() => {
                         // The employer's-site-is-slow note — shared by the "body" case
                         // (teaser stub still showing while the fill runs) and the

@@ -15,7 +15,7 @@
  * failure is invisible unless something asks for it on purpose.
  */
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
-import { PageTitle } from "@/components/ui/heading";
+import { GroupLabel, PageTitle } from "@/components/ui/heading";
 
 function Case({ title, note, children }: { title: string; note: string; children: React.ReactNode }) {
     return (
@@ -23,7 +23,7 @@ function Case({ title, note, children }: { title: string; note: string; children
             {/* Not font-mono: tests/unit/typography-mono.test.ts reserves
                 monospace for <code>, and a fixture must not be the thing that
                 grows that list. */}
-            <h2 className="text-xs font-semibold text-muted-foreground">{title}</h2>
+            <GroupLabel as="h2">{title}</GroupLabel>
             <p className="mt-1 mb-4 text-xs text-muted-foreground">{note}</p>
             <div className="border-t border-dashed border-border pt-4">{children}</div>
         </section>

@@ -442,7 +442,6 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
-                                        className="bg-surface-2 shadow-[var(--shadow-bevel-inset)]"
                                     />
                                 </Field>
                             )}
@@ -458,7 +457,6 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
-                                    className="bg-surface-2 shadow-[var(--shadow-bevel-inset)]"
                                 />
                             </Field>}
                             <Field label="Password" htmlFor="password">
@@ -473,7 +471,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
-                                        className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
+                                        className="pr-14"
                                     />
                                     <button
                                         type="button"

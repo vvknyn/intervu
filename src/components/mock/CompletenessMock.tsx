@@ -48,7 +48,7 @@ import {
 } from "@/lib/pursuits/tracker-display";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { cn } from "@/lib/utils";
-import { PageTitle } from "@/components/ui/heading";
+import { GroupLabel, PageTitle } from "@/components/ui/heading";
 import { openApplyUrl } from "@/components/jobs/use-gated-apply";
 
 // A frozen fixture value, deliberately a literal: this mock exists to render a
@@ -552,12 +552,9 @@ function MockJobDetail({
                             {blocks.map((b, i) => {
                                 if (b.type === "heading") {
                                     return (
-                                        <h4
-                                            key={i}
-                                            className="mb-1.5 mt-4 text-xs font-semibold text-foreground first:mt-0"
-                                        >
+                                        <GroupLabel as="h4" key={i} className="mb-1.5 mt-4 first:mt-0">
                                             {b.text}
-                                        </h4>
+                                        </GroupLabel>
                                     );
                                 }
                                 if (b.type === "list") {

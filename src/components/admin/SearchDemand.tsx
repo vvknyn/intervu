@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { ContextHelp } from "@/components/ui/context-help";
 import { InlineSpinner, WaitBar } from "@/components/ui/wait-state";
 
+import { GroupLabel, SubTitle } from "@/components/ui/heading";
 /**
  * /admin's "Search demand": what people search for, what finds nothing or
  * too little, and which places and employers come up empty, read from the
@@ -30,10 +31,10 @@ interface ListProps<T> {
 function DemandList<T>({ title, note, items, testId, row }: ListProps<T>) {
     return (
         <section data-testid={testId} className="min-w-0">
-            <h4 className="mb-2 flex items-center text-xs font-semibold text-muted-foreground">
+            <GroupLabel as="h4" className="mb-2 flex items-center">
                 {title}
                 <ContextHelp content={note} />
-            </h4>
+            </GroupLabel>
             {items.length === 0 ? (
                 <p className="text-xs text-muted-foreground">None in this window.</p>
             ) : (
@@ -98,7 +99,7 @@ export function SearchDemand() {
     return (
         <Card className="gap-4 p-4 sm:p-6" data-testid="search-demand">
             <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold">
+                <SubTitle>
                     Search demand
                     {demand && (
                         <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -106,7 +107,7 @@ export function SearchDemand() {
                             {demand.truncated ? " (latest only)" : ""} · {demand.noneShare}% found nothing · {demand.fewShare}% under {thin}
                         </span>
                     )}
-                </h3>
+                </SubTitle>
                 <Button variant="outline" size="sm" className="gap-2" onClick={refresh} disabled={isLoading}>
                     {isLoading ? <InlineSpinner /> : <ArrowsClockwise />}
                     Refresh

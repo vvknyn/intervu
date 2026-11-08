@@ -21,7 +21,7 @@ import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-ha
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { CONNECT_FAQ_NO_MCP_NEEDED, CONNECT_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
-import { PageEyebrow, PageLead, PageTitle } from "@/components/ui/heading";
+import { GroupLabel, PageEyebrow, PageLead, PageTitle, SubTitle } from "@/components/ui/heading";
 import { READING_MEASURE } from "@/components/ui/prose";
 import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS, CONNECT_SAMPLE_PROMPTS } from "@/lib/agent/permissions-copy";
 
@@ -161,15 +161,15 @@ export function ConnectClient({
           <ol className="space-y-5">
             {!signedIn && (
               <li data-testid="connect-signin-step" className="flex gap-4">
-                <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">1.</span>
+                <span className="w-5 shrink-0 text-base font-semibold leading-snug text-muted-foreground">1.</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    {/* signup-gate-exempt: agent-connect card, the sign-in is the page's only step */}<h3 className="text-xs font-semibold text-foreground">Sign in to velai</h3>
+                    {/* signup-gate-exempt: agent-connect card, the sign-in is the page's only step */}<SubTitle>Sign in to velai</SubTitle>
                     <Button asChild size="sm" className="shrink-0">
                       {/* signup-gate-exempt: agent-connect card, the sign-in is the page's only step */}<a href={`/login?next=${encodeURIComponent("/connect")}`}>{AUTH_CTA_LABEL}</a>
                     </Button>
                   </div>
-                  <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Your AI connects as you, so it needs an account to connect to. We&apos;ll bring you
                     right back here.
                   </p>
@@ -178,9 +178,9 @@ export function ConnectClient({
             )}
 
             <li className="flex gap-4">
-              <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">{signedIn ? "1." : "2."}</span>
+              <span className="w-5 shrink-0 text-base font-semibold leading-snug text-muted-foreground">{signedIn ? "1." : "2."}</span>
               <div className="min-w-0 flex-1">
-                <h3 className="text-xs font-semibold text-foreground">Copy the endpoint</h3>
+                <SubTitle>Copy the endpoint</SubTitle>
                 <div className="mt-2">
                   <CopyCommand command={mcpUrl} label="MCP endpoint" />
                 </div>
@@ -188,10 +188,10 @@ export function ConnectClient({
             </li>
 
             <li className="flex gap-4">
-              <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">{signedIn ? "2." : "3."}</span>
+              <span className="w-5 shrink-0 text-base font-semibold leading-snug text-muted-foreground">{signedIn ? "2." : "3."}</span>
               <div className="min-w-0 flex-1 space-y-3">
-                <h3 className="text-xs font-semibold text-foreground">Paste it into your AI client</h3>
-                <p className="text-xs text-muted-foreground">Pick your client for its exact steps.</p>
+                <SubTitle>Paste it into your AI client</SubTitle>
+                <p className="text-sm text-muted-foreground">Pick your client for its exact steps.</p>
 
                 <Tabs
                   value={selectedClient}
@@ -211,9 +211,9 @@ export function ConnectClient({
                   {/* Wraps: on a 320px phone the heading squeezed to four
                       lines beside the Open button. */}
                   <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                    <h4 className="text-xs font-semibold text-foreground">
+                    <GroupLabel as="h4">
                       {currentInstruction.title} Setup
-                    </h4>
+                    </GroupLabel>
                     {currentMeta.openUrl && (
                       <Button asChild size="xs" variant="ghost" className="gap-1">
                         <a href={currentMeta.openUrl} target="_blank" rel="noopener noreferrer">

@@ -30,6 +30,7 @@ import {
     X,
 } from "@phosphor-icons/react";
 
+import { GroupLabel, SubTitle } from "@/components/ui/heading";
 interface EditingPanelProps {
     selectedSection: string | null;
     data: ResumeData;
@@ -115,9 +116,9 @@ function SectionHeader({ section, nav }: { section: NavigableSection; nav: Secti
                     <Icon size={16} />
                 </div>
                 <div>
-                    <h2 className="text-sm font-semibold text-foreground sm:text-base">
+                    <SubTitle as="h2">
                         {config.title}
-                    </h2>
+                    </SubTitle>
                     <p className="text-xs text-muted-foreground">{config.subtitle}</p>
                 </div>
             </div>
@@ -247,9 +248,9 @@ export function EditingPanel({
         return (
             <div className="h-full space-y-6 overflow-y-auto p-4 sm:p-6">
                 <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground">
+                    <GroupLabel>
                         Resume Sections
-                    </h3>
+                    </GroupLabel>
                     <p className="mt-1 text-xs text-muted-foreground">
                         Click any section below or directly on the live template preview to edit.
                     </p>
@@ -288,7 +289,7 @@ export function EditingPanel({
                         <div className="flex items-center justify-between border-b border-border pb-2">
                             <div className="flex items-center gap-2">
                                 <Sparkle size={16} className="text-muted-foreground" />
-                                <h4 className="text-xs font-semibold text-foreground">Writing &amp; Impact Check</h4>
+                                <GroupLabel as="h4">Writing &amp; Impact Check</GroupLabel>
                             </div>
                             {diagnostics.tightenableCount > 0 && (
                                 <button
@@ -343,7 +344,7 @@ export function EditingPanel({
                     <div className="flex items-center justify-between border-b border-border pb-2">
                         <div className="flex items-center gap-2">
                             <ListNumbers size={16} className="text-muted-foreground" />
-                            <h4 className="text-xs font-semibold text-foreground">Section Order</h4>
+                            <GroupLabel as="h4">Section Order</GroupLabel>
                         </div>
                         {isCustomOrder && (
                             <button
