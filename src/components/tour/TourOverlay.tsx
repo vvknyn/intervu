@@ -11,6 +11,7 @@ import {
   maxCardHeight,
 } from "@/components/tour/tour-card-position";
 
+import { SubTitle } from "@/components/ui/heading";
 export function TourOverlay() {
   const {
     isActive,
@@ -184,7 +185,7 @@ export function TourOverlay() {
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
-            <h3 className="shrink-0 text-sm font-semibold mb-1">{step.title}</h3>
+            <SubTitle className="shrink-0 mb-1">{step.title}</SubTitle>
             <p className="min-h-0 flex-1 overflow-y-auto text-xs text-muted-foreground leading-relaxed">
               {step.description}
             </p>

@@ -56,7 +56,7 @@ import type { Pursuit } from "@/lib/pursuits/types";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
-import { PageTitle } from "@/components/ui/heading";
+import { PageTitle, SubTitle } from "@/components/ui/heading";
 import { FactLine } from "@/components/ui/fact-line";
 
 /** The employer rail — live open-role count, opened/closed 90d, and a
@@ -526,7 +526,7 @@ export function JobDetailDocument({
 
     const postingEl = (
         <div data-testid="job-detail-posting" className="py-4">
-            <h2 className="mb-2 text-sm font-semibold text-foreground">About this role</h2>
+            <SubTitle as="h2" className="mb-2">About this role</SubTitle>
             {blocks.length > 0 ? (
                 <div className={READING_MEASURE}>
                     <FormattedJobDescription description={job.description} headingLevel={3} />

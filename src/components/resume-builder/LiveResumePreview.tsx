@@ -220,6 +220,7 @@ export function LiveResumePreview({
         const changeStatus = getChangeStatus("summary");
         return (
             <SectionWrapper id="summary" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
+                {/* page-scale-allow: the résumé paper's own section heading (it prints as the PDF), not the app's type */}
                 <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Professional Summary
                 </h2>
@@ -242,6 +243,7 @@ export function LiveResumePreview({
         const changeStatus = getChangeStatus("skills");
         return (
             <SectionWrapper id="skills" className="mb-2.5" changeStatus={changeStatus} ctx={ctx}>
+                {/* page-scale-allow: the résumé paper's own section heading (it prints as the PDF), not the app's type */}
                 <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Core Competencies
                 </h2>
@@ -268,6 +270,7 @@ export function LiveResumePreview({
         if (!hasExp && !onEdit && removedExperiences.length === 0) return null;
         return (
             <SectionWrapper id="experience" className="mb-2.5" ctx={ctx}>
+                {/* page-scale-allow: the résumé paper's own section heading (it prints as the PDF), not the app's type */}
                 <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Professional Experience
                 </h2>
@@ -365,6 +368,7 @@ export function LiveResumePreview({
         if (!hasEdu && !onEdit && removedEducations.length === 0) return null;
         return (
             <SectionWrapper id="education" className="mb-2.5" ctx={ctx}>
+                {/* page-scale-allow: the résumé paper's own section heading (it prints as the PDF), not the app's type */}
                 <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Education & Professional Development
                 </h2>
@@ -444,6 +448,7 @@ export function LiveResumePreview({
         if (!hasProj && !onEdit && removedProjects.length === 0) return null;
         return (
             <SectionWrapper id="projects" className="mb-2.5" ctx={ctx}>
+                {/* page-scale-allow: the résumé paper's own section heading (it prints as the PDF), not the app's type */}
                 <h2 className="text-xs font-semibold text-center border-b border-surface-postcard-foreground pb-0.5 mb-1">
                     Projects
                 </h2>

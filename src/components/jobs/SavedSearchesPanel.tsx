@@ -247,8 +247,8 @@ export function SavedSearchesPanel({
                         }}
                         className={cn(
                             compact
-                                ? "ctl-sm min-w-[6rem] rounded-ctl border border-border bg-background px-1.5 text-xs text-foreground outline-none focus:border-brand"
-                                : "ctl-md min-w-[8rem] rounded-ctl border border-border bg-background px-2 text-base md:text-xs text-foreground outline-none focus:border-brand",
+                                ? "ctl-sm min-w-[6rem] rounded-ctl border border-border bg-card px-1.5 text-xs text-foreground outline-none focus:border-brand"
+                                : "ctl-md min-w-[8rem] rounded-ctl border border-border bg-card px-2 text-base md:text-xs text-foreground outline-none focus:border-brand",
                         )}
                         aria-label="Saved search name"
                         autoFocus

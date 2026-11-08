@@ -10,12 +10,12 @@
  * wrapper: where a build has a key and the browser can load Cloudflare's script it is the 300x65 widget.
  */
 import { SearchAlertCapture } from "@/components/jobs/SearchAlertCapture";
-import { PageTitle } from "@/components/ui/heading";
+import { GroupLabel, PageTitle } from "@/components/ui/heading";
 
 function Case({ id, title, note, children }: { id: string; title: string; note: string; children: React.ReactNode }) {
     return (
         <section data-testid={id} className="border border-border bg-card p-5">
-            <h2 className="text-xs font-semibold text-muted-foreground">{title}</h2>
+            <GroupLabel as="h2">{title}</GroupLabel>
             <p className="mt-1 mb-4 text-xs text-muted-foreground">{note}</p>
             <div className="border-t border-dashed border-border pt-4">{children}</div>
         </section>

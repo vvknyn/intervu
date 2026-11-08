@@ -13,6 +13,15 @@ import { mergeUnderstood, withEmployerUnderstood } from "../../src/lib/jobs/unde
 import { pageRowsInListOrder } from "../../src/lib/jobs/presentation";
 import { HEADER_NOTE_PRIORITY } from "../../src/lib/jobs/list-header";
 import { suggestionLabel, suggestionsFromAnswer } from "../../src/lib/search-suggestions";
+import { EMPLOYER_OWNS_DOMAIN_SHARE, namedCompoundEmployer, ownedDomains } from "../../src/lib/jobs/company-intent";
+import {
+    buildDomainNameCountQueries,
+    buildRoleTitleCheckBody,
+    mergeEmployerSuggestions,
+    rankOwnedRows,
+    readDomainNameCounts,
+    titlesHoldRole,
+} from "../../src/lib/jobs/meilisearch";
 import { PRISTINE_FILTER_STATE } from "../../src/components/jobs/FilterPanel";
 import type { EmployerRead, JobSearchResult, PublicJob } from "../../src/lib/jobs/types";
 
@@ -181,4 +190,56 @@ test("the box lists Roles, Related roles and Companies, employers first when the
     assert.equal(suggestionLabel({ text: "Shopify", type: "company", domain: "shopify.com" }), "Shopify");
     // An answer from before employers existed still lists its company names, as text searches.
     assert.deepEqual(suggestionsFromAnswer({ titles: [], companies: ["Acme"] }), [{ text: "Acme", type: "company" }]);
+});
+
+/*
+ * Release 74's live check (2026-11-08): "product manager integral ad science" listed a data scientist at a bank with
+ * no note, "bank of america" in the box listed the employer twice, and one pick filtered to a job board.
+ */
+test("the whole query's rows stand only when one of them is the role; the check is not paged", () => {
+    assert.equal(titlesHoldRole(["Senior Data Scientist", "Software Test Engineer"], "product manager"), false);
+    assert.equal(titlesHoldRole(["Senior Data Scientist", "Sr. Product Managers, Ads"], "product manager"), true);
+    assert.equal(titlesHoldRole([], "product manager"), false);
+    const body = buildRoleTitleCheckBody({ q: " product manager integral ad science ", offset: 80, limit: 20 });
+    assert.equal(body.q, "product manager integral ad science");
+    assert.equal(body.offset, 0, "every page of one list gets the same answer");
+    assert.deepEqual(body.attributesToRetrieve, ["title"]);
+    assert.equal(body.matchingStrategy, "all");
+});
+
+test("an employer the corpus knows by name below the floors is still named, with every domain its rows carry", () => {
+    const candidates = [{ roleQ: "product manager", companyQ: "bank of america" }];
+    const sample = { total: 3, companies: ["Bank of America", "Bank of America", "Territorial Bank of American Samoa"], domains: ["board.example", "bofa.example", "tbas.example"], titles: [] };
+    assert.deepEqual(namedCompoundEmployer(candidates, [sample]), { ...candidates[0], domains: ["board.example", "bofa.example"], name: "Bank of America" });
+    assert.equal(namedCompoundEmployer(candidates, [{ ...sample, companies: ["Territorial Bank of American Samoa"], domains: ["tbas.example"] }]), null);
+});
+
+test("a domain is an employer's own when most of its live rows carry the name; a board that lists one is not", () => {
+    const counts = readDomainNameCounts(
+        ["board.example", "bofa.example"],
+        [{ facetDistribution: { company_domain: { "Board.example": 1, "bofa.example": 2 } } }, { facetDistribution: { company_domain: { "board.example": 50, "bofa.example": 2 } } }],
+    );
+    assert.deepEqual([...(counts ?? [])], [["board.example", { named: 1, total: 50 }], ["bofa.example", { named: 2, total: 2 }]]);
+    assert.deepEqual(ownedDomains(["board.example", "bofa.example"], counts), ["bofa.example"]);
+    assert.equal(EMPLOYER_OWNS_DOMAIN_SHARE, 0.5);
+    // No counts (the index cannot count by domain, or the call failed): the domains stand, as before the check.
+    assert.equal(readDomainNameCounts(["a.example"], [{}]), null);
+    assert.deepEqual(ownedDomains(["a.example"], null), ["a.example"]);
+    const queries = buildDomainNameCountQueries("Bank of America", ["bofa.example"]);
+    assert.deepEqual(queries.map((q) => [q.q, q.attributesToSearchOn ?? null, q.limit, q.facets]), [
+        ["Bank of America", ["company"], 0, ["company_domain"]],
+        ["", null, 0, ["company_domain"]],
+    ]);
+});
+
+test("the box lists an employer once, on the domain it owns best, and never on a domain it does not own", () => {
+    const board = { name: "Bank of America", domain: "board.example" };
+    const own = { name: "Bank of America", domain: "bofa.example" };
+    const other = { name: "Territorial Bank of American Samoa", domain: "tbas.example" };
+    const share = (row: { domain: string }) => ({ "board.example": 0.02, "bofa.example": 1, "tbas.example": 0.9 })[row.domain] ?? 0;
+    assert.deepEqual(rankOwnedRows([board, other, own], { share }), [own, board, other]);
+    const owns = (row: { domain: string }) => share(row) >= EMPLOYER_OWNS_DOMAIN_SHARE;
+    assert.deepEqual(mergeEmployerSuggestions("bank of america", [[board, own, other]], owns).employers, [own, other]);
+    // One row per name even where both domains are owned.
+    assert.deepEqual(mergeEmployerSuggestions("bank of america", [[own, { ...own, domain: "bofa2.example" }]]).employers, [own]);
 });

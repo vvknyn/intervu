@@ -53,6 +53,17 @@ test("detector: heading — PageTitle owns the h1 size; h2–h6 stay on the scal
     // Size names come from globals.css, so a theme alias is caught by construction.
     assert.deepEqual(hits(`<h3 className="text-title-sm">x</h3>`), ["heading <h3> text-title-sm"]);
     assert.deepEqual(hits(`<h2 className="text-[18px]">x</h2>`), ["heading <h2> text-[18px]"]);
+    // 12px and 14px are not heading steps (2026-11-08: 37 headings had drifted there, in six looks of
+    // their own); the one small heading is <GroupLabel>, which owns its size like the others.
+    assert.deepEqual(hits(`<h3 className="text-sm font-semibold text-foreground">Pay</h3>`), ["heading <h3> text-sm"]);
+    assert.deepEqual(hits(`<h4 className="text-xs font-semibold">Section Order</h4>`), ["heading <h4> text-xs"]);
+    assert.deepEqual(hits(`<GroupLabel className="text-sm">Status</GroupLabel>`), ["heading <GroupLabel> text-sm"]);
+    assert.deepEqual(hits(`<SubTitle as="h4" className="sm:text-xl">x</SubTitle>`), ["heading <SubTitle> sm:text-xl"]);
+    // A heading drawn through a variable tag is still an h2–h6 (the job pane's "Posting check" and
+    // "More like this" were 14px this way, found by J-NAV-50).
+    assert.deepEqual(hits("const HeadingTag = `h${level}` as const;\n<HeadingTag className=\"inline text-sm\">Posting check</HeadingTag>"), ["heading <HeadingTag> text-sm"]);
+    assert.deepEqual(hits(`function R({ headingLevel: Heading = "h3" }) {\n  return <Heading className="mb-2 text-sm font-semibold">More</Heading>;\n}`), ["heading <Heading> text-sm"]);
+    assert.deepEqual(hits("const HeadingTag = `h${level}` as const;\n<SubTitle as={HeadingTag} className=\"inline\">x</SubTitle>"), []);
 });
 
 test("detector: prose — a bare `prose` class outside <Prose>", () => {
@@ -66,7 +77,8 @@ test("detector: leaves primitives, look-alike tokens, comments and marked lines 
     none(`<div className="shell-row py-8"><SectionTitle className="mb-3">A</SectionTitle></div>`);
     none(`<div className="mx-auto max-w-md p-0">x</div>`);
     none(`<form className="mx-auto max-w-sm space-y-4">x</form>`);
-    none(`<h2 className="text-xl text-2 font-semibold">x</h2>\n<h3 className="text-sm text-muted-foreground">y</h3>`);
+    none(`<h2 className="text-xl text-2 font-semibold">x</h2>\n<h3 className="text-base text-muted-foreground">y</h3>`);
+    none(`<GroupLabel as="h2" className="mb-1.5">Status</GroupLabel>\n<SubTitle as="h4" className="flex items-center gap-2">Profile</SubTitle>`);
     none(`import { Prose } from "@/components/ui/prose";\n<p className="not-prose prose-sm:mt-2">x</p>`);
     none(`// <h1 className="text-4xl">old</h1>\n<PageTitle>new</PageTitle>`);
     none(`{/* page-scale-allow: a fixed toast, not a page column */}\n<div className="mx-auto max-w-sm px-4">`);

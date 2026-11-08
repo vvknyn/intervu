@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { ContextHelp } from "@/components/ui/context-help";
 import { WaitBar } from "@/components/ui/wait-state";
 
+import { GroupLabel, SubTitle } from "@/components/ui/heading";
 /**
  * /admin's metrics dashboard — the standard "stat tiles grouped into sections"
  * pattern, wearing the house skin (0px geometry, no elevation, `.mono-data`
@@ -94,12 +95,12 @@ export function MetricsDashboard() {
     return (
         <Card className="gap-4 p-4 sm:p-6">
             <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold">
+                <SubTitle>
                     Metrics
                     {collectedAt && (
                         <span className="ml-2 text-xs font-normal text-muted-foreground">as of {collectedAt}</span>
                     )}
-                </h3>
+                </SubTitle>
                 <Button variant="outline" size="sm" className="gap-2" onClick={refresh} disabled={isLoading}>
                     {isLoading ? <InlineSpinner /> : <ArrowsClockwise />}
                     Refresh
@@ -126,9 +127,9 @@ export function MetricsDashboard() {
                 report &&
                 groupMetrics(report.metrics).map(({ group, metrics }) => (
                     <section key={group} className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-                        <h4 className="mb-3 text-xs font-semibold text-muted-foreground">
+                        <GroupLabel as="h4" className="mb-3">
                             {group}
-                        </h4>
+                        </GroupLabel>
                         <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
                             {metrics.map((metric) => (
                                 <StatTile key={metric.id} metric={metric} />

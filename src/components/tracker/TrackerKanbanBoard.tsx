@@ -9,6 +9,7 @@ import { groupPursuitsByBoardColumn, TRACKER_BOARD_COLUMNS, trackerBoardLayout, 
 import { TabItem, TabNav } from "@/components/ui/tabs";
 import { PursuitListRow } from "@/components/tracker/PursuitListRow";
 
+import { GroupLabel } from "@/components/ui/heading";
 interface TrackerKanbanBoardProps {
     pursuits: Pursuit[];
     selectedId: string | null;
@@ -80,10 +81,10 @@ export function TrackerKanbanBoard({ pursuits, selectedId, detailOpen, onRowClic
                             )}
                         >
                             <header className="border-b border-border poster-list-inset-x py-2.5">
-                                <h3 className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                                <GroupLabel className="flex items-center justify-between gap-2">
                                     <span>{label}</span>
                                     <span className="font-semibold text-foreground tabular-nums">{items.length}</span>
-                                </h3>
+                                </GroupLabel>
                             </header>
                             <div className="flex flex-col divide-y divide-border">
                                 {items.length === 0 ? (

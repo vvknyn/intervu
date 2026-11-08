@@ -119,7 +119,7 @@ export function ResetPasswordForm() {
                                 enterKeyHint="next"
                                 required
                                 minLength={MIN_PASSWORD_LENGTH}
-                                className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
+                                className="pr-14"
                             />
                             <button
                                 type="button"
@@ -144,7 +144,7 @@ export function ResetPasswordForm() {
                                 enterKeyHint="go"
                                 required
                                 minLength={MIN_PASSWORD_LENGTH}
-                                className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
+                                className="pr-14"
                             />
                             <button
                                 type="button"

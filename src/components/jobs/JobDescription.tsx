@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { GroupLabel, SubTitle } from "@/components/ui/heading";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 
 const LEADING_EMOJI_RE = /^[\p{Extended_Pictographic}\u2600-\u27BF]/u;
@@ -164,13 +165,14 @@ export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; 
             {blocks.map((b, i) => {
                 if (b.type === "heading") {
                     const icon = headingEmoji(b.text, b.fine);
+                    // A section of the posting is a sub-heading; the fine print's (equal opportunity, legal) is
+                    // the group label: the heading scale's two looks (design-language.md §3).
+                    const Look = b.fine ? GroupLabel : SubTitle;
                     return (
-                        <HeadingTag
+                        <Look
                             key={i}
-                            className={cn(
-                                "mb-2.5 mt-6 flex items-baseline gap-2 border-t border-border pt-4 font-semibold leading-snug text-inherit first:mt-0 first:border-t-0 first:pt-0",
-                                b.fine ? "text-sm text-muted-foreground" : "text-base",
-                            )}
+                            as={HeadingTag}
+                            className="mb-2.5 mt-6 flex items-baseline gap-2 border-t border-border pt-4 first:mt-0 first:border-t-0 first:pt-0"
                         >
                             {icon ? (
                                 <span aria-hidden className="shrink-0 select-none">
@@ -178,7 +180,7 @@ export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; 
                                 </span>
                             ) : null}
                             <span>{b.text}</span>
-                        </HeadingTag>
+                        </Look>
                     );
                 }
                 if (b.type === "list") {

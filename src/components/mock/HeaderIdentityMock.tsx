@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import type { User } from "@/lib/firebase/client-auth";
-import { PageTitle } from "@/components/ui/heading";
+import { GroupLabel, PageTitle } from "@/components/ui/heading";
 
 /**
  * Three signed-in identities, real `BrandLockup`/`AccountMenu` components —
@@ -58,9 +58,9 @@ export function HeaderIdentityMock() {
 
             {FIXTURES.map(({ title, user }) => (
                 <section key={user.uid} className="border border-border bg-card" data-testid={`header-identity-${user.uid}`}>
-                    <h2 className="border-b border-dashed border-border px-4 py-2 text-xs font-semibold text-muted-foreground">
+                    <GroupLabel as="h2" className="border-b border-dashed border-border px-4 py-2">
                         {title}
-                    </h2>
+                    </GroupLabel>
                     <HeaderStrip user={user} />
                 </section>
             ))}

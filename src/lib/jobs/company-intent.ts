@@ -1,3 +1,4 @@
+import { FUNCTION_WORDS } from "../geo/common-words";
 import { displayCompanyName } from "./presentation";
 import type { JobSearchParams } from "./types";
 
@@ -202,6 +203,66 @@ export function pickCompoundEmployer(
   return null;
 }
 
+/**
+ * Pure: when no split's employer clears the floors above, the first split
+ * (same order) whose employer words ARE the name of some rows in the sample,
+ * however few: "bank of america" with two live roles is still an employer
+ * the corpus knows, below `COMPANY_INTENT_MIN_EXACT`. Its `domains` are every
+ * domain those rows carry; which of them the employer owns is the corpus's
+ * second answer (`ownedDomains`), because a job board can carry a row under
+ * the employer's name. Only for the not-found path: the search tries this
+ * after the whole query's rows turned out to be about something else, so a
+ * junk one-row "employer" never outranks a real match.
+ */
+export function namedCompoundEmployer(
+  candidates: readonly { roleQ: string; companyQ: string }[],
+  samples: readonly CompanyNameSample[],
+): { roleQ: string; companyQ: string; domains: string[]; name?: string } | null {
+  for (let i = 0; i < candidates.length; i++) {
+    const sample = samples[i];
+    const needle = companyNameStem(candidates[i].companyQ);
+    if (!sample || !needle) continue;
+    const domains = [
+      ...new Set(
+        sample.companies.flatMap((c, j) => {
+          const domain = (sample.domains[j] ?? "").trim().toLowerCase();
+          return companyStemMatches(needle, c ?? "") && domain ? [domain] : [];
+        }),
+      ),
+    ];
+    if (domains.length > 0) return { ...candidates[i], domains: domains.sort(), name: employerDisplayName(candidates[i].companyQ, sample) };
+  }
+  return null;
+}
+
+/**
+ * Least share of a domain's live rows that must carry an employer's name for
+ * the domain to be that employer's own. A job board that lists one "Bank of
+ * America" posting among fifty others carries the name on 2% of its rows; the
+ * employer's own domain carries it on most. Filtering on a board's domain
+ * would list the board's other employers as the employer's roles.
+ */
+export const EMPLOYER_OWNS_DOMAIN_SHARE = 0.5;
+
+/** Per domain: live rows whose employer name matches, and live rows in all. */
+export type DomainNameCounts = ReadonlyMap<string, { named: number; total: number }>;
+
+/**
+ * Pure: the domains an employer owns, by `EMPLOYER_OWNS_DOMAIN_SHARE`, best
+ * share first. Counts missing (the probe failed, or the index cannot count by
+ * domain) leave `domains` as they were: failing open keeps today's behaviour.
+ */
+export function ownedDomains(domains: readonly string[], counts: DomainNameCounts | null): string[] {
+  if (!counts) return [...domains];
+  const share = (d: string) => {
+    const c = counts.get(d);
+    return c && c.total > 0 ? c.named / c.total : 0;
+  };
+  return domains
+    .filter((d) => share(d) >= EMPLOYER_OWNS_DOMAIN_SHARE)
+    .sort((a, b) => share(b) - share(a) || (counts.get(b)?.named ?? 0) - (counts.get(a)?.named ?? 0));
+}
+
 /** Pin retrieve to probed employer domains unless `?company=` already set. */
 export function applyCompanyDomainPin(
   p: JobSearchParams,
@@ -328,6 +389,37 @@ function isCandidateCompanyWords(words: readonly string[]): boolean {
   if (cleaned.some((w, i) => !w && words[i] !== "&")) return false;
   return cleaned.some((w) => w.length >= 2 && !ROLE_VOCABULARY_TOKENS.has(w) && !ROLE_CONNECTORS.has(w));
 }
+
+/**
+ * Words a job search carries that never name an employer on their own ("jobs
+ * canada", "careers toronto"): with the role vocabulary and the connectors,
+ * what `isEmployerWord` leaves out.
+ */
+const SEARCH_FILLER_WORDS = new Set([
+  "job", "jobs", "work", "works", "career", "careers", "hiring", "hire", "position", "positions",
+  "role", "roles", "opening", "openings", "vacancy", "vacancies", "opportunity", "opportunities",
+  "near", "me", "remote", "hybrid", "onsite", "time", "part", "contract", "temporary", "internships",
+]);
+
+/**
+ * Can this one word carry an employer's name ("bank" in "bank of america",
+ * "air" in "air canada")? Not a role word, a connector, a function word or a
+ * job-search filler word ("jobs canada" names no employer). Used where a
+ * place match sits inside the words: only a span holding such a word is
+ * asked whether it is an employer's whole name (query-understanding.ts).
+ */
+export function isEmployerWord(word: string): boolean {
+  const w = cleanWord(word);
+  return (
+    w.length >= 2 &&
+    !ROLE_VOCABULARY_TOKENS.has(w) &&
+    !ROLE_CONNECTORS.has(w) &&
+    !SEARCH_FILLER_WORDS.has(w) &&
+    !FUNCTION_WORD_SET.has(w)
+  );
+}
+
+const FUNCTION_WORD_SET: ReadonlySet<string> = new Set(FUNCTION_WORDS);
 
 /**
  * Pure: extracts candidate `{ roleQ, companyQ }` splits from a multi-word query

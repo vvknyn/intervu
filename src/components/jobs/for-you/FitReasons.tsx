@@ -16,6 +16,7 @@ import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { cn } from "@/lib/utils";
 
+import { SubTitle } from "@/components/ui/heading";
 /** Quiet row-label treatment: sentence case, normal tracking, on-scale size
  *  (rulebook: no uppercase, tracking utilities, or arbitrary sizes outside
  *  the wordmark exemption — see tests/unit/design-language.test.ts). */
@@ -149,7 +150,7 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
 export function FitReasonsUploadSlot({ onUploadResume }: { onUploadResume: () => void }) {
     return (
         <section data-testid="fit-upload-slot" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-panel bg-surface px-4 py-3.5">
-            <h3 className="text-sm font-semibold text-foreground">Why this fits</h3>
+            <SubTitle>Why this fits</SubTitle>
             <Button
                 size={jobActionSize}
                 type="button"

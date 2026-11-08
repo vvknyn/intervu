@@ -383,7 +383,7 @@ export function CompanyRoleSearch({
                 if (e.key === "Escape") setQuery("");
               }}
               placeholder={`Search ${companyName}'s open roles…`}
-              className="ctl-lg rounded-ctl border border-border bg-card pl-9 text-base"
+              className="pl-9"
             />
           </div>
           {searchesPartialWindow && hasQuery && (

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { BrandMark, BrandLockup } from "@/components/brand/BrandMark";
-import { PageTitle } from "@/components/ui/heading";
+import { GroupLabel, PageTitle } from "@/components/ui/heading";
 
 function Wordmark() {
     return (
@@ -25,9 +25,9 @@ function Option({
 }) {
     return (
         <section className="border border-border bg-card p-5">
-            <h2 className="text-xs font-semibold text-muted-foreground">
+            <GroupLabel as="h2">
                 {n}. {title}
-            </h2>
+            </GroupLabel>
             <div className="mt-4 border-t border-dashed border-border pt-4">{children}</div>
         </section>
     );
