@@ -20,6 +20,7 @@ import type { MatchScore } from "@/lib/match/score";
 import { type EventSource } from "@/lib/analytics/events";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
+import { AdminJobControl } from "@/components/admin/AdminJobControl";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { PostingCheckSummary } from "@/components/jobs/PostingCheckSummary";
 import {
@@ -621,7 +622,11 @@ export function JobDetailDocument({
                     <div className="max-lg:order-2">{applyCardEl}</div>
                     <div className="max-lg:order-5">{receiptEl}</div>
                     <div className="max-lg:order-6">{employerCardEl}</div>
-                    <div className="max-lg:order-7">{reportControlEl}</div>
+                    <div className="max-lg:order-7">
+                        {reportControlEl}
+                        {/* Admin only; renders nothing for anyone else. */}
+                        <AdminJobControl jobId={job.id} jobTitle={jobTitle} />
+                    </div>
                     <div className="max-lg:order-9">{aiBoxEl}</div>
                 </div>
             </div>
