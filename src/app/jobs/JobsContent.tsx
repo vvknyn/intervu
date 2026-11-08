@@ -29,7 +29,7 @@ import {
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import type { SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
-import type { SearchSuggestion } from "@/lib/search-suggestions";
+import { suggestionsFromAnswer, type SearchSuggestion } from "@/lib/search-suggestions";
 import { Sheet, SheetBar, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
@@ -74,7 +74,7 @@ import {
     locationText,
     searchResultLine,
     firstMentionIndex,
-    interleaveByCompany,
+    pageRowsInListOrder,
     liveCountLine,
     partitionByTitleMatch,
     resolveHeadlineTotal,
@@ -249,6 +249,7 @@ import {
     resolveDetailMountSite,
     degradedResultsNote,
     employerElsewhereNote,
+    employerRoleNote,
     jobsNotConnectedPanelCopy,
     isSearchUnhealthy,
     userFacingSearchErrorMessage,
@@ -526,22 +527,6 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
     );
 }
 
-/**
- * Task 9 — typeahead: adapt `/api/jobs/suggest`'s plain `{ titles, companies }`
- * into `SearchAutocomplete`'s `SearchSuggestion` shape. Companies are tagged
- * `'company'` so the dropdown renders them with a distinct icon (Buildings,
- * vs. the default magnifying-glass for titles) — the type field doubles as
- * both the render hint and the semantic label; no counts (company isn't a
- * facet — see `JobSuggestions`, lib/jobs/types.ts).
- */
-function mapToSuggestions(data: { titles: string[]; companies: string[]; related?: string[] }): SearchSuggestion[] {
-    return [
-        ...data.titles.map((text): SearchSuggestion => ({ text, type: "role" })),
-        // The roles next to what is typed, from the same table as the search's related band (`relatedSuggestions`).
-        ...(data.related ?? []).map((text): SearchSuggestion => ({ text, type: "related" })),
-        ...data.companies.map((text): SearchSuggestion => ({ text, type: "company" })),
-    ];
-}
 
 /* ----------------------------- ledger row ----------------------------- */
 
@@ -1353,7 +1338,7 @@ export function JobsContent({
     // below stores one; that effect then takes the same result again
     // (JobsRouteGate seeds it), so the rows don't change on hydration.
     const [result, setResult] = useState<JobsSearchActionResult | null>(() =>
-        initialSearch ? { ...initialSearch.result, hits: interleaveByCompany(initialSearch.result.hits) } : null,
+        initialSearch ? { ...initialSearch.result, hits: pageRowsInListOrder(initialSearch.result) } : null,
     );
     const resultRef = useRef<JobsSearchActionResult | null>(null);
     resultRef.current = result;
@@ -2223,7 +2208,7 @@ export function JobsContent({
                 // downstream read of "this fetch's hits" below uses the same
                 // interleaved array so "hits[0]" means the same row the list
                 // actually renders first.
-                const interleavedHits = interleaveByCompany(r.hits);
+                const interleavedHits = pageRowsInListOrder(r);
                 setResult({ ...r, hits: interleavedHits });
                 setResultSearchKey(searchKey);
                 absorbUnderstood(r);
@@ -3347,7 +3332,7 @@ export function JobsContent({
                 // appending — the same chokepoint as the first-page fetch
                 // above, applied per-page rather than over the whole
                 // accumulated list (see `interleaveByCompany`'s doc comment).
-                const fresh = interleaveByCompany(r.hits.filter((h) => !seen.has(h.id)));
+                const fresh = pageRowsInListOrder(r, r.hits.filter((h) => !seen.has(h.id)));
                 return fresh.length ? { ...prev, hits: [...prev.hits, ...fresh] } : prev;
             });
         } catch {
@@ -3395,7 +3380,7 @@ export function JobsContent({
     // render of this component (which re-renders often — loading, result,
     // corpusCount capture, loadingMore all live here), and the box's
     // debounce effect used to key off that reference. This callback closes
-    // over nothing from render scope (fetch + `mapToSuggestions`, a
+    // over nothing from render scope (fetch + `suggestionsFromAnswer`, a
     // module-level pure function), so `[]` deps are correct — it never needs
     // to change.
     //
@@ -3411,7 +3396,7 @@ export function JobsContent({
     const suggestForBox = useCallback(async (q: string) => {
         const res = await fetch(`/api/jobs/suggest?q=${encodeURIComponent(q)}`);
         if (!res.ok) throw new Error(`suggest ${res.status}`);
-        return mapToSuggestions(await res.json());
+        return suggestionsFromAnswer(await res.json());
     }, []);
     useEffect(() => () => observerRef.current?.disconnect(), []);
 
@@ -3457,6 +3442,28 @@ export function JobsContent({
      */
     const clearCompanyScope = () => {
         applyFilterState({ ...filterState, companyDomain: null });
+    };
+
+    // Employer names by domain, as the box's employer rows and the search's own read of the
+    // typed words named them: the employer token says "Shopify", not "shopify.com", from the
+    // moment it is chosen, including over a list with none of its roles.
+    const [employerNames, setEmployerNames] = useState<Readonly<Record<string, string>>>({});
+    const rememberEmployerName = (domain: string, name: string | undefined) => {
+        if (name && employerNames[domain] !== name) setEmployerNames((prev) => ({ ...prev, [domain]: name }));
+    };
+
+    /**
+     * An employer row picked in the search box: the list filters to that employer (the employer
+     * token) and the box keeps only the role words read with it ("product manager at Shopify"
+     * searches "product manager" at Shopify), or none. Every other row runs as its text.
+     */
+    const pickSuggestion = (row: SearchSuggestion): boolean => {
+        if (row.type !== "company" || !row.domain) return false;
+        const role = row.role ?? "";
+        rememberEmployerName(row.domain, row.text);
+        applyFilterState({ ...filterStateRef.current, companyDomain: row.domain }, role);
+        submitSearch(role);
+        return true;
     };
 
     // (The effect that mirrored `facets.location_country[0]` back into the box
@@ -3521,6 +3528,12 @@ export function JobsContent({
         if (next === before) return;
         const beforeKeys = new Set(activeFilterEntries(before).map((e) => e.key));
         const added = activeFilterEntries(next).filter((e) => !beforeKeys.has(e.key));
+        // An employer read from the words has no chip entry of its own (the employer token
+        // shows it), so the line names it here: "Searched “product manager” · at Shopify".
+        if (next.companyDomain && next.companyDomain !== before.companyDomain) {
+            rememberEmployerName(next.companyDomain, r.understood.employerName);
+            added.push({ key: "company", label: `at ${r.understood.employerName ?? next.companyDomain}`, clear: (st) => st });
+        }
         setUnderstoodCaption({
             sig: `${r.understood.residualQ}|${JSON.stringify(next)}`,
             line: understoodLine(r.understood.residualQ, added, chipLabelForEntry),
@@ -4656,6 +4669,15 @@ export function JobsContent({
     // An employer search with a place asked for lists the employer's roles in
     // that place first; this captions where they end (`employerElsewhereNote`).
     const elsewhereNote = result ? employerElsewhereNote(result.inPlace, result.total) : null;
+    // A role at one employer that has none of it: the employer's other roles lead, then the role
+    // at other employers, and this says so (`employerRoleNote`).
+    const employerNote = result ? employerRoleNote(result.employer, result.total) : null;
+    // The employer token's words: the employer's name once anything named it, else its domain.
+    const employerLabel = companyDomain
+        ? (employerNames[companyDomain] ??
+          (result?.employer?.domains.includes(companyDomain) ? result.employer.name : undefined) ??
+          companyDomain)
+        : null;
 
     // Two-Panel Selector (master-detail) — single source of truth for where
     // the shared detail ternary mounts (Sheet below xl, pane at xl+, and —
@@ -5078,6 +5100,7 @@ export function JobsContent({
                 }}
                 suggest={suggestForBox}
                 seeds={searchSeeds}
+                onPick={pickSuggestion}
                 placeholder={searchBox.placeholder}
                 ariaLabel="Search"
                 className="h-full min-h-0 min-w-0 flex-1 rounded-pill border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
@@ -5219,6 +5242,7 @@ export function JobsContent({
     if (!loading && degradedNote) headerNotes.push("degraded");
     if (!loading && result?.widened) headerNotes.push("widened");
     if (!loading && unmatchedNote) headerNotes.push("unmatched");
+    if (!loading && employerNote) headerNotes.push("employer");
     if (!loading && liveCaption) headerNotes.push("understood");
     if (!loading && elsewhereNote) headerNotes.push("elsewhere");
     if (pastSeniorLeftOut > 0) headerNotes.push("level");
@@ -5451,6 +5475,7 @@ export function JobsContent({
                                     }}
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
+                                    onPick={pickSuggestion}
                                     placeholder={searchBox.placeholder}
                                     ariaLabel="Search"
                                     name="q"
@@ -5923,6 +5948,12 @@ export function JobsContent({
                                 </p>
                             )}
 
+                            {headerNote === "employer" && (
+                                <p data-testid="employer-role-note" data-header-line="note" className="mb-3 text-sm text-muted-foreground">
+                                    {employerNote}
+                                </p>
+                            )}
+
                             {headerNote === "elsewhere" && (
                                 <p data-testid="employer-elsewhere-note" data-header-line="note" className="mb-3 text-sm text-muted-foreground">
                                     {elsewhereNote}
@@ -6146,10 +6177,12 @@ export function JobsContent({
                                                     searcher typed or toggled: with no token they'd see a
                                                     count far below the corpus with nothing on screen
                                                     saying why, and no way back out. Labelled with the
-                                                    domain, which is the scope the search actually
-                                                    applies — not a display name derived from the hits,
-                                                    which would be absent in the one state where this
-                                                    disclosure matters most (zero results). */}
+                                                    employer's name when the box's employer row or the
+                                                    search's employer read (`result.employer`) named it,
+                                                    else the domain, which is the scope the search
+                                                    actually applies and the one label that is there in
+                                                    the state where this disclosure matters most (zero
+                                                    results). */}
                                                 {listHeader.lines.includes("scope") && (
                                                     <div data-header-line="scope" className="flex flex-wrap items-center gap-3">
                                                         {companyDomain && (
@@ -6157,11 +6190,11 @@ export function JobsContent({
                                                                 <span className="whitespace-nowrap font-semibold text-foreground">
                                                                     employer
                                                                 </span>
-                                                                <span className="text-foreground">{companyDomain}</span>
+                                                                <span className="text-foreground">{employerLabel}</span>
                                                                 <button
                                                                     type="button"
                                                                     data-testid="company-scope-clear"
-                                                                    aria-label={`Show roles from all employers, not just ${companyDomain}`}
+                                                                    aria-label={`Show roles from all employers, not just ${employerLabel}`}
                                                                     onClick={clearCompanyScope}
                                                                     className="text-muted-foreground transition-colors hover:text-foreground"
                                                                 >

@@ -153,5 +153,8 @@ test("the server-rendered page searches with the list's own first-search params 
 
     const content = read("src/app/jobs/JobsContent.tsx");
     assert.match(content, /useState\(\(\) => initialSearch\?\.now \?\? Date\.now\(\)\)/, "ages read against the server's instant");
-    assert.match(content, /hits: interleaveByCompany\(initialSearch\.result\.hits\)/, "rows in the order the search effect stores them");
+    // The same helper the search effect stores a page with (`pageRowsInListOrder`: interleaved by company, except
+    // a list whose order is its answer, an employer's other roles before the role elsewhere).
+    assert.match(content, /hits: pageRowsInListOrder\(initialSearch\.result\)/, "rows in the order the search effect stores them");
+    assert.match(content, /const interleavedHits = pageRowsInListOrder\(r\);/, "the search effect stores a page through the same helper");
 });

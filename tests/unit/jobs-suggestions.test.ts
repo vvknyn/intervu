@@ -1,8 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+    buildEmployerSuggestBody,
+    buildEmployerSuggestions,
     buildSuggestBody,
     dedupeJobSuggestionHits,
+    EMPLOYER_SUGGEST_CAP,
+    employerSuggestQueries,
+    mergeEmployerSuggestions,
     JOBS_INDEX_SETTINGS,
     stripGenderSuffixArtifact,
 } from "../../src/lib/jobs/meilisearch";
@@ -185,6 +190,7 @@ test("buildSuggestBody scopes matching to title+company and uses `limit`, never 
     assert.deepEqual(body, {
         q: "engineer",
         limit: 20,
+        matchingStrategy: "all",
         attributesToSearchOn: ["title", "company"],
         attributesToRetrieve: ["title", "company", "company_domain"],
         distinct: "title",
@@ -234,4 +240,77 @@ test("buildSuggestBody's distinct attribute is declared filterable in JOBS_INDEX
         JOBS_INDEX_SETTINGS.filterableAttributes.includes(distinct as string),
         `distinct attribute "${distinct}" must be a member of JOBS_INDEX_SETTINGS.filterableAttributes or Meili 400s the suggest query`,
     );
+});
+
+/**
+ * Vivek, 2026-11-08: "I'm not seeing faceted type ahead results in the search bar" — "integral ad science" listed
+ * only a Roles section ("Integral Project Manager", "Integral Life Product Development, Consultant", ...). Two causes,
+ * each a class: (1) the title search dropped typed words from the end until a title matched, so a role holding none of
+ * "ad science" was suggested; (2) employers came only from those 20 title-ranked rows, so an employer whose name
+ * shares a word with many titles never reached them. The tests below pin both for any query, not the one example.
+ */
+test("every typed word must be in a role suggestion: the title search asks for all of them", () => {
+    for (const q of ["integral ad science", "product manager", "capital one", "registered nurse toronto"]) {
+        assert.equal(buildSuggestBody(q).matchingStrategy, "all", q);
+    }
+});
+
+test("employers come from a search of the employer names themselves, one row per employer, live roles only", () => {
+    const body = buildEmployerSuggestBody("integral ad science");
+    assert.deepEqual(body.attributesToSearchOn, ["company"]);
+    assert.equal(body.matchingStrategy, "all");
+    assert.equal(body.distinct, "company_domain");
+    assert.ok(body.filter.some((clause) => /vacancy/i.test(clause)), `live roles only: ${JSON.stringify(body.filter)}`);
+    // An index that refuses `distinct` on the domain is asked again without it, for more rows, folded here.
+    const plain = buildEmployerSuggestBody("integral ad science", false);
+    assert.equal(plain.distinct, undefined);
+    assert.ok(plain.limit > body.limit);
+});
+
+test("employer rows show the list's name, need every typed word at a word start, one per domain, and never lack a domain", () => {
+    const rows = buildEmployerSuggestions(
+        [
+            { company: "Integral Ad Science, Inc.", company_domain: "integralads.com", title: "Account Executive" },
+            { company: "Integral Ad Science", company_domain: "integralads.com", title: "Analyst" }, // same domain
+            { company: "Integral Ad Science EMEA", company_domain: null, title: "Analyst" }, // no domain to filter on
+            { company: "Science Integral Labs", company_domain: "sil.example", title: "Chemist" }, // "ad" starts no word
+            { company: "integraladscience", company_domain: "integraladscience.com", title: "Engineer" }, // squashed domain name
+        ],
+        "integral ad science",
+    );
+    assert.deepEqual(rows.map((r) => [r.name, r.domain]), [
+        ["Integral Ad Science", "integralads.com"],
+    ]);
+    // A prefix still being typed matches.
+    assert.deepEqual(buildEmployerSuggestions([{ company: "Shopify", company_domain: "shopify.com" }], "shop"), [
+        { name: "Shopify", domain: "shopify.com" },
+    ]);
+    // The role read with the employer rides on the row.
+    assert.deepEqual(buildEmployerSuggestions([{ company: "Shopify", company_domain: "shopify.com" }], "shop", "product manager"), [
+        { name: "Shopify", domain: "shopify.com", role: "product manager" },
+    ]);
+});
+
+test("one typed query asks for its whole text as an employer name, then the employer half of each role + employer reading", () => {
+    assert.deepEqual(employerSuggestQueries("integral ad science"), [{ companyQ: "integral ad science" }]);
+    assert.deepEqual(employerSuggestQueries("product manager shop"), [
+        { companyQ: "product manager shop" },
+        { companyQ: "shop", role: "product manager" },
+    ]);
+    assert.deepEqual(employerSuggestQueries("  "), []);
+});
+
+test("employers lead the box when the words name one or read as role + employer; otherwise roles lead", () => {
+    const shopify = { name: "Shopify", domain: "shopify.com" };
+    // The whole text IS an employer's name.
+    assert.equal(mergeEmployerSuggestions("shopify", [[shopify]]).employersFirst, true);
+    assert.equal(mergeEmployerSuggestions("Integral Ad Science", [[{ name: "Integral Ad Science", domain: "integralads.com" }]]).employersFirst, true);
+    // A prefix of a name: roles ("Shop Assistant") may be what is meant, so they lead.
+    assert.equal(mergeEmployerSuggestions("shop", [[shopify]]).employersFirst, false);
+    // Role + employer words: the employer row is the reading.
+    assert.equal(mergeEmployerSuggestions("product manager shop", [[], [{ ...shopify, role: "product manager" }]]).employersFirst, true);
+    // One row per employer across the searches, whole text first, capped.
+    const many = Array.from({ length: 6 }, (_, i) => ({ name: `Acme ${i}`, domain: `acme${i}.com` }));
+    const merged = mergeEmployerSuggestions("acme", [many.slice(0, 2), [many[1], ...many.slice(2)]]);
+    assert.deepEqual(merged.employers.map((e) => e.domain), many.slice(0, EMPLOYER_SUGGEST_CAP).map((e) => e.domain));
 });

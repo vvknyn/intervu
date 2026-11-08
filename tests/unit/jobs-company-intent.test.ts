@@ -7,9 +7,13 @@ import {
   COMPANY_INTENT_MIN_RATIO,
   companyNameStem,
   dominantCompanyDomains,
+  employerDisplayName,
   extractCompoundRoleCompanyCandidates,
   isCompanyNameQuery,
+  MAX_COMPANY_WORDS,
   normalizeCompanyName,
+  pickCompoundEmployer,
+  unresolvedCompoundSplit,
 } from "../../src/lib/jobs/company-intent";
 import { applyRelevanceQualityReranking } from "../../src/lib/jobs/meilisearch";
 import type { PublicJob } from "../../src/lib/jobs/types";
@@ -247,7 +251,10 @@ test("extractCompoundRoleCompanyCandidates decomposes [Role] + [Company] queries
     assert.deepEqual(extractCompoundRoleCompanyCandidates("Product Manager tesla"), [
         { roleQ: "Product Manager", companyQ: "tesla" },
     ]);
+    // A role word next to the name may belong to either: the longer name is asked first, and
+    // the corpus keeps only the split whose employer it knows (`pickCompoundEmployer`).
     assert.deepEqual(extractCompoundRoleCompanyCandidates("tesla Product Manager"), [
+        { roleQ: "Manager", companyQ: "tesla Product" },
         { roleQ: "Product Manager", companyQ: "tesla" },
     ]);
     assert.deepEqual(extractCompoundRoleCompanyCandidates("Product Manager at Tesla"), [
@@ -293,4 +300,97 @@ test("applyRelevanceQualityReranking demotes 1-typo company false positives (Tek
 
     const ranked = applyRelevanceQualityReranking([teklaHit, dutchHit, realPmHit], "Product Manager tesla");
     assert.equal(ranked[0]?.id, "real-pm");
+});
+
+/**
+ * Vivek, 2026-11-08: "searching product manager integral ad science should search for product manager jobs in that
+ * company". The split only took employer names of one or two words with no role word in them, so "Integral Ad
+ * Science" (three words, "science" is a role word), "Capital One", "Bank of America" and "Johnson & Johnson" were
+ * never read as an employer. Measured over 3,535 employer names from the Built In list × 3 roles × 3 word orders
+ * (31,815 queries): the old rule split 72.5%, this one 97.6%. The class, not the example: every name shape below, in
+ * every word order, with several roles.
+ */
+const NAME_SHAPES = [
+    "Integral Ad Science", // three words, one a role word
+    "Capital One", // a role-looking word first? no: "capital" is plain, "one" is plain
+    "Bank of America", // a connector inside
+    "Johnson & Johnson", // a bare "&" inside
+    "Health Canada", // a role word ("health") first
+    "Data Robot", // a role word ("data") first
+    "Zynthara", // one plain word
+    "Royal Bank of Canada", // four words
+];
+const ROLES = ["product manager", "senior data scientist", "registered nurse", "software engineer"];
+
+for (const name of NAME_SHAPES) {
+    test(`a role + employer query splits out "${name}" in every word order`, () => {
+        for (const role of ROLES) {
+            for (const q of [`${role} ${name}`, `${name} ${role}`, `${role} at ${name}`]) {
+                const splits = extractCompoundRoleCompanyCandidates(q);
+                const right = splits.find((c) => normalizeCompanyName(c.companyQ) === normalizeCompanyName(name));
+                assert.ok(right, `${q} -> ${JSON.stringify(splits)}`);
+                assert.equal(normalizeCompanyName(right.roleQ), normalizeCompanyName(role), q);
+            }
+        }
+    });
+}
+
+test("an employer name may not start or end with a connector, run past four words, or be only role words", () => {
+    assert.equal(MAX_COMPANY_WORDS, 4);
+    // "of" can neither end the role ("product manager of") nor start the name ("of america").
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("product manager of america"), []);
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("product manager acme widgets north east"), [
+        { roleQ: "product manager", companyQ: "acme widgets north east" },
+    ]);
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("product manager acme widgets north east west"), []);
+    // Only role words: a role search, never an employer probe.
+    assert.deepEqual(extractCompoundRoleCompanyCandidates("senior data science product manager"), []);
+});
+
+const employerSample = (name: string, domain: string, n = 6) => ({
+    total: n,
+    companies: Array(n).fill(name),
+    domains: Array(n).fill(domain),
+    titles: Array(n).fill("Account Executive"),
+});
+const empty = { total: 0, companies: [], domains: [], titles: [] };
+
+test("the corpus decides the split: the first split whose employer it knows wins, with that employer's name", () => {
+    const candidates = extractCompoundRoleCompanyCandidates("integral ad science product manager");
+    // Longest name first: "integral ad science product" / "integral ad science" / "integral ad".
+    assert.deepEqual(candidates.map((c) => c.companyQ), ["integral ad science product", "integral ad science", "integral ad"]);
+    const samples = candidates.map((c) =>
+        normalizeCompanyName(c.companyQ) === "integral ad science" ? employerSample("Integral Ad Science, Inc.", "integralads.com") : empty,
+    );
+    assert.deepEqual(pickCompoundEmployer(candidates, samples), {
+        roleQ: "product manager",
+        companyQ: "integral ad science",
+        domains: ["integralads.com"],
+        name: "Integral Ad Science",
+    });
+    // No employer by any of those names: nothing is pinned.
+    assert.equal(pickCompoundEmployer(candidates, candidates.map(() => empty)), null);
+});
+
+test("an employer with too few rows of that exact name is not read as one (same floors as a bare employer search)", () => {
+    const candidates = extractCompoundRoleCompanyCandidates("product manager acme");
+    assert.equal(pickCompoundEmployer(candidates, [employerSample("Acme", "acme.com", COMPANY_INTENT_MIN_EXACT - 1)]), null);
+    assert.equal(pickCompoundEmployer(candidates, [employerSample("Acme", "acme.com", COMPANY_INTENT_MIN_EXACT)])?.domains[0], "acme.com");
+});
+
+test("with no employer found, the split with the most role words is the one named as not found", () => {
+    assert.deepEqual(unresolvedCompoundSplit(extractCompoundRoleCompanyCandidates("tesla product manager")), {
+        roleQ: "product manager",
+        companyQ: "tesla",
+    });
+    assert.deepEqual(unresolvedCompoundSplit(extractCompoundRoleCompanyCandidates("product manager integral ad science")), {
+        roleQ: "product manager",
+        companyQ: "integral ad science",
+    });
+    assert.equal(unresolvedCompoundSplit([]), null);
+});
+
+test("employerDisplayName reads the display form of the row whose name IS the query", () => {
+    assert.equal(employerDisplayName("acme", { total: 2, companies: ["Acme Robotics", "Acme, Inc."], domains: ["", ""] }), "Acme");
+    assert.equal(employerDisplayName("acme", { total: 1, companies: ["Acme Robotics"], domains: [""] }), undefined);
 });

@@ -1,6 +1,6 @@
 import { activeFilterEntries, type FilterState } from "@/components/jobs/FilterPanel";
 import type { EventPayloads } from "@/lib/analytics/events";
-import type { JobSearchResult, PublicJob } from "./types";
+import type { EmployerRead, JobSearchResult, PublicJob } from "./types";
 
 /**
  * The ONLY copy shown when search fails — server catch (search.ts) and client
@@ -169,6 +169,30 @@ export function employerElsewhereNote(inPlace: number | undefined, total: number
     if (inPlace === undefined || inPlace >= total) return null;
     if (inPlace === 0) return "No roles at this employer match your location — showing its roles elsewhere.";
     return `Showing ${inPlace} ${inPlace === 1 ? "role" : "roles"} in your location first, then this employer's roles elsewhere.`;
+}
+
+/**
+ * A search for a role at one employer that has none of that role lists the
+ * employer's other roles, then the role at other employers
+ * (`JobSearchResult.employer`, employer-role.ts). This is the line that says
+ * so, so the rows from other employers never read as the employer's. `null`
+ * when the employer has the role, or the search was not for one.
+ */
+export function employerRoleNote(employer: EmployerRead | undefined, total: number): string | null {
+    if (!employer || employer.roleMatches > 0) return null;
+    const who = employer.name ?? employer.domains[0] ?? "this employer";
+    const role = employer.role.trim();
+    const own = employer.employerRoles ?? 0;
+    if (own === 0) return `No roles at ${who} right now — showing ${role} roles at other employers.`;
+    if (own >= total) return `No ${role} roles at ${who} right now — showing its other roles.`;
+    return `No ${role} roles at ${who} right now — showing its other roles first, then ${role} roles at other employers.`;
+}
+
+/** For an agent (MCP `search_jobs`): how a role + employer search was read, when the employer has the role. */
+export function employerReadNote(employer: EmployerRead | undefined): string | null {
+    if (!employer || employer.roleMatches === 0) return null;
+    const who = employer.name ? `${employer.name} (${employer.domains.join(", ")})` : employer.domains.join(", ");
+    return `searched "${employer.role.trim()}" at ${who}`;
 }
 
 /**
