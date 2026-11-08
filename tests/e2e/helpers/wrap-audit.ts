@@ -11,6 +11,11 @@
  *   whose last line holds one item under a line of two or more ("Full-Time / Contract / Part-Time" then "Internship",
  *   "On-site / Hybrid" then "Fully Remote"). Chips and pills (an item with its own border or fill) are a cloud and
  *   are left to `text-wrap: balance`.
+ * - `form-row`: a form whose parts do not each take their own line: a security-check widget (Turnstile is 300x65 and
+ *   cannot shrink) on a line with any sibling, or a field on a line with a button while the form holds more than that
+ *   one field and that one button ("Email me new jobs" beside the widget, "Not now" alone under them, the field a
+ *   narrow box above), or a field alone on its line narrower than the form. An inline form of exactly a field and a
+ *   button, and a line of buttons only, are fine (the button sits against its field).
  * - `meta-edge`: a "·", "•" or "|" that ends or starts a rendered line ("Technical Account Manager · 11 yrs exp ·"
  *   then "Richmond Hill, Ontario"). A separator clipped out of view (`.fact-line`) does not count, and neither
  *   does a "|" in code. A dash is prose, not a separator, and is not judged here.
@@ -18,7 +23,7 @@
  *
  * The function is self-contained (Playwright serialises it into the page), so it takes no imports and no closures.
  */
-export type WrapFinding = { kind: "action-row" | "run" | "meta-edge" | "overflow"; where: string; detail: string };
+export type WrapFinding = { kind: "action-row" | "run" | "form-row" | "meta-edge" | "overflow"; where: string; detail: string };
 
 export function auditWrapping(): WrapFinding[] {
     const findings: WrapFinding[] = [];
@@ -133,6 +138,64 @@ export function auditWrapping(): WrapFinding[] {
             }
         }
     }
+
+    // --- forms ----------------------------------------------------------------------------------------------------------
+    const FIELD = "input:not([type='hidden'], [type='checkbox'], [type='radio'], [type='submit'], [type='button'], [type='file'], [type='range']), textarea, select";
+    const isField = (k: Element) => k.matches(FIELD) || !!k.querySelector(FIELD);
+    const isWidget = (k: Element) => k.matches("iframe, [data-testid='turnstile-slot']") || !!k.querySelector("iframe, [data-testid='turnstile-slot']");
+    Array.from(document.body.querySelectorAll("form")).forEach((form, formIndex) => {
+        if (!shown(form) || form.closest("[aria-hidden='true'], [hidden]")) return;
+        const parts = Array.from(form.children).filter(shown);
+        if (parts.length < 2) return;
+        // Parts of different heights share a line when they overlap vertically (a 32px button centred beside a 65px widget does not start where the widget does).
+        const lines: Element[][] = [];
+        const spans: { top: number; bottom: number }[] = [];
+        for (const k of [...parts].sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)) {
+            const kr = k.getBoundingClientRect();
+            const at = spans.findIndex((span) => Math.min(kr.bottom, span.bottom) - Math.max(kr.top, span.top) > Math.min(kr.height, span.bottom - span.top) / 2);
+            if (at >= 0) {
+                lines[at].push(k);
+                spans[at] = { top: Math.min(spans[at].top, kr.top), bottom: Math.max(spans[at].bottom, kr.bottom) };
+            } else {
+                lines.push([k]);
+                spans.push({ top: kr.top, bottom: kr.bottom });
+            }
+        }
+        const inlineForm = parts.length === 2 && parts.some((k) => isField(k)) && parts.some((k) => k.matches(CONTROL));
+        const where = `${describe(form)} (form ${formIndex + 1})`;
+        for (const line of lines) {
+            if (line.length < 2) continue;
+            const widget = line.some(isWidget);
+            const fieldWithButton = !inlineForm && line.some((k) => isField(k)) && line.some((k) => k.matches(CONTROL));
+            if (widget || fieldWithButton) {
+                add({
+                    kind: "form-row",
+                    where,
+                    detail: `${widget ? "a security-check widget shares a line with" : "a field shares a line with"} ${line.length - 1} other part${line.length > 2 ? "s" : ""} (${lines.map((cells) => cells.length).join("/")} per line)`,
+                });
+            }
+        }
+        // An inline form's button sits against its field, not at the far edge of a wider box.
+        if (inlineForm) {
+            const field = parts.find((k) => isField(k))!;
+            const button = parts.find((k) => k.matches(CONTROL))!;
+            const fieldBox = (field.matches(FIELD) ? field : field.querySelector(FIELD)!).getBoundingClientRect();
+            const gap = button.getBoundingClientRect().left - fieldBox.right;
+            if (Math.abs(button.getBoundingClientRect().top - fieldBox.top) < fieldBox.height && gap > 24) {
+                add({ kind: "form-row", where, detail: `the button is ${Math.round(gap)}px from its field, not beside it` });
+            }
+        }
+        // A field alone on its line fills the form: a capped box above a full-width widget and buttons reads as a stray.
+        if (!inlineForm && lines.length >= 2) {
+            const formWidth = form.getBoundingClientRect().width - parseFloat(getComputedStyle(form).paddingLeft) - parseFloat(getComputedStyle(form).paddingRight);
+            for (const line of lines) {
+                const field = line.length === 1 ? (line[0].matches(FIELD) ? line[0] : line[0].querySelector(FIELD)) : null;
+                if (field && shown(field) && formWidth - field.getBoundingClientRect().width > 2) {
+                    add({ kind: "form-row", where, detail: `a field is ${Math.round(field.getBoundingClientRect().width)}px in a ${Math.round(formWidth)}px form, not the form's width` });
+                }
+            }
+        }
+    });
 
     // --- separators at the edge of a line ----------------------------------------------------------------------------
     const nodes: Text[] = [];
