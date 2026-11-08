@@ -43,7 +43,7 @@ const FREE_FEATURES: ReactNode[] = [
   "Job search and matching, using a résumé kept on your device",
   <>
     The{" "}
-    <a href={CHROME_EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" data-testid="pricing-extension-link" className="underline">
+    <a href={CHROME_EXTENSION_STORE_URL} target="_blank" rel="noopener noreferrer" data-testid="pricing-extension-link" className="text-link">
       Chrome extension
     </a>{" "}
     with that same résumé: your fit on job pages, changes to your résumé for each job and filling in the application
