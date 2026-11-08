@@ -114,6 +114,7 @@ describe("coss ui registry & primitives integration", () => {
         assert.match(choiceHtml, /data-slot="radio-choice-circle"/);
         assert.match(choiceHtml, /ctl-check/);
         assert.doesNotMatch(choiceHtml, /accent-brand/);
+        assert.doesNotMatch(choiceHtml, /sr-only/);
     });
 
     it("renders Field in both shorthand label mode and compound description/error mode", () => {

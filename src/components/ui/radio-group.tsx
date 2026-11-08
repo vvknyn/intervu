@@ -63,7 +63,7 @@ function RadioChoice({
         checked={checked}
         readOnly
         onClick={onClick}
-        className="peer sr-only"
+        className="peer absolute inset-0 m-0 size-4 cursor-pointer opacity-0"
         {...props}
       />
       <span
