@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { READING_MEASURE } from "@/components/ui/prose";
 import { chipVariants } from "@/components/ui/chip";
-import { PageTitle } from "@/components/ui/heading";
+import { GroupLabel, PageTitle, SubTitle } from "@/components/ui/heading";
 
 /**
  * Two decisions on one page, both about the SERP's surface rather than its
@@ -134,7 +134,7 @@ function WidthBand({ option, viewport }: { option: WidthOption; viewport: number
     return (
         <section className="border-t border-border py-6">
             <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 px-6">
-                <h3 className="text-sm font-semibold text-foreground">{option.name}</h3>
+                <SubTitle>{option.name}</SubTitle>
                 <code className="mono-data text-xs text-muted-foreground">{option.cls}</code>
                 <span className={cn(chipVariants({ active: gutter === 0 }), "mono-data ml-auto")}>
                     {gutter === 0 ? "no gutter" : `${gutter}px gutter each side`}
@@ -218,7 +218,7 @@ function GroundBand({ option }: { option: GroundOption }) {
             style={{ background: `rgb(${option.bg})` }}
         >
             <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h3 className="text-sm font-semibold text-foreground">{option.name}</h3>
+                <SubTitle>{option.name}</SubTitle>
                 <code className="mono-data text-xs text-muted-foreground">
                     --background: {option.bg} · --card: {option.card}
                 </code>
@@ -283,14 +283,14 @@ export function SurfaceMock() {
                 </p>
             </div>
 
-            <h2 className="mt-8 px-6 text-xs font-semibold text-brand">
+            <GroupLabel as="h2" className="mt-8 px-6 text-brand">
                 1 · Page width — the white gutters
-            </h2>
+            </GroupLabel>
             {viewport > 0 && WIDTH_OPTIONS.map((o) => <WidthBand key={o.id} option={o} viewport={viewport} />)}
 
-            <h2 className="mt-12 px-6 text-xs font-semibold text-brand">
+            <GroupLabel as="h2" className="mt-12 px-6 text-brand">
                 2 · Page ground — the dull white
-            </h2>
+            </GroupLabel>
             {GROUND_OPTIONS.map((o) => <GroundBand key={o.id} option={o} />)}
         </main>
     );

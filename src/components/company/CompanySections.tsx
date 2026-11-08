@@ -3,7 +3,7 @@ import { Fragment, type ReactNode } from "react";
 import { CompanyCadenceStrip, cadenceStripHasContent } from "@/components/company/CompanyCadenceStrip";
 import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { eventDate } from "@/components/company/CompanyChangeEvents";
-import { SectionTitle } from "@/components/ui/heading";
+import { SectionTitle, SubTitle } from "@/components/ui/heading";
 import type { CompanyFaqItem } from "@/lib/companies/company-faq";
 import { PAY_SCOPE, type CompanyFacts, type Distribution } from "@/lib/companies/company-facts";
 import type { SectionId } from "@/lib/companies/company-sections";
@@ -71,7 +71,7 @@ function Mix({ label, d, noun }: { label: string; d: Distribution | null; noun: 
   const stated = statedOfTotal(d, noun);
   return (
     <div className="min-w-0">
-      <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+      <SubTitle>{label}</SubTitle>
       <div className="mt-1">
         <BucketList d={d} />
       </div>
@@ -157,13 +157,13 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
           <Mix label="Level" d={mix.experienceLevel} noun="a level" />
           {v && (
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-foreground">Visa sponsorship</h3>
+              <SubTitle>Visa sponsorship</SubTitle>
               <p className="mt-1 text-sm text-muted-foreground">{`${formatCount(v.sponsors)} of ${formatCount(v.stated)} listings that state it offer sponsorship.`}</p>
             </div>
           )}
           {pay && (
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-foreground">Pay</h3>
+              <SubTitle>Pay</SubTitle>
               <p className="mt-1 text-sm text-muted-foreground">{`${pay.typical ? `Typical ${pay.typical}, ` : ""}${formatCount(pay.roles)} ${PAY_SCOPE}.`}</p>
             </div>
           )}
@@ -176,7 +176,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
       <div className="grid gap-5 sm:grid-cols-2">
         {facts.mix.skills && (
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-foreground">Skills asked for</h3>
+            <SubTitle>Skills asked for</SubTitle>
             <div className="mt-1">
               <FactLine className="text-sm text-muted-foreground" items={facts.mix.skills.buckets.map((b) => <span key={b.value}>{b.value} <span className="text-xs">({listedOnRoles(b.count)})</span></span>)} />
             </div>
@@ -184,7 +184,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
         )}
         {facts.mix.tech && (
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-foreground">Tech named</h3>
+            <SubTitle>Tech named</SubTitle>
             <div className="mt-1">
               <FactLine className="text-sm text-muted-foreground" items={facts.mix.tech.buckets.map((b) => <span key={b.value}>{b.value} <span className="text-xs">({listedOnPostings(b.count)})</span></span>)} />
             </div>

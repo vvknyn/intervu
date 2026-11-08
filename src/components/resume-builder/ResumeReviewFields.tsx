@@ -15,6 +15,7 @@ import type {
     ResumeExperience,
 } from "@/types/resume";
 
+import { SubTitle } from "@/components/ui/heading";
 /** Profile fields in display order; each input is named by its label. */
 const PROFILE_FIELDS = [
     { field: "name", label: "Name" },
@@ -73,10 +74,10 @@ export function ResumeReviewFields({
             {/* Profile Section */}
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <SubTitle as="h4" className="flex items-center gap-2">
                         Profile
                         <ConfidenceBadge score={reviewConfidence.profile} section="Profile" />
-                    </h4>
+                    </SubTitle>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {PROFILE_FIELDS.map(({ field, label }) => (
@@ -120,10 +121,10 @@ export function ResumeReviewFields({
             {/* Experience Section */}
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <SubTitle as="h4" className="flex items-center gap-2">
                         Experience ({editedData.experience.length})
                         <ConfidenceBadge score={reviewConfidence.experience} section="Experience" />
-                    </h4>
+                    </SubTitle>
                 </div>
                 <div className="space-y-4">
                     {editedData.experience.map((exp, idx) => (
@@ -167,10 +168,10 @@ export function ResumeReviewFields({
             {/* Competencies Section */}
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <SubTitle as="h4" className="flex items-center gap-2">
                         Skills
                         <ConfidenceBadge score={reviewConfidence.competencies} section="Skills" />
-                    </h4>
+                    </SubTitle>
                 </div>
                 <div className="space-y-3">
                     {editedData.competencies.map((comp, idx) => (
@@ -190,10 +191,10 @@ export function ResumeReviewFields({
             {/* Education Section */}
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <SubTitle as="h4" className="flex items-center gap-2">
                         Education ({editedData.education.length})
                         <ConfidenceBadge score={reviewConfidence.education} section="Education" />
-                    </h4>
+                    </SubTitle>
                 </div>
                 <div className="space-y-3">
                     {editedData.education.map((edu, idx) => (
@@ -226,10 +227,10 @@ export function ResumeReviewFields({
             {/* Summary Section */}
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <SubTitle as="h4" className="flex items-center gap-2">
                         Summary
                         <ConfidenceBadge score={reviewConfidence.summary} section="Summary" />
-                    </h4>
+                    </SubTitle>
                 </div>
                 <Textarea
                     value={editedData.generatedSummary}

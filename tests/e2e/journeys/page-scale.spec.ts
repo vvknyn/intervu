@@ -126,3 +126,75 @@ for (const path of ["/", "/about", "/privacy", "/yours", "/login"]) {
             .toEqual([PAGE_TITLE_PX]);
     });
 }
+
+/**
+ * J-NAV-50: every visible heading is one of the four looks of the heading scale (docs/design-language.md §3):
+ * page title 28px, section 20px, sub-heading 16px (all semibold), or the group label (12px semibold in the
+ * secondary colour). 37 headings had drifted to 12px and 14px, in six looks of their own (2026-11-08). An sr-only h1 has no
+ * look, and an accordion's h3 only wraps its trigger button, whose look is the row's.
+ */
+const HEADING_ROUTES = ["/connect", "/about", "/privacy", "/pricing", "/login", "/mock/company-page", "/mock/related-jobs?view=page"];
+
+for (const path of HEADING_ROUTES) {
+    test(`${path}: every visible heading is a page title, section, sub-heading or group label`, { tag: ["@J-NAV-50"] }, async ({ page }) => {
+        await returningVisitor(page);
+        await page.goto(path);
+        await expect(page.locator("h1, h2, h3").first()).toBeAttached({ timeout: 15_000 });
+        const offScale = await page.evaluate(() => {
+            const probe = document.createElement("span");
+            probe.className = "text-muted-foreground";
+            document.body.append(probe);
+            const secondary = getComputedStyle(probe).color;
+            probe.remove();
+            const looks = new Set(["28px/600", "20px/600", "16px/600"]);
+            return [...document.querySelectorAll("h1, h2, h3, h4, h5, h6")]
+                .filter((h) => {
+                    const r = h.getBoundingClientRect();
+                    const cs = getComputedStyle(h);
+                    return r.width > 1 && r.height > 1 && cs.visibility !== "hidden" && !h.closest("[aria-hidden=true]") && !h.querySelector("button");
+                })
+                .map((h) => {
+                    const cs = getComputedStyle(h);
+                    const look = `${cs.fontSize}/${cs.fontWeight}`;
+                    const ok = looks.has(look) || (look === "12px/600" && cs.color === secondary);
+                    return ok ? "" : `${h.tagName.toLowerCase()} ${look} ${cs.color === secondary ? "secondary" : cs.color} "${(h.textContent ?? "").trim().slice(0, 40)}"`;
+                })
+                .filter(Boolean);
+        });
+        expect(offScale).toEqual([]);
+    });
+}
+
+/**
+ * J-NAV-51: a text field looks the same on every page (docs/design-language.md §5): the sign-in form's fields
+ * were a darker well (`bg-surface-2`) than the contact form's (`bg-card`). The header's search dock is its own
+ * control and is left out.
+ */
+test("the sign-in and contact forms' text fields share one fill, the field's own", { tag: ["@J-NAV-51"] }, async ({ page }) => {
+    await returningVisitor(page);
+    const fills: Record<string, string[]> = {};
+    for (const path of ["/login", "/contact"]) {
+        await page.goto(path);
+        await expect(page.locator("main input:not([type=hidden]), main textarea").first()).toBeVisible({ timeout: 15_000 });
+        fills[path] = await page.evaluate(() =>
+            [...document.querySelectorAll("input, textarea, select")]
+                .filter((e) => {
+                    const r = e.getBoundingClientRect();
+                    const type = e.getAttribute("type") ?? "text";
+                    // The contact form's spam trap sits off-screen under aria-hidden; it is not a field anyone sees.
+                    return r.width > 1 && r.height > 1 && !e.closest("header, nav, [aria-hidden=true]") && !["hidden", "checkbox", "radio", "search", "file"].includes(type);
+                })
+                .map((e) => getComputedStyle(e).backgroundColor),
+        );
+        expect(fills[path].length, `${path} has text fields`).toBeGreaterThan(0);
+    }
+    const card = await page.evaluate(() => {
+        const probe = document.createElement("div");
+        probe.className = "bg-card";
+        document.body.append(probe);
+        const c = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return c;
+    });
+    expect([...new Set([...fills["/login"], ...fills["/contact"]])]).toEqual([card]);
+});

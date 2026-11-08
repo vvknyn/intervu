@@ -6,6 +6,7 @@ import { addedWordRuns } from "@/lib/resume/word-diff";
 import { cn } from "@/lib/utils";
 import type { ResumeData } from "@/types/resume";
 
+import { GroupLabel } from "@/components/ui/heading";
 /**
  * What tailoring changed for this role, one row per change with the reason
  * and an Undo: the summary, each reworded line and each role's new line
@@ -143,7 +144,7 @@ export function TailorChangeList({ draft, kept, undone, onToggle }: TailorChange
             </p>
             {sections.map((section) => (
                 <section key={section.key} aria-label={section.title}>
-                    <h3 className="text-xs font-semibold text-muted-foreground">{section.title}</h3>
+                    <GroupLabel>{section.title}</GroupLabel>
                     <ul className="mt-1 divide-y divide-border">
                         {section.changes.map((change) => {
                             const isUndone = undone.has(change.id);

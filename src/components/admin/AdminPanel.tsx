@@ -14,6 +14,7 @@ import { MetricsDashboard } from "@/components/admin/MetricsDashboard";
 import { SearchDemand } from "@/components/admin/SearchDemand";
 import Link from "next/link";
 
+import { SubTitle } from "@/components/ui/heading";
 const TYPE_CONFIG: Record<string, { label: string; icon: typeof Bug; color: string }> = {
     bug: { label: "Bug", icon: Bug, color: "text-danger-text bg-muted dark:text-danger-text dark:bg-muted" },
     feedback: { label: "Feedback", icon: ChatCircle, color: "text-brand bg-muted dark:text-brand dark:bg-muted" },
@@ -110,7 +111,7 @@ export function AdminPanel() {
 
                     {/* Donation Settings */}
                     <Card className="gap-4 p-4 sm:p-6">
-                        <h3 className="text-sm font-semibold mb-4">Donation Settings</h3>
+                        <SubTitle className="mb-4">Donation Settings</SubTitle>
 
                         <div className="space-y-4">
                             <label className="flex items-center gap-3 cursor-pointer">
@@ -155,12 +156,12 @@ export function AdminPanel() {
                     {/* Feedback Section */}
                     <Card className="gap-4 p-4 sm:p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-semibold">
+                            <SubTitle>
                                 User Feedback
                                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                                     ({feedback.length} total)
                                 </span>
-                            </h3>
+                            </SubTitle>
                             <div className="flex gap-1">
                                 {(["all", "bug", "feedback", "other"] as const).map((filter) => (
                                     <button

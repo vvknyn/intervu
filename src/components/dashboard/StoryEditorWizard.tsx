@@ -132,7 +132,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             value={formData.situation || ''}
                                             onChange={e => setFormData({ ...formData, situation: e.target.value })}
                                             placeholder="Context and background..."
-                                            className="h-28 text-base md:text-sm resize-none bg-muted focus:bg-background transition-colors"
+                                            className="h-28 text-base md:text-sm resize-none transition-colors"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -144,7 +144,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             value={formData.task || ''}
                                             onChange={e => setFormData({ ...formData, task: e.target.value })}
                                             placeholder="Your specific role and goal..."
-                                            className="h-28 text-base md:text-sm resize-none bg-muted focus:bg-background transition-colors"
+                                            className="h-28 text-base md:text-sm resize-none transition-colors"
                                         />
                                     </div>
                                 </div>
@@ -158,7 +158,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         value={formData.action || ''}
                                         onChange={e => setFormData({ ...formData, action: e.target.value })}
                                         placeholder="What you did (use 'I', not 'We')..."
-                                        className="h-32 text-base md:text-sm resize-none bg-muted focus:bg-background transition-colors"
+                                        className="h-32 text-base md:text-sm resize-none transition-colors"
                                     />
                                 </div>
 
@@ -171,7 +171,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                         value={formData.result || ''}
                                         onChange={e => setFormData({ ...formData, result: e.target.value })}
                                         placeholder="Outcome, metrics, and impact..."
-                                        className="h-24 text-base md:text-sm resize-none bg-muted focus:bg-background transition-colors"
+                                        className="h-24 text-base md:text-sm resize-none transition-colors"
                                     />
                                 </div>
                             </div>
@@ -197,7 +197,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             setTimeout(() => setIsTitleFocused(false), 200);
                                         }}
                                         placeholder="e.g. Tell me about a time you failed..."
-                                        className="bg-muted border-input focus:bg-background focus:border-brand transition-all"
+                                        className="border-input focus:border-brand transition-all"
                                     />
                                     {isTitleFocused && (
                                         <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-panel max-h-60 overflow-y-auto p-1">

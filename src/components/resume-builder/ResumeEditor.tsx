@@ -39,6 +39,7 @@ import {
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
+import { SubTitle } from "@/components/ui/heading";
 interface ResumeEditorProps {
     initialData: ResumeData;
     onSave: (data: ResumeData) => Promise<boolean | string | void>;
@@ -485,9 +486,9 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         <div className="flex items-center justify-between border-b border-border p-4">
                             <div className="flex items-center gap-2">
                                 <ClockCounterClockwise className="text-foreground" />
-                                <h3 className="font-semibold text-sm text-foreground">
+                                <SubTitle>
                                     Version History & Diffs
-                                </h3>
+                                </SubTitle>
                             </div>
                             <button
                                 type="button"

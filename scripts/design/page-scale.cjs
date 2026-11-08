@@ -4,9 +4,10 @@
 //              gutter (`mx-auto` + `max-w-*` + non-zero `px-*`/`p-*`), or
 //              centres the shell's width (`max-w-6xl|7xl`), instead of
 //              <PageContainer> / `.shell-row` (the one width + gutter).
-//   heading    an <h1>, <PageTitle>, <SectionTitle> or <SubTitle> that writes
-//              its own text size (the component owns it), or an h2–h6 whose
-//              size is off the heading scale (only xs / sm / base / xl).
+//   heading    an <h1>, <PageTitle>, <SectionTitle>, <SubTitle> or <GroupLabel>
+//              that writes its own text size (the component owns it), or an
+//              h2–h6 whose size is off the heading scale (only base / xl; the
+//              one small heading is <GroupLabel>, so a 12px or 14px h2–h6 is drift).
 //   prose      a bare `prose` class outside the <Prose> primitive.
 // Escape hatch: a `page-scale-allow: <reason>` comment on the offending line
 // or within ALLOW_WINDOW_LINES above it — no file list.
@@ -27,7 +28,7 @@ const GUTTER = tok("(?:px|p|pl|pr|ps|pe)-(?!0(?![.\\d]))[\\w.\\[\\]()%-]+");
 // hand-rolled even when the gutter sits on a parent.
 const SHELL_W = tok("max-w-(?:6xl|7xl)");
 const PROSE = tok("prose");
-const HEADING_OPEN = /<(h[1-6]|PageTitle|SectionTitle|SubTitle)\b/g;
+const HEADING_OPEN = /<(h[1-6]|PageTitle|SectionTitle|SubTitle|GroupLabel)\b/g;
 // Font-size utilities: every `--text-*` theme token whose value is a length
 // (globals.css is the one list, so a new size token is covered by
 // construction; `--text-2: var(--muted-foreground)` is a colour, not a size),
@@ -35,7 +36,10 @@ const HEADING_OPEN = /<(h[1-6]|PageTitle|SectionTitle|SubTitle)\b/g;
 const SIZE_NAMES = [...readFileSync(path.join(__dirname, "../../src/app/globals.css"), "utf8")
     .matchAll(/^\s*--text-([\w-]+):\s*(?:[\d.]+(?:rem|px|em)\b|clamp\()/gm)].map((m) => m[1]);
 const SIZE = new RegExp(`(?<![\\w-])(?:[\\w-]+:)*text-(${SIZE_NAMES.join("|")}|\\[(?:length:|clamp\\(|\\d)[^\\]\\s]*\\])(?![\\w-])`, "g");
-const SECTION_STEPS = new Set(["xs", "sm", "base", "xl"]);
+const SECTION_STEPS = new Set(["base", "xl"]);
+// A heading drawn through a variable tag: `const HeadingTag = \`h${level}\``, or a prop
+// destructured with a heading default (`headingLevel: Heading = "h3"`). Such a tag is an h2–h6.
+const DYNAMIC_HEADING = /\bconst\s+([A-Z]\w*)\s*=\s*`h\$\{|\b\w+\s*:\s*([A-Z]\w*)\s*=\s*["']h[2-6]["']/g;
 
 const lineOf = (src, index) => src.slice(0, index).split("\n").length;
 
@@ -77,8 +81,10 @@ function candidates(src) {
         }
         for (const p of text.matchAll(new RegExp(PROSE, "g"))) out.push({ index: at(p), rule: "prose", token: p[0] });
     }
-    for (const t of src.matchAll(HEADING_OPEN)) {
-        const ownsSize = !/^h[2-6]$/.test(t[1]);
+    const dynamic = new Set([...src.matchAll(DYNAMIC_HEADING)].map((m) => m[1] ?? m[2]));
+    const opens = dynamic.size ? new RegExp(`${HEADING_OPEN.source.replace("(h[1-6]|", `(h[1-6]|${[...dynamic].join("|")}|`)}`, "g") : HEADING_OPEN;
+    for (const t of src.matchAll(opens)) {
+        const ownsSize = !/^h[2-6]$/.test(t[1]) && !dynamic.has(t[1]);
         for (const z of src.slice(t.index, tagEnd(src, t.index)).matchAll(SIZE)) {
             if (ownsSize || !SECTION_STEPS.has(z[1])) out.push({ index: t.index + z.index, rule: "heading", token: `<${t[1]}> ${z[0]}` });
         }

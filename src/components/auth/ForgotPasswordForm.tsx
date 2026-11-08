@@ -97,7 +97,6 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="bg-surface-2 shadow-[var(--shadow-bevel-inset)]"
                     />
                 </Field>
 

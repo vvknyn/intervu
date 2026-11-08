@@ -4,7 +4,7 @@ import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { getSectionOrder, type ResumeData, type ResumeEducation, type ResumeSection } from "@/types/resume";
 import { cn } from "@/lib/utils";
 import { FactLine } from "@/components/ui/fact-line";
-import { SectionTitle } from "@/components/ui/heading";
+import { GroupLabel, SectionTitle } from "@/components/ui/heading";
 
 const DEFAULT_HEADINGS: Record<ResumeSection, string> = {
     summary: "Professional summary",
@@ -69,7 +69,7 @@ export function GuestResumeReadout({ data, className }: GuestResumeReadoutProps)
                 if (!text) return null;
                 return (
                     <section key="summary" className="space-y-2 pt-5 first:pt-0">
-                        <h3 className="text-xs font-semibold text-muted-foreground">{heading("summary")}</h3>
+                        <GroupLabel>{heading("summary")}</GroupLabel>
                         <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{text}</p>
                     </section>
                 );
@@ -79,7 +79,7 @@ export function GuestResumeReadout({ data, className }: GuestResumeReadoutProps)
                 if (items.length === 0) return null;
                 return (
                     <section key="experience" className="space-y-3.5 pt-5 first:pt-0">
-                        <h3 className="text-xs font-semibold text-muted-foreground">{heading("experience")}</h3>
+                        <GroupLabel>{heading("experience")}</GroupLabel>
                         <ul className="space-y-4">
                             {items.map((exp) => (
                                 <li key={exp.id} className="space-y-1">
@@ -112,7 +112,7 @@ export function GuestResumeReadout({ data, className }: GuestResumeReadoutProps)
                 if (items.length === 0) return null;
                 return (
                     <section key="projects" className="space-y-3.5 pt-5 first:pt-0">
-                        <h3 className="text-xs font-semibold text-muted-foreground">{heading("projects")}</h3>
+                        <GroupLabel>{heading("projects")}</GroupLabel>
                         <ul className="space-y-4">
                             {items.map((proj) => (
                                 <li key={proj.id} className="space-y-1">
@@ -141,7 +141,7 @@ export function GuestResumeReadout({ data, className }: GuestResumeReadoutProps)
                 if (categories.length === 0) return null;
                 return (
                     <section key="skills" className="space-y-2.5 pt-5 first:pt-0">
-                        <h3 className="text-xs font-semibold text-muted-foreground">{heading("skills")}</h3>
+                        <GroupLabel>{heading("skills")}</GroupLabel>
                         <div className="grid gap-2 sm:grid-cols-2">
                             {categories.map((cat, index) => (
                                 <div
@@ -167,7 +167,7 @@ export function GuestResumeReadout({ data, className }: GuestResumeReadoutProps)
                 if (items.length === 0) return null;
                 return (
                     <section key="education" className="space-y-3.5 pt-5 first:pt-0">
-                        <h3 className="text-xs font-semibold text-muted-foreground">{heading("education")}</h3>
+                        <GroupLabel>{heading("education")}</GroupLabel>
                         <ul className="space-y-3">
                             {items.map((raw) => {
                                 const edu = educationForDisplay(raw);
@@ -221,7 +221,7 @@ export function GuestResumeReadout({ data, className }: GuestResumeReadoutProps)
                 {sectionOrder.map((section) => renderSection(section))}
                 {additionalSections.map((sec) => (
                     <section key={sec.heading} className="space-y-2 pt-5 first:pt-0">
-                        <h3 className="text-xs font-semibold text-muted-foreground">{sec.heading.trim()}</h3>
+                        <GroupLabel>{sec.heading.trim()}</GroupLabel>
                         <ul className="space-y-1 text-sm text-foreground">
                             {sec.lines
                                 .map((l) => l.replace(/^[\s•·-]+/, "").trim())

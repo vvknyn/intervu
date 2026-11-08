@@ -347,7 +347,7 @@ import {
 } from "@/lib/auth/auth-gate-copy";
 import { decideSaveAttempt } from "@/lib/auth/guest-save-gate";
 import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
-import { PageTitle } from "@/components/ui/heading";
+import { PageTitle, SubTitle } from "@/components/ui/heading";
 
 /**
  * Every search-action call on this page goes through this one
@@ -611,7 +611,7 @@ function DeadJobTombstone({ onSimilarRoles }: { onSimilarRoles: () => void }) {
     return (
         <div className="flex flex-col items-center justify-center rounded-panel bg-surface px-6 py-16 text-center">
             <WarningCircle size={24} className="mb-3 text-muted-foreground" />
-            <h3 className="text-sm font-semibold">{DEAD_JOB_TOMBSTONE_TEXT}</h3>
+            <SubTitle>{DEAD_JOB_TOMBSTONE_TEXT}</SubTitle>
             <SimilarRolesCta onClick={onSimilarRoles} />
         </div>
     );
@@ -645,9 +645,9 @@ function DeadJobUnresolved({
             ) : (
                 <MagnifyingGlass size={24} className="mb-3 text-muted-foreground" />
             )}
-            <h3 className="text-sm font-semibold">
+            <SubTitle>
                 {checking ? "Checking this role…" : "Can't confirm this role's status right now."}
-            </h3>
+            </SubTitle>
             <SimilarRolesCta onClick={onSimilarRoles} />
         </div>
     );
