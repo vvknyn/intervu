@@ -1428,6 +1428,29 @@ body {
   }
 }
 
+/* FORM STACK — an email capture form: the field, the security check and the
+   buttons each on a line of their own, one column at every width. The field
+   takes the form's whole width, the check (a 300x65 box Cloudflare fills, which
+   cannot shrink) sits left on its own line, and the buttons are an .action-row
+   under them. A `flex flex-wrap` form put the "Email me new jobs" button beside
+   the check, "Not now" alone under them and the field a narrow box above
+   (founder screenshot 2026-11-08 of the Job alert panel on /jobs at 1180px).
+   Cap the form's width on the form (`max-w-md`), never the field's. Anything
+   that is not the field (note, error) is a plain line in the same column.
+   tests/unit/phone-wrap.test.ts fails a `flex-wrap` form; journey J-MOB-35
+   (form-stack.spec.ts) measures the rendered forms at 390, 768 and 1180. */
+@layer components {
+  .form-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .form-stack > * {
+    min-width: 0;
+  }
+}
+
 /* LINK CLOUD — the footer's run of text links ("About the checks", "Pricing",
    "Remote jobs" … 16 of them). On a phone it is columns of equal width, each
    link on a line of its own in its column, so the rows line up and none is

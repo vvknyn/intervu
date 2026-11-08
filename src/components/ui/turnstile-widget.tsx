@@ -3,6 +3,7 @@
 import Script from 'next/script'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { captureEvent, type TurnstileSurface } from '@/lib/analytics/events'
+import { cn } from '@/lib/utils'
 
 declare global {
     interface Window {
@@ -79,6 +80,8 @@ interface TurnstileWidgetProps {
     errorMessage?: string
     /** That way in: focused and scrolled into view on the first failure. */
     alternativeRef?: RefObject<HTMLElement | null>
+    /** Where the 300px challenge sits on its own line: centred by default, `justify-start` in a form whose fields run from the left edge. */
+    className?: string
 }
 
 /**
@@ -89,7 +92,7 @@ interface TurnstileWidgetProps {
  * tag — so the signup form works unchanged before Turnstile keys exist, the
  * same "inert until configured" seam the server-side check uses.
  */
-export function TurnstileWidget({ onVerify, resetKey = 0, onError, surface, errorMessage, alternativeRef }: TurnstileWidgetProps) {
+export function TurnstileWidget({ onVerify, resetKey = 0, onError, surface, errorMessage, alternativeRef, className }: TurnstileWidgetProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const widgetIdRef = useRef<string | null>(null)
     const [scriptLoaded, setScriptLoaded] = useState(false)
@@ -163,7 +166,8 @@ export function TurnstileWidget({ onVerify, resetKey = 0, onError, surface, erro
                 onReady={markLoaded}
                 onError={() => fail(SCRIPT_LOAD_FAILED)}
             />
-            <div ref={containerRef} className="flex justify-center" />
+            {/* Full width and never beside another part of the form: Cloudflare fills it with a fixed 300x65 box that cannot shrink. */}
+            <div ref={containerRef} data-testid="turnstile-slot" className={cn('flex w-full justify-center', className)} />
             {errorCode && <TurnstileErrorNotice message={errorMessage} />}
         </>
     )

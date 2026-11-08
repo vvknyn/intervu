@@ -35,8 +35,6 @@ const FILES = tsxFiles(SRC).map((path) => ({ path, rel: path.slice(process.cwd()
 const WRAPPING_BUTTON_ROW_ALLOWED: Record<string, string> = {
     "src/app/error.tsx": "two centred buttons; both fit on one line at 320px",
     "src/components/jobs/ApplyReturnPrompt.tsx": "a toast: Yes and Not yet grow (flex-1) and Skip sits beside them on one line",
-    "src/components/account/AccountEmailPrompt.tsx": "a field and its button: a form row, not a set of actions",
-    "src/components/jobs/SearchAlertCapture.tsx": "a field and its button: a form row, not a set of actions",
     "src/components/settings/SettingsContainer.tsx": "flex-col on a phone with full-width buttons (one per line); it wraps only from sm up",
     "src/components/settings/YourResumeSection.tsx": "the buttons sit in a nested .action-row; this flex-wrap only sets the 'Last updated' note beside it from sm up",
 };
@@ -93,6 +91,57 @@ describe("a row of buttons wraps as an .action-row, not a bare flex-wrap", () =>
         ]) {
             assert.match(FILES.find((f) => f.rel === rel)!.src, /className="action-row[ "]/, rel);
         }
+    });
+});
+
+describe("an email capture form is a .form-stack: one column at every width", () => {
+    const css = readFileSync(join(SRC, "app", "globals.css"), "utf8");
+    const src = (rel: string) => FILES.find((f) => f.rel === rel)!.src;
+
+    it(".form-stack is a stretched column", () => {
+        assert.match(css, /\.form-stack\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*align-items:\s*stretch;/);
+    });
+
+    it("no <form> in src is a wrapping flex row (the Job alert panel put its button beside the widget and \"Not now\" alone)", () => {
+        const offenders: string[] = [];
+        for (const { rel, src: text } of FILES) {
+            const lines = text.split("\n");
+            lines.forEach((line, i) => {
+                if (/<form\b/.test(line) && /\bflex-wrap\b/.test(lines.slice(i, i + 4).join("\n").split(/>\s*$/m)[0])) offenders.push(`${rel}:${i + 1}`);
+            });
+        }
+        assert.deepEqual(
+            offenders,
+            [],
+            "a form is `form-stack` (globals.css): the field, the security check and the buttons each on a line of their own. A `flex flex-wrap` form put the Job alert button beside Turnstile's fixed 300x65 box (founder screenshot 2026-11-08).",
+        );
+    });
+
+    it("the Job alert form and both account-email forms are form-stacks whose field is not capped, with their buttons in an .action-row", () => {
+        const alert = src("src/components/jobs/SearchAlertCapture.tsx");
+        const prompt = src("src/components/account/AccountEmailPrompt.tsx");
+        assert.equal((alert.match(/<form [^\n]*form-stack/g) ?? []).length, 1);
+        assert.equal((prompt.match(/<form [^\n]*form-stack/g) ?? []).length, 2);
+        assert.equal((alert.match(/className="action-row"/g) ?? []).length, 1);
+        assert.equal((prompt.match(/className="action-row"/g) ?? []).length, 2);
+        for (const file of [alert, prompt]) {
+            assert.doesNotMatch(file, /max-w-\[260px\]/, "cap the form (max-w-md), never the field");
+            assert.doesNotMatch(file, /flex-wrap/);
+        }
+        assert.match(alert, /<TurnstileWidget [^\n]*className="justify-start"/);
+    });
+
+    it("the security check's slot is a full-width box of its own and has a test id", () => {
+        const widget = src("src/components/ui/turnstile-widget.tsx");
+        assert.match(widget, /data-testid="turnstile-slot" className=\{cn\('flex w-full justify-center', className\)\}/);
+    });
+
+    it("both forms are audited through their /mock fixtures, which the layout journey measures at 1180, 768, 390 and 320", () => {
+        const jobs = WRAP_ROUTES["/jobs"];
+        assert.ok("audit" in jobs && jobs.audit.includes("/mock/search-alert") && jobs.audit.includes("/mock/email-nudge"));
+        assert.ok(readFileSync(join(process.cwd(), "src/app/mock/search-alert/page.tsx"), "utf8").includes("<SearchAlertMock"));
+        assert.ok(src("src/app/jobs/JobsContent.tsx").includes("SearchAlertCapture"), "the real page renders the component the fixture renders");
+        assert.match(readFileSync(join(process.cwd(), "tests/e2e/journeys/form-stack.spec.ts"), "utf8"), /@J-ALERTS-49/);
     });
 });
 
