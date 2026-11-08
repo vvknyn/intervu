@@ -290,7 +290,8 @@ export const MCP_TOOL_SPECS = {
             `("product manager at Shopify", "product manager shopify", "integral ad science product manager") searches that ` +
             `role at that employer and the note says so; when the employer has none of that role, its other roles come ` +
             `first and then the role at other employers, and the note says that instead. Words the search could not use ` +
-            `(an employer name no employer here carries, when nothing matched with them) are named in the note. Postings that look stale (unlikely to lead to an ` +
+            `(an employer name no employer here carries, when no posting titled with the role matched them) are named in ` +
+            `the note, and the role is searched without them. Postings that look stale (unlikely to lead to an ` +
             `actual hire) are excluded by default — pass includeGhostFlagged:true to include them. ` +
             `Returns up to ${AGENT.RESULT_CAP} results per page (default ${AGENT.SEARCH_DEFAULT_LIMIT}), up to ${AGENT.SEARCH_DEPTH_CAP} ` +
             `per query via cursor pagination — pass the response's next_cursor as the next call's cursor ` +

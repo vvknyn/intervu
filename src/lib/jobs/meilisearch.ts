@@ -16,10 +16,14 @@ import {
   extractCompoundRoleCompanyCandidates,
   isCompanyNameQuery,
   MAX_COMPOUND_PROBES,
+  companyNameStem,
+  namedCompoundEmployer,
   normalizeCompanyName,
+  ownedDomains,
   pickCompoundEmployer,
   unresolvedCompoundSplit,
   type CompanyNameSample,
+  type DomainNameCounts,
 } from "./company-intent";
 import {
   chosenEmployerRole,
@@ -52,7 +56,7 @@ import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause, hasUnknownRequestedFacet, salaryMinClause } from "./unknown-inclusive-facets";
 import { expandTitleQuery } from "./title-aliases";
 import { relatedSuggestions, relatedTitlesFor } from "./title-neighbours";
-import type { EmployerSuggestion, FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
+import type { EmployerRead, EmployerSuggestion, FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
 
@@ -1729,31 +1733,40 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
     : null;
 
   const noIntent: CompanyIntentResult = { companyScoped: false, companyDomains: [] };
+  // Words read as role + employer with no employer clearing the floors: whether the whole
+  // query's rows are about the role is asked beside the search, so it costs no extra wait.
+  const unresolved = !read && !p.facetCountsOnly ? intent.unresolvedSplit : undefined;
+  const onTopic = unresolved ? wholeQueryTitlesHoldRole(h, p, unresolved.roleQ) : null;
   const result = await runWithIntent(employerIntent ?? intent);
   // A counts-only search's lanes hold no rows, so their total is no sign the company reading found nothing.
   if (p.facetCountsOnly) return result;
 
-  if (read) {
-    if (result.total > 0) {
+  // The role at one employer; when it has none, its other roles, then the role at other employers.
+  const answerEmployerRole = async (
+    asked: Omit<EmployerRead, "roleMatches" | "employerRoles">,
+    atEmployer: JobSearchResult,
+  ): Promise<JobSearchResult> => {
+    if (atEmployer.total > 0) {
       return {
-        ...result,
-        effectiveQ: read.role,
-        employer: { ...read, name: read.name ?? employerNameFromHits(result.hits, read.domains), roleMatches: result.total },
+        ...atEmployer,
+        effectiveQ: asked.role,
+        employer: { ...asked, name: asked.name ?? employerNameFromHits(atEmployer.hits, asked.domains), roleMatches: atEmployer.total },
       };
     }
-    // None of that role at the employer: its other roles, then the role at other employers.
     const offset = p.offset ?? 0;
     const limit = p.limit ?? 40;
-    const employerRoles = await runWithIntent(noIntent, pinToEmployer({ ...p, q: "" }, read.domains), true);
+    const employerRoles = await runWithIntent(noIntent, pinToEmployer({ ...p, q: "" }, asked.domains), true);
     const window = employerFallbackWindow(employerRoles.total, offset, limit);
     // Past the employer's roles the page reads into the role elsewhere; inside them this pass
     // is only for its total, so it asks for one row.
-    const roleElsewhere = await runWithIntent(noIntent, { ...withoutEmployer(p), q: read.role, ...(window ?? { offset: 0, limit: 1 }) });
+    const roleElsewhere = await runWithIntent(noIntent, { ...withoutEmployer(p), q: asked.role, ...(window ?? { offset: 0, limit: 1 }) });
     return {
-      ...joinEmployerFallback(employerRoles, roleElsewhere, read, window !== null),
-      companyIntent: { domains: read.domains, scopedTotal: 0, fallback: true },
+      ...joinEmployerFallback(employerRoles, roleElsewhere, asked, window !== null),
+      companyIntent: { domains: asked.domains, scopedTotal: 0, fallback: true },
     };
-  }
+  };
+
+  if (read) return answerEmployerRole(read, result);
 
   if (intent.companyScoped && result.total === 0) {
     const fallback = await runWithIntent(noIntent);
@@ -1763,15 +1776,112 @@ async function searchMeiliScoped(p: JobSearchParams): Promise<JobSearchResult> {
     };
   }
 
-  // The words read as role + employer, no employer by that name is in the corpus, and the
-  // whole query matched nothing: search the role words and say the employer's words were
-  // searched without (the "company not found" path).
-  if (intent.unresolvedSplit && result.total === 0) {
-    const { roleQ, companyQ } = intent.unresolvedSplit;
-    const fallback = await runWithIntent(noIntent, { ...p, q: roleQ });
-    if (fallback.total > 0) return { ...fallback, effectiveQ: roleQ, unmatchedQueryMentions: [companyQ] };
+  // The words read as role + employer and no employer clears the floors. The whole query's rows
+  // stand when one of them is the role ("software engineer machine learning"). Otherwise they
+  // only mention the words somewhere ("product manager integral ad science" listed a data
+  // scientist at a bank, release 74's live check): an employer the corpus knows by that name,
+  // however few its roles, gets the employer read; else the role words are searched and the
+  // page says which words were searched without (the "company not found" path).
+  if (unresolved) {
+    if (result.total > 0 && (await onTopic)) return result;
+    const named = intent.namedEmployer;
+    if (named) {
+      const owned = ownedDomains(named.domains, await probeDomainNameCounts(h, named.companyQ, named.domains));
+      if (owned.length > 0) {
+        const asked = { domains: owned, ...(named.name && { name: named.name }), role: named.roleQ, source: "typed" as const };
+        const employerIntentForName: CompanyIntentResult = { companyScoped: false, companyDomains: owned, residualRoleQ: named.roleQ };
+        return answerEmployerRole(asked, await runWithIntent(employerIntentForName));
+      }
+    }
+    const fallback = await runWithIntent(noIntent, { ...p, q: unresolved.roleQ });
+    if (fallback.total > 0) return { ...fallback, effectiveQ: unresolved.roleQ, unmatchedQueryMentions: [unresolved.companyQ] };
   }
   return result;
+}
+
+/**
+ * Pure: the search that asks whether a whole query's rows are about its role
+ * words — the same words and filters as the list, titles only, the top 40.
+ * Not paged, so every page of one list gets the same answer.
+ */
+export function buildRoleTitleCheckBody(p: JobSearchParams): MeiliSearchBody {
+  return {
+    q: (p.q ?? "").trim(),
+    limit: ROLE_TITLE_CHECK_ROWS,
+    offset: 0,
+    matchingStrategy: "all",
+    filter: buildFilter(p, false, needsDomainFilters(p) && companyDomainFilterUnsupported ? { skipDomainFilters: true } : undefined),
+    attributesToRetrieve: ["title"],
+  };
+}
+
+const ROLE_TITLE_CHECK_ROWS = 40;
+
+/** Does a title among the whole query's top rows hold the role words? Fails open (true): today's list. */
+async function wholeQueryTitlesHoldRole(h: string, p: JobSearchParams, roleQ: string): Promise<boolean> {
+  try {
+    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify(buildRoleTitleCheckBody(p)),
+    });
+    if (!res.ok) return true;
+    const body = (await res.json()) as { hits?: Array<{ title?: string | null }> };
+    return titlesHoldRole((body.hits ?? []).map((hit) => hit.title ?? ""), roleQ);
+  } catch {
+    return true;
+  }
+}
+
+/** Pure: does any of `titles` hold every role word (`titleMatchesQuery`)? */
+export function titlesHoldRole(titles: readonly string[], roleQ: string): boolean {
+  return titles.some((t) => titleMatchesQuery(decodeText(t), roleQ));
+}
+
+/**
+ * Pure: the two counts behind `ownedDomains` (company-intent.ts), as one
+ * `/multi-search`: each domain's live rows whose employer name holds `name`'s
+ * words, and each domain's live rows in all, counted by `company_domain`.
+ */
+export function buildDomainNameCountQueries(name: string, domains: readonly string[]): Array<Record<string, unknown>> {
+  const filter = buildFilter({ companyDomains: [...domains] });
+  const counts = { indexUid: JOBS_INDEX, limit: 0, filter, facets: ["company_domain"] };
+  return [
+    { ...counts, q: name.trim(), matchingStrategy: "all", attributesToSearchOn: ["company"] },
+    { ...counts, q: "" },
+  ];
+}
+
+/** Pure: `buildDomainNameCountQueries`' answers as counts per domain; null when either is missing. */
+export function readDomainNameCounts(
+  domains: readonly string[],
+  results: ReadonlyArray<{ facetDistribution?: Record<string, Record<string, number>> } | undefined>,
+): DomainNameCounts | null {
+  const [named, all] = results.map((r) => r?.facetDistribution?.company_domain);
+  if (!named || !all) return null;
+  const lower = (m: Record<string, number>) => new Map(Object.entries(m).map(([d, n]) => [d.trim().toLowerCase(), n]));
+  const namedBy = lower(named);
+  const allBy = lower(all);
+  return new Map(domains.map((d) => [d, { named: namedBy.get(d) ?? 0, total: allBy.get(d) ?? 0 }]));
+}
+
+/** Counts per domain for `ownedDomains`; null (fail open) when the index cannot count by domain or the call fails. */
+async function probeDomainNameCounts(h: string, name: string, domains: readonly string[]): Promise<DomainNameCounts | null> {
+  if (domains.length === 0 || companyDomainFilterUnsupported) return null;
+  try {
+    const res = await meiliFetch(`${h}/multi-search`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+      cache: "no-store",
+      body: JSON.stringify({ queries: buildDomainNameCountQueries(name, domains) }),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { results?: Array<{ facetDistribution?: Record<string, Record<string, number>> }> };
+    return readDomainNameCounts(domains, body.results ?? []);
+  } catch {
+    return null;
+  }
 }
 
 export function pageRoleTitleHits(ranked: PublicJob[], offset: number, limit: number): PublicJob[] {
@@ -3007,19 +3117,26 @@ export function employerSuggestQueries(q: string): Array<{ companyQ: string; rol
 
 /**
  * Pure: one employer list from the searches' answers, in the order asked
- * (the whole text's employers first), one row per domain, capped. The box
- * lists employers before roles when the typed words read as role + employer,
- * or when the whole text IS an employer's name.
+ * (the whole text's employers first), one row per domain and one per name,
+ * capped. `owns` keeps a row only on a domain its employer owns
+ * (`ownedDomains`): release 74 listed "Bank of America" twice, and the first
+ * pick filtered to a job board that carried one of its postings. Of two rows
+ * with one name, the first kept wins (`rankOwnedRows` puts the better-owned
+ * domain first). The box lists employers before roles when the typed words
+ * read as role + employer, or when the whole text IS an employer's name.
  */
 export function mergeEmployerSuggestions(
   q: string,
   answers: readonly EmployerSuggestion[][],
+  owns: (row: EmployerSuggestion) => boolean = () => true,
 ): { employers: EmployerSuggestion[]; employersFirst: boolean } {
   const employers: EmployerSuggestion[] = [];
   const seen = new Set<string>();
   for (const row of answers.flat()) {
-    if (seen.has(row.domain) || employers.length >= EMPLOYER_SUGGEST_CAP) continue;
+    const name = `name:${normalizeCompanyName(row.name)}`;
+    if (seen.has(row.domain) || seen.has(name) || employers.length >= EMPLOYER_SUGGEST_CAP || !owns(row)) continue;
     seen.add(row.domain);
+    seen.add(name);
     employers.push(row);
   }
   const typed = normalizeCompanyName(q);
@@ -3050,6 +3167,66 @@ async function fetchEmployerSuggestions(h: string, companyQ: string, role?: stri
   }
 }
 
+/** How many employer rows one keystroke's ownership check looks at (the first, in the order asked). */
+const EMPLOYER_OWNERSHIP_ROWS = 6;
+
+interface EmployerRowOwnership {
+  owns(row: EmployerSuggestion): boolean;
+  share(row: EmployerSuggestion): number;
+}
+
+/**
+ * Which employer rows sit on a domain their employer owns (`ownedDomains`):
+ * one count per employer name, asked at once. A row past the first
+ * `EMPLOYER_OWNERSHIP_ROWS`, or any row when a count failed, is kept, as
+ * before the check.
+ */
+async function employerRowOwnership(h: string, rows: readonly EmployerSuggestion[]): Promise<EmployerRowOwnership> {
+  const checked = rows.slice(0, EMPLOYER_OWNERSHIP_ROWS);
+  const byName = new Map<string, { name: string; domains: string[] }>();
+  for (const row of checked) {
+    const key = normalizeCompanyName(row.name);
+    const entry = byName.get(key) ?? { name: row.name, domains: [] };
+    if (!entry.domains.includes(row.domain)) entry.domains.push(row.domain);
+    byName.set(key, entry);
+  }
+  const counts = new Map<string, DomainNameCounts | null>();
+  await Promise.all(
+    [...byName].map(async ([key, { name, domains }]) => counts.set(key, await probeDomainNameCounts(h, name, domains))),
+  );
+  const countsFor = (row: EmployerSuggestion) => counts.get(normalizeCompanyName(row.name));
+  return {
+    owns: (row) => {
+      const c = countsFor(row);
+      return c === undefined || ownedDomains([row.domain], c ?? null).length > 0;
+    },
+    share: (row) => {
+      const c = countsFor(row)?.get(row.domain);
+      return c && c.total > 0 ? c.named / c.total : 0;
+    },
+  };
+}
+
+/** Pure: rows sharing a name, the better-owned domain first; every other row keeps its place. */
+export function rankOwnedRows(
+  rows: readonly EmployerSuggestion[],
+  ownership: Pick<EmployerRowOwnership, "share">,
+): EmployerSuggestion[] {
+  const firstAt = new Map<string, number>();
+  rows.forEach((r, i) => {
+    const key = normalizeCompanyName(r.name);
+    if (!firstAt.has(key)) firstAt.set(key, i);
+  });
+  return rows
+    .map((row, i) => ({ row, i }))
+    .sort((a, b) => {
+      const ka = firstAt.get(normalizeCompanyName(a.row.name))!;
+      const kb = firstAt.get(normalizeCompanyName(b.row.name))!;
+      return ka - kb || ownership.share(b.row) - ownership.share(a.row) || a.i - b.i;
+    })
+    .map(({ row }) => row);
+}
+
 /**
  * Read-path: title/company suggestions for the search box's typeahead
  * (Task 9). One search call against the live index — no facet request, no
@@ -3077,7 +3254,13 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
       : { hits: [] };
     const suggestions = dedupeJobSuggestionHits(body.hits ?? [], query);
     const related = relatedSuggestions(query, suggestions.titles);
-    const { employers, employersFirst } = mergeEmployerSuggestions(query, await employerAnswers);
+    const answers = await employerAnswers;
+    const ownership = await employerRowOwnership(h, answers.flat());
+    const { employers, employersFirst } = mergeEmployerSuggestions(
+      query,
+      answers.map((rows) => rankOwnedRows(rows, ownership)),
+      (row) => ownership.owns(row),
+    );
     return {
       ...suggestions,
       ...(related.length > 0 && { related }),
@@ -3146,6 +3329,39 @@ export async function probeCompanyMatch(phrase: string): Promise<boolean> {
   return (await probeCompanyNames(phrase, 1)).total > 0;
 }
 
+const EMPLOYER_NAME_TTL_MS = 10 * 60_000;
+const EMPLOYER_NAME_CACHE_MAX = 1000;
+const employerNameCache = new Map<string, { value: boolean; atMs: number }>();
+
+export function resetEmployerNameCacheForTests(): void {
+  employerNameCache.clear();
+}
+
+/**
+ * Read-path: is `phrase` some live employer's WHOLE name ("bank of america",
+ * "air canada"), legal suffix aside (`companyNameStem`)? Stricter than
+ * `probeCompanyMatch` (any employer's name holding the words): backs
+ * query-understanding.ts's employer-name guard, which runs for every place
+ * kind, so "jobs canada" must not pass because some "Jobs Canada Inc."
+ * exists only as part of a longer name. Cached like the company intent: the
+ * answer is the corpus's, the same for everyone. A failure answers false:
+ * the place reading stands, as before the guard.
+ */
+export async function probeEmployerName(phrase: string): Promise<boolean> {
+  const needle = companyNameStem(phrase);
+  if (!needle) return false;
+  const hit = employerNameCache.get(needle);
+  if (hit && Date.now() - hit.atMs < EMPLOYER_NAME_TTL_MS) return hit.value;
+  const sample = await probeCompanyNames(phrase, COMPANY_INTENT_SAMPLE);
+  const value = sample.companies.some((c) => companyNameStem(c ?? "") === needle);
+  if (employerNameCache.size >= EMPLOYER_NAME_CACHE_MAX) {
+    const oldest = employerNameCache.keys().next().value;
+    if (oldest !== undefined) employerNameCache.delete(oldest);
+  }
+  employerNameCache.set(needle, { value, atMs: Date.now() });
+  return value;
+}
+
 /**
  * Memoized company-intent decision for a typed query — see company-intent.ts
  * for what the gate is and why it is a dominance ratio rather than
@@ -3171,10 +3387,13 @@ export interface CompanyIntentResult {
   residualRoleQ?: string;
   /** The employer's name as the corpus shows it ("Tesla"), with `residualRoleQ`. */
   companyName?: string;
-  /** The query reads as role + employer words, but no employer in the corpus has that name
+  /** The query reads as role + employer words, but no employer in the corpus clears the floors
    *  (`unresolvedCompoundSplit`): what to search, and what to say was not found, when the
-   *  whole query matches nothing. */
+   *  whole query's rows are not about the role. */
   unresolvedSplit?: { roleQ: string; companyQ: string };
+  /** With `unresolvedSplit`: a split whose employer words ARE the name of a few live rows, below
+   *  the floors (`namedCompoundEmployer`) — "bank of america" with two roles. */
+  namedEmployer?: { roleQ: string; companyQ: string; domains: string[]; name?: string };
 }
 
 const companyIntentCache = new Map<string, { value: CompanyIntentResult; atMs: number }>();
@@ -3227,7 +3446,8 @@ async function probeCompanyIntent(query: string, key: string): Promise<CompanyIn
         ...(picked.name && { companyName: picked.name }),
       };
     } else if (unresolved) {
-      value = { ...value, unresolvedSplit: unresolved };
+      const named = namedCompoundEmployer(candidates, samples);
+      value = { ...value, unresolvedSplit: unresolved, ...(named && { namedEmployer: named }) };
     }
   }
 

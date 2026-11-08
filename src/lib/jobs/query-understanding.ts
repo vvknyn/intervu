@@ -28,6 +28,7 @@ import {
 import { MAX_REGION_CLAUSE_TERMS, regionLabel } from "../geo/regions";
 import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
+import { isEmployerWord } from "./company-intent";
 import { SENIORITY_PHRASES } from "./role-title-lane";
 import { parseQuotedOrPhrases } from "./fit-phrases";
 import { applyTypedFilterTokens } from "./query-tokens";
@@ -138,6 +139,10 @@ export interface LocationVocabulary {
   gazetteer: Gazetteer;
   corpusChecker: CorpusValueChecker;
   companyProbe: CompanyProbe;
+  /** Live lookup: is `phrase` some live employer's WHOLE name ("bank of america", "air canada")?
+   *  Backs the employer-name guard in `parsePlaceTokens`. Absent = no guard (callers that
+   *  read an explicit location field, and tests that do not exercise it). */
+  employerNameProbe?: CompanyProbe;
 }
 
 export interface ParsedPlaces {
@@ -205,9 +210,20 @@ export async function parsePlaceTokens(
 
   if (guardFreeTextWords && scan.tokens.length > 1) {
     const rejected = new Set<PlaceResolution>();
+    const employerName = vocab.employerNameProbe;
     await Promise.all(
       resolutions.map(async (r) => {
-        // Only a city can be a company name in free text; a country/region/state never is.
+        // A place inside an employer's whole name ("BANK of AMERICA", "air CANADA", "royal bank
+        // of CANADA") is part of the name, whatever kind of place it is. Asked at once, longest first.
+        if (employerName) {
+          const names = employerNameCandidates(r, scan.tokens);
+          const answers = await Promise.all(names.map((n) => employerName(n)));
+          if (answers.some(Boolean)) {
+            rejected.add(r);
+            return;
+          }
+        }
+        // The looser check (any employer's name holds the words) is only for a city next to a word.
         if (r.entity.type !== "city") return;
         for (const candidate of companyCorroborationCandidates(r, scan.tokens)) {
           if (await vocab.companyProbe(candidate)) {
@@ -276,6 +292,40 @@ export function companyCorroborationCandidates(resolution: PlaceResolution, toke
   if (end < tokens.length && isMeaningful(tokens[end])) candidates.push(`${span} ${tokens[end]}`);
   if (start > 0 && isMeaningful(tokens[start - 1])) candidates.push(`${tokens[start - 1]} ${span}`);
   return candidates;
+}
+
+/** Most words an employer's name around a place match may hold ("Territorial Bank of American Samoa"). */
+export const MAX_EMPLOYER_NAME_TOKENS = 5;
+
+/**
+ * Pure: the phrases around one place match that could be an employer's WHOLE
+ * name, longest first: every run of up to `MAX_EMPLOYER_NAME_TOKENS` words
+ * that holds the match, starts and ends on a content word, and holds a word
+ * outside the match that can carry a name (`isEmployerWord`: "bank" in "bank
+ * of america", not "manager" in "product manager canada" nor "jobs" in "jobs
+ * canada"). The live probe answers whether a live employer IS that name, so
+ * "product manager toronto" asks nothing and stays a place search.
+ *
+ * Before 2026-11-08 only a CITY next to one word was checked, and a function
+ * word ended the check: "bank of america" read as q "of" in the place "Bank"
+ * (release 74's live check), and 1,098 of 31,815 role + employer test
+ * queries lost employer words to a place ("Air New Zealand", "AgriSompo
+ * North America").
+ */
+export function employerNameCandidates(resolution: PlaceResolution, tokens: string[]): string[] {
+  const start = resolution.startIndex ?? 0;
+  const end = start + resolution.wordsConsumed;
+  const isFunction = (t: string) => FUNCTION_WORDS_SET.has(t.toLowerCase());
+  const out: string[] = [];
+  for (let from = Math.max(0, end - MAX_EMPLOYER_NAME_TOKENS); from <= start; from++) {
+    for (let to = end; to <= Math.min(tokens.length, from + MAX_EMPLOYER_NAME_TOKENS); to++) {
+      if (from === start && to === end) continue;
+      if (isFunction(tokens[from]) || isFunction(tokens[to - 1])) continue;
+      if (![...tokens.slice(from, start), ...tokens.slice(end, to)].some(isEmployerWord)) continue;
+      out.push(tokens.slice(from, to).join(" "));
+    }
+  }
+  return out.sort((a, b) => b.split(" ").length - a.split(" ").length);
 }
 
 /**

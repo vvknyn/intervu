@@ -16,6 +16,7 @@ import {
   hasMeilisearch,
   LOCATION_FACET_FIELDS,
   probeCompanyMatch,
+  probeEmployerName,
   searchMeili,
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
@@ -74,7 +75,7 @@ export function getJobsBackendStatus(): {
 const corpusChecker = createCorpusValueChecker(fetchFacetSearch);
 
 export async function locationVocabulary(): Promise<LocationVocabulary> {
-  return { gazetteer: loadGazetteer(), corpusChecker, companyProbe: probeCompanyMatch };
+  return { gazetteer: loadGazetteer(), corpusChecker, companyProbe: probeCompanyMatch, employerNameProbe: probeEmployerName };
 }
 
 /**
