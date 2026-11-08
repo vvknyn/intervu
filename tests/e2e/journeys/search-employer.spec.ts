@@ -4,8 +4,8 @@ import { expect, test } from "./fixtures";
 import { answerListSearch } from "./list-search";
 
 /**
- * Journeys for a search that names an employer — see tests/journeys/CATALOG.md (J-SRCH-46 to J-SRCH-49). Read-only:
- * the answers are replaced in the browser.
+ * Journeys for a search that names an employer — see tests/journeys/CATALOG.md (J-SRCH-46 to J-SRCH-50). Read-only:
+ * J-SRCH-46 to 49 replace the answers in the browser; J-SRCH-50 reads the live index, as the release check did.
  *
  * Vivek, 2026-11-08: "I'm not seeing faceted type ahead results in the search bar... searching product manager
  * integral ad science should search for product manager jobs in that company if it exists...if not, show integral ad
@@ -182,3 +182,25 @@ test("role + employer words where no employer here carries the name, and nothing
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
+test("an employer whose name holds a place word is searched as the employer, never as a place", { tag: ["@J-SRCH-50"] }, async ({ page, diagnostics }) => {
+  // Release 74 on the live index: "bank of america" became q=of in the place "Bank" (UK). No stubbed answer here:
+  // what the page reads out of the words is the server's, so this runs against the real index on prod.
+  test.setTimeout(180_000);
+  await returningVisitor(page);
+  for (const q of ["bank of america", "product manager bank of america"]) {
+    await page.goto(`/jobs?q=${encodeURIComponent(q)}`);
+    // The list has answered: rows, no rows, or (a build with no index) a search that could not run.
+    const answered = page
+      .getByTestId("job-row")
+      .or(page.getByTestId("search-empty-results"))
+      .or(page.getByTestId("jobs-search-error"))
+      .or(page.getByText(/We can't load results right now|Job search is being connected/));
+    await expect(answered.first()).toBeVisible({ timeout: 60_000 });
+    // Nothing in the words became a place: no place in the address, and the words stay whole (an employer read may
+    // move the employer into its token and leave the role words, never "of" alone).
+    expect(new URL(page.url()).searchParams.get("country") ?? "").not.toMatch(/bank|america/i);
+    expect(new URL(page.url()).searchParams.get("q") ?? "").not.toBe("of");
+    await expect(searchBox(page)).not.toHaveValue(/^(product manager )?of$/);
+  }
+  expect(diagnostics.pageErrors).toEqual([]);
+});
