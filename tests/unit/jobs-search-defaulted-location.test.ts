@@ -200,3 +200,31 @@ test("an employer named in the words lists its roles everywhere, while a role se
   const picked = await searchJobs({ companyDomain: "northwind.example" }, opts);
   assert.equal(picked.defaultedLocation, undefined, "the employer picked from the box: no guessed country");
 });
+
+test("an employer whose whole name holds one role is named too: no guessed country", async (t) => {
+  // Release 76's live check: "bank of america" (one role in the index, below the three-role floor that scopes a
+  // list to an employer) still got the Canada guess. A name that only holds the words is not the employer's.
+  t.mock.method(globalThis, "fetch", async (url: string | URL, init?: RequestInit) => {
+    const urlStr = String(url);
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    if (urlStr.includes("/facet-search")) return jsonResponse(200, { facetHits: [{ value: body.facetQuery, count: 1_000 }] });
+    if (body.attributesToSearchOn?.length === 1 && body.attributesToSearchOn[0] === "company") {
+      const q = String(body.q ?? "").toLowerCase();
+      const rows =
+        q === "bank of northwind"
+          ? [{ company: "Bank of Northwind, Inc.", company_domain: "bon.example", title: "Teller" }]
+          : q === "northwind bank"
+            ? [{ company: "Northwind Bank Holdings Group", company_domain: "nbh.example", title: "Teller" }]
+            : [];
+      return jsonResponse(200, { hits: rows, totalHits: rows.length });
+    }
+    if (urlStr.includes("multi-search")) return jsonResponse(200, { results: (body.queries ?? []).map(() => ({ hits: [], totalHits: 0 })), hits: [] });
+    return jsonResponse(200, { hits: [], totalHits: 0 });
+  });
+  const { searchJobs } = await import("../../src/lib/jobs/search");
+  const { resetCompanyIntentCacheForTests } = await import("../../src/lib/jobs/meilisearch");
+  resetCompanyIntentCacheForTests();
+  const opts = { clientIp: "1.2.3.4", countryLookup: CA_LOOKUP };
+  assert.equal((await searchJobs({ q: "bank of northwind" }, opts)).defaultedLocation, undefined, "one role, its whole name");
+  assert.equal((await searchJobs({ q: "northwind bank" }, opts)).defaultedLocation, "CA", "part of a longer name");
+});

@@ -1,11 +1,11 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
-import { answerListSearch } from "./list-search";
+import { answerListSearch, isListSearch } from "./list-search";
 
 /**
- * Journeys for a search that names an employer — see tests/journeys/CATALOG.md (J-SRCH-46 to J-SRCH-52). Read-only:
- * J-SRCH-46 to 49 and 51 replace the answers in the browser; J-SRCH-50 and 52 read the live index, as the release
+ * Journeys for a search that names an employer — see tests/journeys/CATALOG.md (J-SRCH-46 to J-SRCH-53). Read-only:
+ * J-SRCH-46 to 49, 51 and 53 replace the answers in the browser; J-SRCH-50 and 52 read the live index, as the release
  * checks did.
  *
  * Vivek, 2026-11-08: "I'm not seeing faceted type ahead results in the search bar... searching product manager
@@ -233,11 +233,19 @@ test("a detected location that leaves no roles offers to remove it, counting one
 
 test("an employer named in the words lists its roles without a detected location", { tag: ["@J-SRCH-52"] }, async ({ page, diagnostics }) => {
   // Release 75 on the live index, from a Canadian address: "Bank of America" picked from the box listed no roles under
-  // "Canada · Remote (detected)", its one role being elsewhere. An employer the searcher names or picks is what they
-  // asked for, so the country is not guessed. Locally the address has no country and nothing is guessed either way;
-  // on prod from a country with roles, this is the check.
+  // "Canada · Remote (detected)", its one role being elsewhere. Release 76 still guessed the country for the typed
+  // name: one role sits below the three-role floor. An employer the searcher names or picks is what they asked for,
+  // so the country is not guessed. Locally the address has no country and nothing is guessed either way; on prod
+  // from a country with roles, this is the check. The answers say it on every project (the desktop chip sits in the
+  // top bar, the phone's in the toolbar).
   test.setTimeout(180_000);
   await returningVisitor(page);
+  const guessed: Array<string | null> = [];
+  page.on("response", async (response) => {
+    if (!isListSearch(response.request()) || !response.ok()) return;
+    const body = (await response.json().catch(() => null)) as { defaultedLocation?: string } | null;
+    if (body) guessed.push(body.defaultedLocation ?? null);
+  });
   await page.goto("/jobs?q=bank%20of%20america");
   const answered = page
     .getByTestId("job-row")
@@ -246,5 +254,38 @@ test("an employer named in the words lists its roles without a detected location
     .or(page.getByText(/We can't load results right now|Job search is being connected/));
   await expect(answered.first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("default-location-chip")).toHaveCount(0);
+  expect(guessed.filter(Boolean), "no list search guessed a country").toEqual([]);
   expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("an employer picked from the box lists its roles whatever their date, until a date window is picked", { tag: ["@J-SRCH-53"] }, async ({ page, diagnostics }) => {
+  // Release 76's live check: the Bank of America pick read "Nothing matches these filters", its one role being older
+  // than the 90-day window nobody chose.
+  await returningVisitor(page);
+  const asked: Array<{ postedBucket?: string; defaultedFields?: string[] }> = [];
+  await page.route("**/api/jobs/search", (route) => {
+    asked.push((route.request().postDataJSON() ?? {}) as { postedBucket?: string; defaultedFields?: string[] });
+    return answerListSearch(route, {
+      hits: [role("old-1", "Relationship Banker", NORTHWIND.name, NORTHWIND.domain)],
+      total: 1,
+      backend: "meilisearch",
+      configured: true,
+      searchId: "e2e-employer-any-date",
+      effectiveQ: "",
+    });
+  });
+  await page.goto(`/jobs?company=${NORTHWIND.domain}`);
+  await expect(page.getByTestId("job-row").first()).toContainText("Relationship Banker", { timeout: 60_000 });
+  expect(asked.length).toBeGreaterThan(0);
+  for (const body of asked) {
+    expect(body.postedBucket, "no date window for a chosen employer").toBeUndefined();
+    expect(body.defaultedFields ?? []).not.toContain("postedBucket");
+  }
+  // A window the searcher picks applies.
+  asked.length = 0;
+  await page.goto(`/jobs?company=${NORTHWIND.domain}&posted=7d`);
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 60_000 });
+  expect(asked.some((body) => body.postedBucket === "7d")).toBe(true);
+  expect(diagnostics.pageErrors).toEqual([]);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });

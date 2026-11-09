@@ -34,14 +34,14 @@ const POSTED_CHIP_CYCLE: (PostedBucket | undefined)[] = [undefined, "1d", "3d", 
  * that was wrong; a JSX expression can't be asserted, this can.
  */
 export function postedChipLabel(
-    state: Pick<FilterState, "postedBucket" | "postedExplicit">,
+    state: Pick<FilterState, "postedBucket" | "postedExplicit"> & Partial<Pick<FilterState, "companyDomain">>,
 ): string | null {
     const applied = appliedPostedBucket(state);
     return applied ? postedBucketLabel(applied) : null;
 }
 
 export function nextPostedBucket(
-    state: Pick<FilterState, "postedBucket" | "postedExplicit">,
+    state: Pick<FilterState, "postedBucket" | "postedExplicit"> & Partial<Pick<FilterState, "companyDomain">>,
 ): PostedBucket | undefined {
     const idx = POSTED_CHIP_CYCLE.indexOf(appliedPostedBucket(state));
     return POSTED_CHIP_CYCLE[(idx + 1) % POSTED_CHIP_CYCLE.length];

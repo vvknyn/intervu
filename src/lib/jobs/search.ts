@@ -143,15 +143,19 @@ const requestMentions = (p: JobSearchParams, understood?: UnderstoodSearch, sear
 
 /**
  * Do the typed words name an employer, the way the search reads them: the
- * whole text is its name ("bank of america"), or the role at it ("product
- * manager shopify")? The same cached answer `searchMeili` reads next, so
- * asking it first costs no extra search. A résumé's words are its lanes,
- * never an employer.
+ * whole text is its name ("bank of america", however few its roles:
+ * `wholeName`), or the role at it ("product manager shopify")? The same
+ * cached answer `searchMeili` reads next, so asking it first costs no extra
+ * search. A résumé's words are its lanes, never an employer.
  */
 async function wordsNameEmployer(p: JobSearchParams): Promise<boolean> {
   if (activeBackend() !== "meilisearch" || p.fromResume || !(p.q ?? "").trim()) return false;
   const intent = await resolveCompanyIntentResult(p.q);
-  return intent.companyScoped || (Boolean(intent.residualRoleQ) && intent.companyDomains.length > 0);
+  return (
+    intent.companyScoped ||
+    Boolean(intent.wholeName) ||
+    (Boolean(intent.residualRoleQ) && intent.companyDomains.length > 0)
+  );
 }
 
 export async function searchJobs(
