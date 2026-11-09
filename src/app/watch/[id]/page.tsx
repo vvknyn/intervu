@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { getServerUser } from "@/lib/auth/server-user";
 import { WatchCanvas } from "@/components/viewer/watch-canvas";
 import { PageTitle } from "@/components/ui/heading";
+import { HOME_PATH } from "@/lib/home-path";
 
 export default async function WatchPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -30,7 +31,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
                         application being filled in.
                     </p>
                     <Button asChild>
-                        <Link href="/">Go to velai</Link>
+                        <Link href={HOME_PATH}>Go to velai</Link>
                     </Button>
                 </div>
             </div>

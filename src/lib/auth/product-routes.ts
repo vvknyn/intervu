@@ -75,6 +75,18 @@ export function loginRedirectUrl(requestUrl: URL, pathname: string): URL {
 }
 
 /**
+ * The address a link to `href` should carry for a visitor who is not (or not yet
+ * known to be) signed in. A link to a gated page answers every such visitor with
+ * a redirect to `/login?next=…` (middleware.ts), so the link says that address
+ * itself and the click, and any crawler reading the page, is one request. The
+ * `next=` it writes is the one {@link loginRedirectUrl} writes.
+ */
+export function hrefForSignedOut(href: string): string {
+    const path = href.split(/[?#]/)[0];
+    return isAuthGatedProductPath(path) ? `/login?next=${encodeURIComponent(href)}` : href;
+}
+
+/**
  * Safe same-origin redirect target after sign-in. Rejects protocol-relative
  * paths (`//evil`) and off-site URLs; allows product routes, `/jobs`, and `/`.
  */

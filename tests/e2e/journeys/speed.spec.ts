@@ -207,3 +207,30 @@ test.describe("a signed-out visitor opening velai.app", () => {
     expect(diagnostics.serverErrors).toEqual([]);
   });
 });
+
+test("a page does not download the guided tour's card code until a tour is showing", { tag: ["@J-SPEED-09"] }, async ({ page }) => {
+  // The tour card brings framer-motion (about 350 KB). It used to load a few seconds after every page
+  // although a tour shows on few visits; it now loads when a tour starts. "Close tour" is the card's own
+  // label, so a script containing it is the card.
+  const withTourCard: string[] = [];
+  const reads: Promise<void>[] = [];
+  page.on("response", (res) => {
+    const url = new URL(res.url());
+    if (!url.pathname.startsWith("/_next/static/") || !url.pathname.endsWith(".js")) return;
+    reads.push(
+      res
+        .text()
+        .then((body) => {
+          if (body.includes("Close tour")) withTourCard.push(url.pathname);
+        })
+        .catch(() => {}),
+    );
+  });
+  await page.goto("/about");
+  await expect(page.getByTestId("topbar-logo")).toBeVisible({ timeout: 20_000 });
+  // The page's deferred widgets mount on browser idle, at the latest 7 s after load.
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(8_000);
+  await Promise.all(reads);
+  expect(withTourCard, "the tour card's script was downloaded without a tour").toEqual([]);
+});

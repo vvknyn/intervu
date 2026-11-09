@@ -16,6 +16,7 @@ import { PROCESSORS } from "@/lib/legal/processors";
 import { LOG_ATTR_ALLOW_LIST } from "@/lib/observability/posthog-logs";
 import { PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
 import { PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
+import { AccountSettingsLink } from "@/components/layout/AccountSettingsLink";
 
 export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
 
@@ -148,7 +149,7 @@ export default function PrivacyPage() {
           automatic click capture, and page addresses lose the role titles that ranking by fit puts in them (see <a href="#cookies-analytics">Cookies &amp; analytics</a>).
         </p>
         <p>
-          You can delete your résumé from <Link href="/settings">account settings</Link> at any time. That also
+          You can delete your résumé from <AccountSettingsLink>account settings</AccountSettingsLink> at any time. That also
           removes its earlier versions and the copies kept on roles you marked applied. Deleting your account
           removes everything, tailored résumés included.
         </p>
@@ -284,7 +285,7 @@ export default function PrivacyPage() {
           changes back when you tell it to. Anything your AI client reads travels to that provider and is handled
           under <em>their</em> privacy terms, not ours — we can&apos;t control what the provider you chose retains
           or how it uses what it processes. This only ever happens for a client you connected yourself, and you
-          can disconnect it at any time from <Link href="/settings">account settings</Link>, which cuts off all
+          can disconnect it at any time from <AccountSettingsLink>account settings</AccountSettingsLink>, which cuts off all
           further access.
         </p>
 
@@ -370,7 +371,7 @@ export default function PrivacyPage() {
           waitlist confirmation, a product update — includes an unsubscribe link that works without signing in and takes effect immediately.
           If an email to your address bounces, or you mark one as spam, we stop sending to that address
           automatically. You can also turn the weekly digest and daily picks on or off directly from{" "}
-          <Link href="/settings">account settings</Link>.
+          <AccountSettingsLink>account settings</AccountSettingsLink>.
         </p>
 
         <DocHeading>Behavioural analytics ledger</DocHeading>
@@ -491,7 +492,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           You can delete your account yourself from{" "}
-          <Link href="/settings">account settings</Link> — self-serve, not a support ticket. The flow is:{" "}
+          <AccountSettingsLink>account settings</AccountSettingsLink> — self-serve, not a support ticket. The flow is:{" "}
           {ACCOUNT_SELF_SERVE_DELETION_FLOW}. When you confirm, this device&apos;s browser clears local storage
           first, then our servers run the deletion; only if that succeeds do we sign you out and clear your session
           cookie.

@@ -5,7 +5,7 @@ import path from "node:path";
 import { rectsEqual } from "../../src/components/tour/tour-target-rect";
 
 const PROVIDER = path.join(process.cwd(), "src/components/tour/TourProvider.tsx");
-const OVERLAY = path.join(process.cwd(), "src/components/tour/TourOverlay.tsx");
+const OVERLAY = path.join(process.cwd(), "src/components/tour/TourOverlayCard.tsx");
 
 test("tour target rect", async (t) => {
   await t.test("rectsEqual returns true for identical bounds", () => {

@@ -478,7 +478,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                         onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => setShowPassword((show) => !show)}
                                         aria-label={showPassword ? "Hide password" : "Show password"}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                        className="absolute right-2 top-1/2 ctl-sm ctl-button inline-flex -translate-y-1/2 items-center px-1 text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                         {showPassword ? "Hide" : "Show"}
                                     </button>

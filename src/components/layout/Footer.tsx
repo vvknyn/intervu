@@ -39,14 +39,16 @@ export const LEGAL_LINKS: { label: string; href: string; group: FooterGroup; fro
     { label: "Setup help", href: "/connect/help", group: "Help & legal" },
     { label: "Privacy", href: "/privacy", group: "Help & legal", lean: true },
     { label: "Terms", href: "/terms", group: "Help & legal", lean: true },
+    { label: "Accessibility", href: "/accessibility", group: "Help & legal", lean: true },
 ];
 
 /** One footer link in a flat wrapping line. Below lg each is a 44pt row (HIG: a 44x44pt hit region), so two
- *  rows of links no longer sit 6px apart with their tap areas overlapping. */
-const FLAT_LINK_CLASS = "inline-flex min-h-11 items-center transition-colors duration-100 hover:text-foreground lg:min-h-0";
+ *  rows of links no longer sit 6px apart with their tap areas overlapping. From lg each is a 24px row, the
+ *  least WCAG 2.2 (2.5.8, Target Size) allows for a link that is not spaced out from its neighbours. */
+const FLAT_LINK_CLASS = "inline-flex min-h-11 items-center transition-colors duration-100 hover:text-foreground lg:min-h-6";
 /** The flat line: `.link-cloud` lays it out (equal columns on a phone, one wrapping line from sm); the rows sit on
- *  the links' own 44pt height below lg, 6px apart from lg. */
-const FLAT_LINE_CLASS = "link-cloud gap-y-0 text-xs text-muted-foreground lg:gap-y-1.5";
+ *  the links' own height (44pt below lg, 24px from lg), with no gap between them. */
+const FLAT_LINE_CLASS = "link-cloud gap-y-0 text-xs text-muted-foreground lg:gap-y-0";
 
 /** Minimal strip for lean hub/deck/apply/jobs — the `lean` entries of the one list above, not the marketing link farm. */
 export const LEAN_LEGAL_LINKS = LEGAL_LINKS.filter((l) => l.lean);
@@ -208,7 +210,7 @@ export function Footer() {
     return <FooterContent />;
 }
 
-/** The `lean` links only (checks, Pricing, Privacy, Terms) — no career-hub/blog/alternatives
+/** The `lean` links only (checks, Pricing, Privacy, Terms, Accessibility) — no career-hub/blog/alternatives
  *  farm on hub/deck/apply lean walks and on `/careers/remote-jobs`. */
 function LeanFooterContent() {
     const prefetchOnIntent = usePrefetchOnIntent();

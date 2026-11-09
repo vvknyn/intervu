@@ -72,6 +72,7 @@ export const SITEMAP_PAGES: readonly {
   { path: "/contact", changeFrequency: "monthly", priority: 0.4 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/accessibility", changeFrequency: "yearly", priority: 0.3 },
 ];
 
 /** Per-letter pages of the company directory (`/co/letter/a`, `/co/letter/other`): the

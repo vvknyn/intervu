@@ -126,8 +126,9 @@ const FAKE_DIRECTORY_DOMAINS = ["acme.com", "beta.io", "gamma.dev"];
  *  a count so this file fails loudly if a static entry is added/removed there
  *  without this file being updated to match, rather than the assertion below
  *  quietly passing for the wrong reason. 11 since #464 (49691ace) added
- *  /eluta-alternative; 13 with /blog; 14 with the /co directory index. */
-const STATIC_SITEMAP_ENTRY_COUNT = 14;
+ *  /eluta-alternative; 13 with /blog; 14 with the /co directory index; 15 with
+ *  /accessibility. */
+const STATIC_SITEMAP_ENTRY_COUNT = 15;
 
 /** A `/co/<slug>` company page (not the directory's per-letter pages). */
 const isCompanyUrl = (e: { url: string }) => e.url.includes("/co/") && !e.url.includes(`${DIRECTORY_LETTER_PATH}/`);

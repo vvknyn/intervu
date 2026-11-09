@@ -18,6 +18,7 @@ import { TabItem, TabNav } from "@/components/ui/tabs";
 import { NAV_TABS, RESUME_TAB } from "@/components/layout/nav-tabs";
 import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
 import { BrandHomeLink } from "@/components/brand/BrandMark";
+import { HOME_PATH } from "@/lib/home-path";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { backTarget, canGoBackInApp, notePathname, type BackTarget } from "@/components/layout/back-target";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
@@ -107,9 +108,9 @@ export function TopBar() {
                 <div className="flex shrink-0 items-center gap-2">
                     {back && <BackButton target={back} />}
                     <BrandHomeLink
-                        href="/"
+                        href={HOME_PATH}
                         prefetch={false}
-                        {...prefetchOnIntent("/")}
+                        {...prefetchOnIntent(HOME_PATH)}
                         markClassName="h-8 w-8"
                         data-testid="topbar-logo"
                     />

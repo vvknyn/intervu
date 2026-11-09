@@ -1456,12 +1456,26 @@ body {
    link on a line of its own in its column, so the rows line up and none is
    left alone at the end (a wrapping flex row put "Terms" alone on a seventh
    line at 320px, which `text-wrap: balance` cannot fix past six lines). At sm
-   and up it is the ordinary wrapping line. */
+   and up it is the ordinary wrapping line.
+
+   A run of an odd count in two columns would leave its last link alone in the
+   left one, so there that link takes the whole line. Two columns are what fit
+   between 2 × 8.5rem + 1.25rem = 18.25rem and 3 × 8.5rem + 2 × 1.25rem = 28rem
+   of the cloud's own width, which is why the cloud is its own container: the
+   page's gutter and any card around it change that width, the viewport's does
+   not say. In one column every link is alone on a line already, and in three
+   or more the last line is a normal short line. */
 @layer components {
   .link-cloud {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
     gap: 0.375rem 1.25rem;
+    container-type: inline-size;
+  }
+  @container (min-width: 18.25rem) and (max-width: 27.99rem) {
+    .link-cloud > :last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
   }
   @media (min-width: 640px) {
     .link-cloud {

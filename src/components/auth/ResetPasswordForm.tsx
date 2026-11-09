@@ -12,6 +12,7 @@ import { Field } from "@/components/ui/field";
 import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
 import { PageTitle } from "@/components/ui/heading";
 import { MIN_PASSWORD_LENGTH, NEW_PASSWORD_HINT, newPasswordProblem } from "@/lib/auth/password-rules";
+import { HOME_PATH } from "@/lib/home-path";
 
 export function ResetPasswordForm() {
     const router = useRouter();
@@ -29,7 +30,7 @@ export function ResetPasswordForm() {
     useEffect(() => {
         if (success) {
             const timer = setTimeout(() => {
-                router.push("/");
+                router.push(HOME_PATH);
             }, 2000);
             return () => clearTimeout(timer);
         }
@@ -126,7 +127,7 @@ export function ResetPasswordForm() {
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => setShowPassword((show) => !show)}
                                 aria-label={showPassword ? "Hide password" : "Show password"}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                className="absolute right-2 top-1/2 ctl-sm ctl-button inline-flex -translate-y-1/2 items-center px-1 text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 {showPassword ? "Hide" : "Show"}
                             </button>
@@ -151,7 +152,7 @@ export function ResetPasswordForm() {
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => setShowConfirmPassword((show) => !show)}
                                 aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                className="absolute right-2 top-1/2 ctl-sm ctl-button inline-flex -translate-y-1/2 items-center px-1 text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 {showConfirmPassword ? "Hide" : "Show"}
                             </button>

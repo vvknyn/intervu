@@ -17,6 +17,7 @@ export const SAMPLE_CAREER_SLUG = "remote-jobs";
 export const WRAP_ROUTES: Record<string, WrapRoute> = {
     "/": { audit: ["/"] },
     "/about": { audit: ["/about"] },
+    "/accessibility": { audit: ["/accessibility"] },
     "/account": { audit: ["/account"] },
     "/admin": { skip: "owner-only; no page a visitor sees" },
     "/auth/retry": { audit: ["/auth/retry"] },

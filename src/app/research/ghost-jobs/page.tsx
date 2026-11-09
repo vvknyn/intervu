@@ -6,6 +6,7 @@ import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
 import { Prose } from "@/components/ui/prose";
 import { PageEyebrow, PageTitle, SectionTitle, SubTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { RelatedLinks } from "@/components/seo/RelatedLinks";
 
 const HEADLINE = "Ghost jobs aren't the problem — wasted applications are";
 // This article was first published as an essay in July 2026; that authorship
@@ -332,6 +333,7 @@ export default function GhostJobsResearchPage() {
           data · the Subspace jobs corpus
         </div>
       </Prose>
+      <RelatedLinks path="/research/ghost-jobs" />
     </PageContainer>
   );
 }

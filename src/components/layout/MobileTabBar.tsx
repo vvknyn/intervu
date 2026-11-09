@@ -7,6 +7,8 @@ import { MOBILE_ACCOUNT_TAB, NAV_TABS, mobilePrimaryTabs } from "@/components/la
 import { initialDockState, stepDock, type DockState } from "@/components/layout/dock-minimize";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
+import { useSignedIn } from "@/hooks/use-signed-in";
+import { hrefForSignedOut } from "@/lib/auth/product-routes";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 
 // `mobilePrimary: false` (nav-tabs.tsx) opts a tab OUT of this bar while it
@@ -34,6 +36,10 @@ const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
 export function MobileTabBar() {
     const pathname = usePathname();
     const prefetchOnIntent = usePrefetchOnIntent();
+    // Until someone is known to be signed in (hooks/use-signed-in.ts), the Account tab says where
+    // /settings sends them (the sign-in page) instead of making every visitor and crawler follow a
+    // redirect to find out.
+    const signedIn = useSignedIn();
     // The minimize state lives on <html data-dock>; globals.css draws it, and only
     // when an accessory capsule is mounted (see dock-minimize.ts).
     const dock = useRef<DockState>(initialDockState());
@@ -91,12 +97,13 @@ export function MobileTabBar() {
                 // One word that never changes under the user (HIG Tab bars: "Use single words whenever
                 // possible"); the résumé tab said "Add résumé" until a résumé existed.
                 const label = tab.shortLabel;
+                const href = signedIn ? tab.href : hrefForSignedOut(tab.href);
                 return (
                     <Link
                         key={tab.href + tab.label}
-                        href={tab.href}
+                        href={href}
                         prefetch={false}
-                        {...prefetchOnIntent(tab.href)}
+                        {...prefetchOnIntent(href)}
                         title={tab.title}
                         // Prefixed so a testid is unique page-wide: this bar
                         // shares NAV_TABS with the desktop TopBar and both are

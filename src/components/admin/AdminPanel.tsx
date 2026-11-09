@@ -15,6 +15,7 @@ import { SearchDemand } from "@/components/admin/SearchDemand";
 import Link from "next/link";
 
 import { SubTitle } from "@/components/ui/heading";
+import { HOME_PATH } from "@/lib/home-path";
 const TYPE_CONFIG: Record<string, { label: string; icon: typeof Bug; color: string }> = {
     bug: { label: "Bug", icon: Bug, color: "text-danger-text bg-muted dark:text-danger-text dark:bg-muted" },
     feedback: { label: "Feedback", icon: ChatCircle, color: "text-brand bg-muted dark:text-brand dark:bg-muted" },
@@ -85,7 +86,7 @@ export function AdminPanel() {
                 <PageHeader
                     title="Admin"
                     actions={
-                        <Link href="/">
+                        <Link href={HOME_PATH}>
                             <Button variant="outline" size="sm" className="gap-2">
                                 <ArrowLeft />
                                 Back
