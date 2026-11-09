@@ -9,9 +9,16 @@ import { expect, test } from "./fixtures";
  * journey checks the two links by name, then follows every internal link on a few
  * pages without following redirects and fails on any that is one. A page of prose that names
  * "account settings" writes the sign-in address until the reader is known to be signed in.
+ *
+ * The sign-in hand-off under /auth/ (the signed-out "Sign in to buy" button on /pricing is
+ * /auth/start?next=/pricing) is a redirect by design: it mints the WorkOS sign-in URL and
+ * answers 307 to it. It is not a link that could name its page directly, so the sweep skips it.
  */
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/** Routes whose whole job is to redirect (the sign-in hand-off to WorkOS). */
+const isHandOffRoute = (href: string) => href === "/auth" || href.startsWith("/auth/");
 
 test("the header logo opens /jobs directly", { tag: ["@J-NAV-52"] }, async ({ page, request }) => {
   await page.goto("/pricing");
@@ -43,7 +50,7 @@ for (const from of ["/pricing", "/about", "/blog", "/privacy", "/terms"]) {
     );
     expect(hrefs.length).toBeGreaterThan(5);
     const redirecting: string[] = [];
-    for (const href of hrefs) {
+    for (const href of hrefs.filter((h) => !isHandOffRoute(h))) {
       const res = await request.get(href, { maxRedirects: 0 });
       if (REDIRECT_STATUSES.has(res.status())) redirecting.push(`${href} -> ${res.status()} ${res.headers()["location"] ?? ""}`);
     }
