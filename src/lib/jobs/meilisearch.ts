@@ -15,6 +15,7 @@ import {
   dominantCompanyDomains,
   extractCompoundRoleCompanyCandidates,
   isCompanyNameQuery,
+  isEmployerWord,
   MAX_COMPOUND_PROBES,
   companyNameStem,
   namedCompoundEmployer,
@@ -3488,6 +3489,10 @@ export interface CompanyIntentResult {
   /** With `unresolvedSplit`: a split whose employer words ARE the name of a few live rows, below
    *  the floors (`namedCompoundEmployer`) — "bank of america" with two roles. */
   namedEmployer?: { roleQ: string; companyQ: string; domains: string[]; name?: string };
+  /** Set only when neither read above found an employer: the whole text IS a live employer's whole
+   *  name, legal suffix aside, however few its roles ("bank of america" with one). Read from the same
+   *  sample, so it costs nothing. */
+  wholeName?: true;
 }
 
 const companyIntentCache = new Map<string, { value: CompanyIntentResult; atMs: number }>();
@@ -3545,12 +3550,29 @@ async function probeCompanyIntent(query: string, key: string): Promise<CompanyIn
     }
   }
 
+  // Only where nothing above already read an employer: the gap is an employer below the floors.
+  if (!value.companyScoped && !value.residualRoleQ && isWholeEmployerName(query, sample)) value = { ...value, wholeName: true };
+
   if (companyIntentCache.size >= COMPANY_INTENT_CACHE_MAX) {
     const oldest = companyIntentCache.keys().next().value;
     if (oldest !== undefined) companyIntentCache.delete(oldest);
   }
   companyIntentCache.set(key, { value, atMs: now });
   return value;
+}
+
+/**
+ * Pure: is `query` some sampled employer's WHOLE name, legal suffix aside
+ * (`companyNameStem`), with a word that can carry a name (`isEmployerWord`)?
+ * The dominance floors (`isCompanyNameQuery`) decide whether the list is
+ * scoped to the employer; this only says the words name one, so the page does
+ * not guess a country for them (search.ts `wordsNameEmployer`). Release 76's
+ * live check: "bank of america", one role in the index, got the Canada guess.
+ */
+export function isWholeEmployerName(query: string, sample: Pick<CompanyNameSample, "companies">): boolean {
+  const stem = companyNameStem(query);
+  if (!stem || !query.trim().split(/\s+/).some(isEmployerWord)) return false;
+  return sample.companies.some((c) => companyNameStem(c ?? "") === stem);
 }
 
 export async function resolveCompanyIntent(q: string | undefined): Promise<boolean> {

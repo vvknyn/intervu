@@ -521,7 +521,7 @@ export function SerpFilters({
                 <FilterSection
                     id="posted"
                     label="Date posted"
-                    chosen={posted !== appliedPostedBucket(PRISTINE_FILTER_STATE)}
+                    chosen={posted !== appliedPostedBucket({ ...PRISTINE_FILTER_STATE, companyDomain: state.companyDomain })}
                     summary={posted ? (DATE_POSTED_SHORT_LABELS[posted] ?? posted) : "Any date"}
                 >
                     {POSTED_BUCKET_PRESETS.map((o) => (

@@ -16,6 +16,7 @@ import {
   type LocationVocabulary,
 } from "../../src/lib/jobs/query-understanding";
 import { isEmployerWord } from "../../src/lib/jobs/company-intent";
+import { isWholeEmployerName } from "../../src/lib/jobs/meilisearch";
 import { buildGazetteerIndex, type GazetteerData } from "../../src/lib/geo/gazetteer";
 import type { CorpusValueChecker } from "../../src/lib/geo/corpus-values";
 import type { PlaceFilter } from "../../src/lib/jobs/types";
@@ -98,4 +99,12 @@ test("the runs asked about hold the place, start and end on a content word, and 
 test("a word that can carry an employer's name is not a role, connector, function or job-search word", () => {
   for (const w of ["bank", "air", "royal", "agrisompo", "integral"]) assert.equal(isEmployerWord(w), true, w);
   for (const w of ["manager", "product", "of", "the", "jobs", "careers", "remote", "senior", "x"]) assert.equal(isEmployerWord(w), false, w);
+});
+
+test("the whole text names an employer when a sampled employer's whole name is it, legal suffix aside, however few its roles", () => {
+  assert.equal(isWholeEmployerName("bank of america", { companies: ["Bank of America, Inc."] }), true);
+  assert.equal(isWholeEmployerName("Bank of America", { companies: ["Merrill Lynch", "bank of america corp"] }), true);
+  assert.equal(isWholeEmployerName("bank of america", { companies: ["Bank of America Fork Lifts"] }), false, "part of a longer name");
+  assert.equal(isWholeEmployerName("data analyst", { companies: ["Data Analyst"] }), false, "role words carry no name");
+  assert.equal(isWholeEmployerName("", { companies: [""] }), false);
 });

@@ -12,6 +12,7 @@ import { resumeSearchMark, searchParamsFromUrlState } from "@/lib/jobs/search-pa
 import type { FacetKey, JobSearchParams, JobSearchResult, PostedBucket } from "@/lib/jobs/types";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
 import { retryDelayMs } from "@/lib/load-result";
+import { appliedPostedBucket } from "@/components/jobs/FilterPanel";
 
 /** A result set smaller than this is "thin": the surface says so and offers the ladder. */
 export const THIN_RESULTS_BELOW = 30;
@@ -153,8 +154,10 @@ export function broadenRungs(state: JobsUrlState, ctx: BroadenContext = {}): Bro
     if (state.salaryMin > 0) {
         rungs.push({ id: "any_salary", label: "Any salary", next: change({ salaryMin: 0 }) });
     }
-    if (state.postedBucket) {
-        const wider = WIDER_POSTED[state.postedBucket];
+    // The window in force (`appliedPostedBucket`): none when the default yields to a chosen employer.
+    const posted = appliedPostedBucket(state);
+    if (posted) {
+        const wider = WIDER_POSTED[posted];
         rungs.push({
             id: "any_date",
             label: wider ? POSTED_LABEL[wider] : "Any date",

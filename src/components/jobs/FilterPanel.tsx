@@ -10,7 +10,7 @@ import { BOARD_META, type BoardId } from "@/lib/boards/types";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket, type YearsExperienceBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import { GHOST_META } from "@/lib/jobs/presentation";
-import { SEARCH_DEFAULTS } from "@/lib/jobs/search-defaults";
+import { SEARCH_DEFAULTS, defaultsYieldToChoice } from "@/lib/jobs/search-defaults";
 import { capitalizeWords } from "@/lib/text-case";
 
 /**
@@ -240,10 +240,15 @@ export const PRISTINE_FILTER_STATE: FilterState = {
  * request gate, the chip row, and all three pickers. The rule having three
  * separate homes (before this function existed) is precisely how the two
  * newest pickers ended up with none.
+ *
+ * The one other `undefined`: the untouched default yields to a chosen
+ * employer (`defaultsYieldToChoice`), whose roles are listed whatever their
+ * date until the searcher picks a window.
  */
 export function appliedPostedBucket(
-    state: Pick<FilterState, "postedBucket">,
+    state: Pick<FilterState, "postedBucket"> & Partial<Pick<FilterState, "postedExplicit" | "companyDomain">>,
 ): PostedBucket | undefined {
+    if (state.postedBucket === SEARCH_DEFAULTS.postedBucket && !state.postedExplicit && defaultsYieldToChoice(state)) return undefined;
     return state.postedBucket;
 }
 
