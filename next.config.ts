@@ -94,12 +94,16 @@ export const ENFORCED_POLICY = [
 export const PUBLIC_MEDIA_CACHE_CONTROL = "public, max-age=2592000, stale-while-revalidate=604800";
 export const PUBLIC_MEDIA_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "woff", "woff2", "ttf", "otf", "mp4", "webm"] as const;
 /**
- * Every path ending in one of those extensions EXCEPT under /_next/: Next's own
- * content-hashed files there (fonts, images, scripts) are `immutable` for a year,
- * and a rule that matched them would shorten that to a month (measured: the
- * hashed font under /_next/static/media went from immutable to 30 days).
+ * Every path ending in one of those extensions EXCEPT under /_next/ and /logos/.
+ * Next's own content-hashed files under /_next/ (fonts, images, scripts) are
+ * `immutable` for a year, and a rule that matched them would shorten that to a
+ * month (measured: the hashed font under /_next/static/media went from immutable
+ * to 30 days). /logos/<domain>.png is a route (lib/companies/logo-proxy.ts) that
+ * sets its own Cache-Control: a header from this file REPLACES a route's own, on
+ * its 404 and 502 too (measured), so the rule would keep a logo the upstream did
+ * not have, or an upstream error, in every cache for a month instead of an hour.
  */
-export const PUBLIC_MEDIA_SOURCE = `/((?!_next/).*)\\.(${PUBLIC_MEDIA_EXTENSIONS.join("|")})`;
+export const PUBLIC_MEDIA_SOURCE = `/((?!_next/|logos/).*)\\.(${PUBLIC_MEDIA_EXTENSIONS.join("|")})`;
 
 const SECURITY_HEADERS = [
   {

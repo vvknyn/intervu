@@ -76,6 +76,8 @@ test("un-hashed public media is cached for a month, never max-age=0, never immut
   assert.ok(matches("/fonts/liberation/LiberationSans-Regular.ttf"));
   assert.ok(!matches("/_next/static/media/47df9ba1c7236d3b-s.p.woff2"));
   assert.ok(!matches("/_next/static/chunks/a.png"));
+  // A route that sets its own Cache-Control is not public/ media: the logo proxy's 404 (an hour) and 502 (none) must keep theirs.
+  assert.ok(!matches("/logos/example.com.png"));
   assert.ok(!matches("/ocr/core.wasm"));
   for (const ext of ["png", "jpg", "svg", "woff2", "mp4"]) assert.ok(PUBLIC_MEDIA_EXTENSIONS.includes(ext as never), ext);
   assert.equal(rule.headers.find((h) => h.key === "Cache-Control")?.value, PUBLIC_MEDIA_CACHE_CONTROL);
