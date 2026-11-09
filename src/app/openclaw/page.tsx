@@ -22,11 +22,18 @@ import { AGENT } from "@/lib/agent/config";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { READING_MEASURE } from "@/components/ui/prose";
+import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { HOME_PATH } from "@/lib/home-path";
+
+const TITLE = "OpenClaw — an overnight job-application agent";
+const DESCRIPTION =
+  "A self-hosted agent that finds matching roles overnight, tailors your resume, fills out the form, and hands you a finished draft to review on WhatsApp. You always click submit. The skill isn't installable yet — join the list to be notified.";
 
 export const metadata: Metadata = {
-  title: "OpenClaw — an overnight job-application agent",
-  description:
-    "A self-hosted agent that finds matching roles overnight, tailors your resume, fills out the form, and hands you a finished draft to review on WhatsApp. You always click submit. The skill isn't installable yet — join the list to be notified.",
+  description: DESCRIPTION,
+  // Indexable by the policy (lib/seo/indexability.ts), so it names itself: a page without a
+  // canonical leaves a search engine to guess which of its addresses is the real one.
+  ...canonicalMetadata("/openclaw", TITLE, DESCRIPTION),
 };
 
 export default function OpenclawPage() {
@@ -141,7 +148,7 @@ export default function OpenclawPage() {
           <p className="mt-8 text-xs text-muted-foreground">
             <Check size={16} weight="bold" className="mr-1 inline text-brand" aria-hidden="true" />
             Already using velai&apos;s search?{" "}
-            <Link href="/" className="text-foreground text-link">
+            <Link href={HOME_PATH} className="text-foreground text-link">
               Back to jobs
             </Link>
           </p>

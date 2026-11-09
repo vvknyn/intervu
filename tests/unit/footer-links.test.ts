@@ -10,10 +10,18 @@ describe("footer links come from one list", () => {
             assert.ok(links.some((l) => l.label === "About the checks"));
         }
     });
+    it("every footer variant links the accessibility statement, under Help & legal", () => {
+        for (const links of [LEGAL_LINKS, LEAN_LEGAL_LINKS]) {
+            const link = links.find((l) => l.href === "/accessibility");
+            assert.ok(link, "an /accessibility link");
+            assert.equal(link.label, "Accessibility");
+            assert.equal(link.group, "Help & legal");
+        }
+    });
     it("the lean variant is a subset of the full list, legal links included", () => {
         const full = new Set(LEGAL_LINKS.map((l) => l.href));
         for (const l of LEAN_LEGAL_LINKS) assert.ok(full.has(l.href), l.href);
-        assert.deepEqual(LEAN_LEGAL_LINKS.map((l) => l.label).slice(-2), ["Privacy", "Terms"]);
+        assert.deepEqual(LEAN_LEGAL_LINKS.map((l) => l.label).slice(-3), ["Privacy", "Terms", "Accessibility"]);
     });
     it("every career hub and /co are linked from the full footer, and kept out of the lean strip", () => {
         const fullHrefs = new Set(LEGAL_LINKS.map((l) => l.href));
@@ -24,7 +32,7 @@ describe("footer links come from one list", () => {
         for (const hub of CAREER_HUBS) assert.ok(!leanHrefs.has(hub.path), hub.path);
         assert.deepEqual(
             LEAN_LEGAL_LINKS.map((l) => l.label),
-            ["About the checks", "Pricing", "Privacy", "Terms"],
+            ["About the checks", "Pricing", "Privacy", "Terms", "Accessibility"],
         );
     });
 });

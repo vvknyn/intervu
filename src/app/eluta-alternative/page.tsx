@@ -8,6 +8,7 @@ import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 import { Prose } from "@/components/ui/prose";
 import { PageEyebrow, PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { RelatedLinks } from "@/components/seo/RelatedLinks";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = ELUTA_ALTERNATIVE;
 
@@ -81,6 +82,7 @@ export default function ElutaAlternativePage() {
           <Link href="/linkedin-jobs-alternative">LinkedIn Jobs alternative</Link>).
         </p>
       </Prose>
+      <RelatedLinks path={PATH} />
     </PageContainer>
   );
 }

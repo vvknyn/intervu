@@ -10,7 +10,7 @@ import {
   effectiveCardWidth,
 } from "../../src/components/tour/tour-card-position";
 
-const OVERLAY = path.join(process.cwd(), "src/components/tour/TourOverlay.tsx");
+const OVERLAY = path.join(process.cwd(), "src/components/tour/TourOverlayCard.tsx");
 
 test("tour card position", async (t) => {
   await t.test("mobile tab target: card sits above the bottom tab", () => {

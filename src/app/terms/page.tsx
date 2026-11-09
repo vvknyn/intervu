@@ -10,6 +10,7 @@ import {
   ACCOUNT_SELF_SERVE_DELETION_FLOW,
   PUBLIC_SUPPORT_EMAIL,
 } from "@/lib/legal/public-contact";
+import { AccountSettingsLink } from "@/components/layout/AccountSettingsLink";
 
 const TITLE = "Terms of Service";
 const DESCRIPTION = "The terms for using velai, including how we frame posting-check and risk signals.";
@@ -92,7 +93,7 @@ export default function TermsPage() {
         <p>
           We may suspend or close an account that violates these terms or that we determine, in good faith, is
           being used to abuse the service. You may close your account at any time from{" "}
-          <Link href="/settings">account settings</Link> ({ACCOUNT_SELF_SERVE_DELETION_FLOW}). What that action
+          <AccountSettingsLink>account settings</AccountSettingsLink> ({ACCOUNT_SELF_SERVE_DELETION_FLOW}). What that action
           removes on our servers — and what it does not (including PostHog analytics and email-only records) — is
           spelled out under Retention &amp; deletion in our{" "}
           <Link href="/privacy">Privacy Policy</Link>. We do not provide a separate bulk download of stored account

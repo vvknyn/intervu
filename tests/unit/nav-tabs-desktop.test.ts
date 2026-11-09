@@ -77,7 +77,8 @@ test("current-page marker is the shared tab primitive's bar, driven by aria-curr
 test("guest /admin redirects to login with next, not the public SERP", () => {
     const src = readFileSync(ADMIN, "utf8");
     assert.match(src, /redirect\("\/login\?next=\/admin"\)/);
-    assert.match(src, /redirect\("\/"\)/);
+    // A signed-in non-admin goes to the job board by its own address (HOME_PATH), not through `/`'s redirect.
+    assert.match(src, /redirect\(HOME_PATH\)/);
     assert.match(src, /getServerUser/);
     assert.match(src, /isAdminUser/);
 });

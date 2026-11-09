@@ -9,6 +9,7 @@ import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 import { Prose } from "@/components/ui/prose";
 import { PageEyebrow, PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { RelatedLinks } from "@/components/seo/RelatedLinks";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = INDEED_ALTERNATIVE;
 
@@ -87,6 +88,7 @@ export default function IndeedAlternativePage() {
           ).
         </p>
       </Prose>
+      <RelatedLinks path={PATH} />
     </PageContainer>
   );
 }

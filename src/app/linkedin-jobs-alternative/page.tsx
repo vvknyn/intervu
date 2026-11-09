@@ -7,6 +7,7 @@ import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { Prose } from "@/components/ui/prose";
 import { PageEyebrow, PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { RelatedLinks } from "@/components/seo/RelatedLinks";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = LINKEDIN_JOBS_ALTERNATIVE;
 
@@ -68,6 +69,7 @@ export default function LinkedinJobsAlternativePage() {
           <Link href="/indeed-alternative">That write-up is separate</Link>.
         </p>
       </Prose>
+      <RelatedLinks path={PATH} />
     </PageContainer>
   );
 }

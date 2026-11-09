@@ -23,12 +23,18 @@ applyWorkOsRedirectUriBridge();
  * challenges.cloudflare.com (Turnstile api.js, components/ui/turnstile-widget.tsx).
  * tests/unit/csp-script-src.test.ts scans src/ and fails when one is missing.
  *
- * Shipped in Report-Only mode first so a missed directive surfaces in the browser
- * console as a violation report instead of breaking runtime.
- * TODO(security): tighten (drop 'unsafe-eval', enumerate connect-src hosts, add a
- * report-uri/Reporting-API endpoint) and promote to the enforcing
- * `Content-Security-Policy` header once violations are confirmed clean in prod.
+ * Shipped in Report-Only mode first so a missed directive surfaces as a violation
+ * report instead of breaking runtime. Reports go to {@link CSP_REPORT_PATH}
+ * (src/app/api/csp-report/route.ts, one `[csp-report]` log line each): a
+ * report-only policy nobody can read is not a trial run.
+ * TODO(security): once the `[csp-report]` lines show no violation of the policy
+ * below in prod, tighten it (drop 'unsafe-eval', enumerate connect-src hosts) and
+ * promote the script/style/connect rules into {@link ENFORCED_POLICY}.
  */
+export const CSP_REPORT_PATH = "/api/csp-report";
+/** Name of the Reporting API endpoint (`Reporting-Endpoints` header) the policy's `report-to` points at. */
+export const CSP_REPORT_ENDPOINT = "csp-endpoint";
+
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
@@ -41,17 +47,59 @@ export const CONTENT_SECURITY_POLICY = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  `report-uri ${CSP_REPORT_PATH}`,
+  `report-to ${CSP_REPORT_ENDPOINT}`,
 ].join("; ");
 
 /**
- * ENFORCED policy, images only: the browser refuses any image that is not our
- * own origin, an inline data: image or a blob: URL, whatever the code asks for.
- * Closes the remote-image class (a tracking pixel or a third-party avatar is a
- * request to someone else that carries the visitor's IP and, absent a
- * Referrer-Policy, the page they were on). The wider report-only policy above
- * is untouched; both headers apply, so the image rule is the stricter of the two.
+ * The ENFORCED policy: the directives that cannot break a page because nothing
+ * in src/ uses what they forbid (checked by tests/unit/csp-enforced-images.test.ts,
+ * which fails when a `<object>`, `<embed>` or `<base>` appears).
+ *
+ * - `img-src`: the browser refuses any image that is not our own origin, an
+ *   inline data: image or a blob: URL, whatever the code asks for. Closes the
+ *   remote-image class (a tracking pixel or a third-party avatar is a request to
+ *   someone else that carries the visitor's IP and, absent a Referrer-Policy, the
+ *   page they were on).
+ * - `object-src 'none'`: no plugin content (`<object>`, `<embed>`), the vector a
+ *   script-src bypass would otherwise use.
+ * - `base-uri 'self'`: an injected `<base href>` cannot re-point every relative
+ *   link and script on the page.
+ * - `frame-ancestors 'none'`: no site may frame this one (the same rule as
+ *   `X-Frame-Options: DENY`, in the header modern browsers prefer).
+ *
+ * Deliberately not enforced here: script-src, style-src, connect-src and
+ * form-action. They stay in the report-only policy above until the collected
+ * reports are clean; enforcing them blind would break the page they guard.
+ * Both headers apply to every response, so the stricter of the two wins per directive.
  */
-export const ENFORCED_IMAGE_POLICY = "img-src 'self' data: blob:";
+export const ENFORCED_POLICY = [
+  "img-src 'self' data: blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+/**
+ * Cache-Control for the un-hashed images, fonts and video served from public/.
+ * Next already sends `public, max-age=31536000, immutable` for the content-hashed
+ * files under /_next/static (and cannot be overridden there); everything in
+ * public/ keeps its plain name, and Next answers those with `max-age=0`, so every
+ * visit re-asks for every logo and blog picture. These files are replaced by
+ * renaming, not in place, so a month is safe; `immutable` and a year are not,
+ * because a file replaced in place would stay stale in every browser that has it.
+ * public/ocr is left out on purpose: it is copied from node_modules at build time
+ * and its .js and .wasm must change together.
+ */
+export const PUBLIC_MEDIA_CACHE_CONTROL = "public, max-age=2592000, stale-while-revalidate=604800";
+export const PUBLIC_MEDIA_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "woff", "woff2", "ttf", "otf", "mp4", "webm"] as const;
+/**
+ * Every path ending in one of those extensions EXCEPT under /_next/: Next's own
+ * content-hashed files there (fonts, images, scripts) are `immutable` for a year,
+ * and a rule that matched them would shorten that to a month (measured: the
+ * hashed font under /_next/static/media went from immutable to 30 days).
+ */
+export const PUBLIC_MEDIA_SOURCE = `/((?!_next/).*)\\.(${PUBLIC_MEDIA_EXTENSIONS.join("|")})`;
 
 const SECURITY_HEADERS = [
   {
@@ -68,8 +116,9 @@ const SECURITY_HEADERS = [
     value: "camera=(), microphone=(self), geolocation=()",
   },
   // Report-Only for now — see CONTENT_SECURITY_POLICY note above.
+  { key: "Reporting-Endpoints", value: `${CSP_REPORT_ENDPOINT}="${CSP_REPORT_PATH}"` },
   { key: "Content-Security-Policy-Report-Only", value: CONTENT_SECURITY_POLICY },
-  { key: "Content-Security-Policy", value: ENFORCED_IMAGE_POLICY },
+  { key: "Content-Security-Policy", value: ENFORCED_POLICY },
 ];
 
 const nextConfig: NextConfig = {
@@ -115,6 +164,11 @@ const nextConfig: NextConfig = {
         // Apply the security headers to every route.
         source: "/:path*",
         headers: SECURITY_HEADERS,
+      },
+      {
+        // Un-hashed public/ media: a month, not `max-age=0` (see PUBLIC_MEDIA_CACHE_CONTROL).
+        source: PUBLIC_MEDIA_SOURCE,
+        headers: [{ key: "Cache-Control", value: PUBLIC_MEDIA_CACHE_CONTROL }],
       },
       {
         // public/install (generated by scripts/prebuild-openclaw.mjs) is

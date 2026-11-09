@@ -89,10 +89,10 @@ export default function ConnectHelpPage() {
       >
         <p className="text-xs font-semibold text-foreground">On this page</p>
         {/* 44pt rows below lg (HIG: a 44x44pt hit region); entries 6px apart overlapped their tap areas. */}
-        <ol className="mt-3 grid gap-x-6 gap-y-0 text-sm sm:grid-cols-2 lg:gap-y-1.5">
+        <ol className="mt-3 grid gap-x-6 gap-y-0 text-sm sm:grid-cols-2 lg:gap-y-0">
           {SECTIONS.map((s) => (
             <li key={s.id}>
-              <a href={`#${s.id}`} className="inline-flex min-h-11 items-center text-action lg:min-h-0">
+              <a href={`#${s.id}`} className="inline-flex min-h-11 items-center text-action lg:min-h-6">
                 {s.label}
               </a>
             </li>

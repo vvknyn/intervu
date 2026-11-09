@@ -845,6 +845,8 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONTENT-39 | Read on /privacy that the Chrome extension proposes changes to your résumé for a job, shows each beside your own text, changes nothing until you accept it, attaches a PDF with only the changes you accepted, and keeps in Chrome's storage only which changes you accepted or rejected (short codes, no résumé text, up to 60 days); the account's résumé (paid month) is held in memory only, and without a paid month it keeps a copy of the résumé velai.app holds in this browser in Chrome's storage on your computer, which never leaves it | anon | /privacy › Browser extension | signed-out | no | covered | privacy.spec.ts |
 | J-CONTENT-40 | Read on /privacy that the Chrome extension drafts an answer to an application question only when you pick "Draft an answer", never for work authorization, pay or demographic questions, from a few résumé lines without your name or contact details sent to the sealed server, which is part of a paid month (nothing is sent without one or when it can't be verified), and puts it in the form only when you pick "Insert in the form" | anon | /privacy › Browser extension, AI processing | signed-out | no | covered | privacy.spec.ts |
 | J-CONTENT-41 | Read on /privacy that visits are recorded for session replay with every word and field hidden (every letter and number, and what you type, replaced with a star), that console messages and network request contents are not recorded, that recordings are not linked to your account and expire after 30 days, and that there is no automatic click capture. No line still says there is no session replay | anon | /privacy | signed-out | no | covered | privacy.spec.ts |
+| J-CONTENT-42 | Open the accessibility statement from the footer of /jobs and of a marketing page: it says velai is partially conformant with WCAG 2.2 level AA, self-assessed with no outside auditor, lists the known gaps and how it checks, gives an email and /contact to report a problem, names itself as its canonical, is open to search engines, and itself passes axe at WCAG 2.2 A and AA | anon | /jobs and /pricing footers, /accessibility | signed-out | no | covered | accessibility-statement.spec.ts |
+| J-CONTENT-43 | Reach the end of a comparison page (Indeed, LinkedIn Jobs, Eluta) or the research page and find a Keep reading list that links its related pages in order (the other comparisons, the checks, the Is Velai legit? post, the board, trends, About), each answering 200 with no redirect | anon | /indeed-alternative, /linkedin-jobs-alternative, /eluta-alternative, /research/ghost-jobs | signed-out | no | covered | related-links.spec.ts |
 
 ## SEO
 
@@ -854,12 +856,14 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-SEO-02 | Fetch sitemap.xml and see hubs, marketing pages and companies | agent | /sitemap.xml | signed-out | no | uncovered | — |
 | J-SEO-03 | Fetch the web manifest | agent | /manifest.webmanifest | signed-out | no | uncovered | — |
 | J-SEO-04 | Get noindex headers on job and query URLs | agent | /jobs?q=nurse | signed-out | no | uncovered | — |
-| J-SEO-05 | See the canonical link on a marketing page | agent | /trends | signed-out | no | uncovered | — |
+| J-SEO-05 | See one self-referencing canonical link on each marketing page, /openclaw (which had none) and /accessibility included | agent | /pricing, /about, /connect, /indeed-alternative, /openclaw, /accessibility | signed-out | no | covered | seo-headers.spec.ts |
 | J-SEO-06 | See the root JSON-LD graph on the homepage | agent | /jobs | signed-out | no | uncovered | — |
-| J-SEO-07 | See security headers on a page response | agent | /jobs | signed-out | no | uncovered | — |
+| J-SEO-07 | See security headers on a page response: HSTS, nosniff, DENY, the enforced policy (img-src, object-src none, base-uri self, frame-ancestors none) and the report-only policy that reports to /api/csp-report | agent | /pricing | signed-out | no | covered | seo-headers.spec.ts |
 | J-SEO-08 | See the sitemap fail loud when the data source is down | agent | /sitemap.xml | signed-out | no | uncovered | — |
 | J-SEO-09 | Follow the signed-out short URLs /packs and /apply to real surfaces | anon | /packs | signed-out | no | uncovered | — |
 | J-SEO-10 | Browse the front door, a search, a company page, /privacy and /login and see the browser contact only velai.app, Cloudflare Turnstile and WorkOS sign-in: company logos come from our own /logos/ path, never a third party | anon | /, /jobs?q=software+engineer, a /co page, /privacy, /login | signed-out | no | covered | third-party-hosts.spec.ts |
+| J-SEO-11 | Public images are cached for at least a month (never `max-age=0`) and the build's hashed files for a year, immutable | agent | /velai-tile.png, a /_next/static script | signed-out | no | covered | seo-headers.spec.ts |
+| J-SEO-12 | A browser's policy-violation report posted to /api/csp-report is accepted with a 204 and no body | agent | POST /api/csp-report | signed-out | no | covered | seo-headers.spec.ts |
 
 ## NAV
 
@@ -910,6 +914,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-NAV-49 | The header logo, the primary nav and the avatar sit at the same x on Jobs, Résumé and Tracker, and each page's shell lines up with that header, at 1440 and 390 (Jobs ran edge to edge, so the logo jumped from 40px to 120px when the tab changed; dev-server only: signed-in mock) | signed-in | /jobs, /resume, /yours at 1440 and 390 | signed-in | no | covered | shell-frame.spec.ts |
 | J-NAV-50 | Every visible heading is one of the four looks of the heading scale (28px page title, 20px section, 16px sub-heading, all semibold, or the 12px semibold group label in the secondary colour) at 1440 and 390 (37 headings had drifted to 12px and 14px, in six looks of their own, 2026-11-08) | anon | onboarding-completed flag + /connect, /about, /privacy, /pricing, /login, /mock/company-page, /mock/related-jobs?view=page | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-51 | The sign-in and contact forms' text fields share one fill, the field primitive's `bg-card`, at 1440 and 390 (the sign-in fields were a darker `bg-surface-2` well) | anon | /login, /contact | signed-out | no | covered | page-scale.spec.ts |
+| J-NAV-52 | Internal links go straight to the page they name: the header logo opens /jobs (it pointed at `/`, a 308), a signed-out phone's Account tab opens the sign-in page for settings (it pointed at `/settings`, a 307), and no link on /pricing, /about, /blog or /privacy except the one to /settings in the privacy and terms text answers a redirect | anon | /pricing, /about, /blog, /privacy, phone tab bar | signed-out | no | covered | internal-links.spec.ts |
 
 ## PRICING
 
@@ -995,6 +1000,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-SPEED-06 | The front door the server drew hydrates without a mismatch and works as before: the address stays /jobs, a search from its box shows matching rows under /jobs?q=, and the résumé invite's Upload opens the importer | anon | velai.app, search "accountant"; velai.app, Upload résumé | signed-out | no | covered | speed.spec.ts |
 | J-SPEED-07 | A search typed into the server-drawn front door and sent with Enter before the page's code has run is not lost: it goes to /jobs?q= as a plain form and the matching rows show (found on staging 1c520d1f, 2026-10-05: Search did nothing and the text was wiped) | anon | velai.app with the page's scripts held, type "nurse", Enter | signed-out | no | covered | speed.spec.ts |
 | J-SPEED-08 | What a visitor types into the front door's search box (and, from lg up, its place field) before the page's code has run is still there once it runs, with no hydration error, and Search then runs it | anon | velai.app with the page's scripts held, type "nurse" (and "Toronto"), let the scripts run, Search | signed-out | no | covered | speed.spec.ts |
+| J-SPEED-09 | A page does not download the guided tour's card code (framer-motion, about 350 KB) until a tour is showing: /about after load and 8 s of idle fetches no script containing the card's own label | anon | /about | signed-out | no | covered | speed.spec.ts |
 
 ## HIG
 

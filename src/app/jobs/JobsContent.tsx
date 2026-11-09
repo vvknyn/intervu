@@ -6035,7 +6035,7 @@ export function JobsContent({
                                     <p className="mt-1 text-xs text-muted-foreground">
                                         Tap one to search — your filters stay on
                                     </p>
-                                    <div className="wrap-row pt-3.5 [--wrap-gap-x:0.5rem] [--wrap-gap-y:0.75rem]" role="list" aria-label="Suggested roles">
+                                    <div className="wrap-row pt-3.5 [--wrap-gap-x:0.5rem] [--wrap-gap-y:0.75rem]" role="group" aria-label="Suggested roles">
                                         {searchSeeds.map((seed) => (
                                             <button
                                                 key={seed}
