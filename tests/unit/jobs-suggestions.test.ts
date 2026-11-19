@@ -236,8 +236,11 @@ for (const q of ["manager", "user experience", "  ", ""]) {
 test("buildSuggestBody's distinct attribute is declared filterable in JOBS_INDEX_SETTINGS", () => {
     const { distinct } = buildSuggestBody("engineer");
     assert.ok(distinct, "buildSuggestBody must set a distinct attribute");
+    const declaredFilterable = JOBS_INDEX_SETTINGS.filterableAttributes.flatMap((entry) =>
+        typeof entry === "string" ? [entry] : entry.attributePatterns,
+    );
     assert.ok(
-        JOBS_INDEX_SETTINGS.filterableAttributes.includes(distinct as string),
+        declaredFilterable.includes(distinct as string),
         `distinct attribute "${distinct}" must be a member of JOBS_INDEX_SETTINGS.filterableAttributes or Meili 400s the suggest query`,
     );
 });

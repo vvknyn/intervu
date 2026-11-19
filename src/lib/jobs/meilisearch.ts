@@ -134,58 +134,53 @@ export const JOBS_SYNONYMS: Record<string, string[]> = deriveSynonyms(JOBS_SYNON
 /** Index settings for the jobs index. Applied by the sync worker on (re)provision. */
 export const JOBS_INDEX_SETTINGS = {
   searchableAttributes: ["title", "company", "description", "location", "tags", "must_have_skills", "tech_stack"],
+  // Granular Meilisearch v1.45 filterableAttributes:
+  // - facetSearch: true ONLY on the 4 fields fetchFacetSearch() actually queries
+  //   (location_city, location_state, location_country, work_type) — avoids
+  //   rebuilding facet-search FSTs for 1.55M unique `id` UUIDs + all `title`
+  //   strings + skill arrays on every indexing batch.
+  // - comparison: true ONLY on numeric/timestamp fields queried with >= / <=.
+  // - equality: true on all 28 attributes (keeps `id = "..."` existence check,
+  //   `distinct: "title"`, facet distributions, and all filters intact).
   filterableAttributes: [
-    "work_type",
-    "employment_type",
-    "experience_level",
-    "location_city",
-    "location_state",
-    "location_country",
-    "salary_min",
-    "salary_max",
-    "visa_sponsorship",
-    "ghost_badge",
-    "source",
-    "vacancy_status",
-    "company_domain",
-    "posted_ts",
-    // Task 11 — the dead-link existence check (`JobSearchParams.id`, below)
-    // needs `id = "..."` to be a legal filter. Meilisearch's primary key is
-    // NOT automatically filterable, so it has to be declared here.
-    //
-    // LIVE as of 2026-07-25: the jobs index carries this setting and
-    // `id = "<doc>"` resolves (verified against the box with a real document
-    // id — 1 hit). It was code-only for six days after being added, during
-    // which the filter 400'd and the existence check degraded to "unknown"
-    // rather than declaring live roles dead. That degradation path stays —
-    // see `classifyExistenceCheck` in lib/jobs/result-state.ts — because the
-    // setting lives on the index, not in this repo, and a future re-provision
-    // can drop it again without a deploy.
-    "id",
-    // Makes `distinct: "title"` legal on the typeahead's search body
-    // (`buildSuggestBody`) — Meili rejects a non-filterable distinct
-    // attribute with a 400. Applied live as Meili task 484080, 2026-08-24.
-    "title",
-    // Owned by the subspace-side sync worker, not intervu — populated by its
-    // own classifier and applied live as Meili task 467532, 2026-08-18.
-    // intervu never filters on it. Listed here anyway so this canon stays a
-    // faithful mirror of the live index: a settings PATCH replaces
-    // filterableAttributes wholesale, so omitting a live-only entry here
-    // would silently DROP it on the next apply. Do not remove without
-    // confirming the box no longer needs it.
-    "occupation",
-    // Enriched qualification and telemetry attributes (Subspace upstream)
-    "min_years_experience",
-    "max_years_experience",
-    "must_have_skills",
-    "preferred_skills",
-    "tech_stack",
-    "in_office_days",
-    "normalized_salary_min",
-    "normalized_salary_max",
-    "company_opened_90d",
-    "company_closed_90d",
-    "company_open_count",
+    {
+      attributePatterns: ["location_city", "location_country", "location_state", "work_type"],
+      features: { facetSearch: true, filter: { equality: true, comparison: false } },
+    },
+    {
+      attributePatterns: [
+        "company_closed_90d",
+        "company_open_count",
+        "company_opened_90d",
+        "in_office_days",
+        "max_years_experience",
+        "min_years_experience",
+        "normalized_salary_max",
+        "normalized_salary_min",
+        "posted_ts",
+        "salary_max",
+        "salary_min",
+      ],
+      features: { facetSearch: false, filter: { equality: true, comparison: true } },
+    },
+    {
+      attributePatterns: [
+        "company_domain",
+        "employment_type",
+        "experience_level",
+        "ghost_badge",
+        "id",
+        "must_have_skills",
+        "occupation",
+        "preferred_skills",
+        "source",
+        "tech_stack",
+        "title",
+        "vacancy_status",
+        "visa_sponsorship",
+      ],
+      features: { facetSearch: false, filter: { equality: true, comparison: false } },
+    },
   ],
   sortableAttributes: [
     "posted_at",
