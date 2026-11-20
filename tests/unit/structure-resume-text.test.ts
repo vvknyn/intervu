@@ -304,4 +304,123 @@ Salesforce`;
         const score = scoreLocalParseConfidence(out);
         assert.ok(score.overall >= LOCAL_PARSE_COMPLETE_MIN, `expected ≥ ${LOCAL_PARSE_COMPLETE_MIN}, got ${score.overall}`);
     });
+
+    it("unwraps a project header ending in a link word and splits single-line multi-degree education", () => {
+        const text = [
+            "Vivek Narayanan",
+            "Richmond Hill, Ontario | +1 (437) 224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar",
+            "PROJECTS",
+            "velai.app — Founder | Job-search platform over 2M postings with ghost-listing detection and an MCP interface for",
+            "AI agents",
+            "2026 — Present",
+            "EDUCATION",
+            "MBA | University of Illinois Urbana-Champaign · MS, Computer Science | University at Buffalo",
+        ].join("\n");
+
+        const data = resumeDataFromPlainText(text);
+        assert.equal(data.projects?.length, 1);
+        assert.equal(data.projects?.[0].role, "velai.app");
+        assert.equal(data.projects?.[0].company, "Founder");
+        assert.equal(data.projects?.[0].dates, "2026 — Present");
+        assert.equal(
+            data.projects?.[0].description,
+            "• Job-search platform over 2M postings with ghost-listing detection and an MCP interface for AI agents",
+        );
+
+        assert.deepEqual(
+            data.education.map((e) => [e.degree, e.institution]),
+            [
+                ["MBA", "University of Illinois Urbana-Champaign"],
+                ["MS, Computer Science", "University at Buffalo"],
+            ],
+        );
+
+        const doc = resumeDataToParsedDocument(data);
+        const projSection = doc.sections.find((s) => /PROJECT/i.test(s.heading));
+        assert.deepEqual(projSection?.blocks, [
+            {
+                kind: "entry",
+                title: "velai.app | Founder",
+                dateRight: "2026 — Present",
+                bullets: [
+                    "Job-search platform over 2M postings with ghost-listing detection and an MCP interface for AI agents",
+                ],
+            },
+        ]);
+
+        const eduSection = doc.sections.find((s) => /EDUCATION/i.test(s.heading));
+        assert.deepEqual(eduSection?.blocks, [
+            {
+                kind: "bullets",
+                items: [
+                    "MBA | University of Illinois Urbana-Champaign",
+                    "MS, Computer Science | University at Buffalo",
+                ],
+            },
+        ]);
+    });
+
+    it("repairs already-stored mangled project and education entries in ResumeData on export", () => {
+        const storedMangled = {
+            profile: {
+                name: "Vivek Narayanan",
+                profession: "Technical Account Manager",
+                yearsOfExperience: 13,
+                location: "Richmond Hill, Ontario",
+                email: "viveknyan@gmail.com",
+                phone: "+1 (437) 224-8332",
+            },
+            generatedSummary: "",
+            competencies: [],
+            experience: [],
+            projects: [
+                {
+                    id: "proj-1",
+                    role: "AI agents",
+                    company:
+                        "velai.app — Founder | Job-search platform over 2M postings with ghost-listing detection and an MCP interface for",
+                    dates: "2026 — Present",
+                    description: "",
+                },
+            ],
+            education: [
+                {
+                    id: "edu-1",
+                    degree: "MBA, MS, Computer Science, University at Buffalo",
+                    institution: "University of Illinois Urbana-Champaign",
+                    year: "",
+                },
+            ],
+        };
+
+        const doc = resumeDataToParsedDocument(storedMangled);
+        const projSection = doc.sections.find((s) => /PROJECT/i.test(s.heading));
+        assert.deepEqual(projSection?.blocks, [
+            {
+                kind: "entry",
+                title: "velai.app | Founder",
+                dateRight: "2026 — Present",
+                bullets: [
+                    "Job-search platform over 2M postings with ghost-listing detection and an MCP interface for AI agents",
+                ],
+            },
+        ]);
+
+        const eduSection = doc.sections.find((s) => /EDUCATION/i.test(s.heading));
+        assert.deepEqual(eduSection?.blocks, [
+            {
+                kind: "bullets",
+                items: [
+                    "MBA | University of Illinois Urbana-Champaign",
+                    "MS, Computer Science | University at Buffalo",
+                ],
+            },
+        ]);
+
+        const md = resumeDataToZipMarkdown(storedMangled);
+        assert.match(md, /### velai\.app \| Founder/);
+        assert.doesNotMatch(md, /AI agents \| velai\.app/);
+        assert.match(md, /- MBA \| University of Illinois Urbana-Champaign/);
+        assert.match(md, /- MS, Computer Science \| University at Buffalo/);
+    });
 });

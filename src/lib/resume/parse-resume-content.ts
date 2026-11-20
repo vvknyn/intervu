@@ -20,7 +20,11 @@
  */
 import { buildContactLine, isContactOrPlaceLine, sanitizeContactLine, sanitizeLocation } from "@/lib/resume/contact-line";
 import { descriptionToBullets, shouldAppendAsBulletContinuation } from "@/lib/resume/merge-bullet-lines";
-import { normalizeCompetencyCategories } from "@/lib/resume/structure-resume-text";
+import {
+  normalizeCompetencyCategories,
+  normalizeEducationEntries,
+  normalizeProjectEntries,
+} from "@/lib/resume/structure-resume-text";
 import { getSectionOrder, type ResumeData, type ResumeSection } from "@/types/resume";
 
 export type ParsedResumeBlock =
@@ -351,14 +355,14 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
         );
       case "experience":
       case "projects":
-        return (section === "experience" ? data.experience : data.projects ?? []).map((e) => ({
+        return (section === "experience" ? data.experience : normalizeProjectEntries(data.projects ?? [])).map((e) => ({
           kind: "entry" as const,
           title: entryTitle(e.role, e.company),
           dateRight: e.dates?.trim() || null,
           bullets: descriptionToBullets(e.description),
         }));
       case "education": {
-        const items = data.education
+        const items = normalizeEducationEntries(data.education)
           .map((e) => [e.degree.trim(), e.institution.trim(), e.year?.trim() ?? ""].filter(Boolean).join(" | "))
           .filter(Boolean);
         return items.length > 0 ? [{ kind: "bullets", items }] : [];

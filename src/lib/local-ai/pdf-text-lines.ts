@@ -41,6 +41,8 @@ interface PrintedLine {
 const BULLET_GLYPH_RE = /^[•●▪◦‣∙·⁃*–-]$/;
 const SENTENCE_END_RE = /[.!?]["')\]]*$/;
 const HYPHEN_WRAP_RE = /\p{L}-$/u;
+const TRAILING_LINK_WORD_RE =
+    /\b(?:in|on|at|by|since|from|of|the|a|an|to|until|during|for|and|or|with|over|across|into|through|under|between)$/i;
 
 function isBlank(str: string): boolean {
     return str.trim() === "";
@@ -113,11 +115,12 @@ function wrapsOnto(prev: PrintedLine, next: PrintedLine, rightEdge: number): boo
     // indent), or under the text of a bullet whose glyph shares its first item.
     if (next.left > prev.left + (prev.bulletInText ? 24 : 1.5)) return false;
     // The next line's first word, plus a space, would have run past the right edge —
-    // or `prev` is a ragged-right prose line (>=60% of line width, no sentence end) followed by a lowercase word.
+    // or `prev` is a ragged-right prose line (>=60% of line width, no sentence end) followed by a lowercase word
+    // or ending in a trailing link word ("... and an MCP interface for" / "AI agents").
     const needed = (1 + firstWordLength(next.text)) * charWidth(next);
     const lowercaseContinuation =
         !SENTENCE_END_RE.test(prev.text) &&
-        /^\p{Ll}/u.test(next.text) &&
+        (/^\p{Ll}/u.test(next.text) || TRAILING_LINK_WORD_RE.test(prev.text)) &&
         prev.right - prev.left >= 0.6 * (rightEdge - prev.left);
     if (prev.right + needed <= rightEdge + 1 && !lowercaseContinuation) return false;
     // A full line that ends a sentence, then a capital: how one bullet ends and the next begins.
@@ -140,7 +143,10 @@ export function pdfPageText(items: PdfTextItem[]): string {
     if (lines.length === 0) return "";
     const rightEdge = Math.max(...lines.map((l) => l.right));
     const wraps = lines.map((line, i) => i > 0 && wrapsOnto(lines[i - 1], line, rightEdge));
-    const provesWrap = (i: number) => /^\p{Ll}/u.test(lines[i].text) || /(,|\p{L}-)$/u.test(lines[i - 1].text);
+    const provesWrap = (i: number) =>
+        /^\p{Ll}/u.test(lines[i].text) ||
+        /(,|\p{L}-)$/u.test(lines[i - 1].text) ||
+        TRAILING_LINK_WORD_RE.test(lines[i - 1].text);
     if (!wraps.some((wrap, i) => wrap && provesWrap(i))) return lines.map((l) => l.text).join("\n");
     const out: string[] = [];
     for (let i = 0; i < lines.length; i++) {

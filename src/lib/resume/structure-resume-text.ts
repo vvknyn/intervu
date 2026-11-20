@@ -339,7 +339,21 @@ function trimEdgePunctuation(text: string): string {
     }
 }
 
-function parseRoleCompanyFromLine(line: string, dates: string): { role: string; company: string } {
+function extractInlineHeaderDescription(parts: string[]): string {
+    if (parts.length < 3) return "";
+    const extra = parts
+        .slice(2)
+        .filter((p) => !isLikelyPlaceSegment(p) && !/^remote\b|^hybrid\b|^on-?site\b/i.test(p))
+        .join(" — ")
+        .trim();
+    return extra.split(/\s+/).length >= 4 ? extra : "";
+}
+
+function parseRoleCompanyFromLine(
+    line: string,
+    dates: string,
+    anyName = false,
+): { role: string; company: string; inlineDesc?: string } {
     let leftover = line.replace(dates, "").trim();
     leftover = trimEdgePunctuation(leftover.replace(/\(\s*\)/g, ""));
 
@@ -351,7 +365,9 @@ function parseRoleCompanyFromLine(line: string, dates: string): { role: string; 
     if (/\s*[|]\s*|\s+[—–-]\s+/.test(leftover)) {
         const parts = leftover.split(/\s*[|]\s*|\s+[—–-]\s+/).map((p) => p.trim()).filter(Boolean);
         if (parts.length >= 2) {
-            return assignRoleCompany(parts[0], parts[1]);
+            const pair = anyName ? { role: parts[0], company: parts[1] } : assignRoleCompany(parts[0], parts[1]);
+            const inlineDesc = extractInlineHeaderDescription(parts);
+            return inlineDesc ? { ...pair, inlineDesc } : pair;
         }
     }
 
@@ -359,7 +375,7 @@ function parseRoleCompanyFromLine(line: string, dates: string): { role: string; 
     // "Humber River Health, Toronto, ON": a company and its place, not "Role, Company".
     while (commaParts.length >= 3 && looksLikeRealPlaceSegment(commaParts.slice(-2).join(", "))) commaParts.splice(-2);
     if (commaParts.length >= 2) {
-        return assignRoleCompany(commaParts[0], commaParts[1]);
+        return anyName ? { role: commaParts[0], company: commaParts[1] } : assignRoleCompany(commaParts[0], commaParts[1]);
     }
     if (commaParts.length === 1 && commaParts[0] !== leftover) {
         const [only] = commaParts;
@@ -535,8 +551,30 @@ function pushExperienceEntry(
     });
 }
 
+/** Rejoins a line that stopped mid-phrase ("… and an MCP interface for" / "AI agents") before entry splitting. */
+function unwrapTrailingLinkLines(rawLines: string[]): string[] {
+    const out: string[] = [];
+    for (let i = 0; i < rawLines.length; i++) {
+        let cur = rawLines[i];
+        while (
+            i + 1 < rawLines.length &&
+            !DATE_OR_DURATION_RE.test(cur) &&
+            TRAILING_LINK_WORD_RE.test(cur.trim()) &&
+            !BULLET_RE.test(rawLines[i + 1]) &&
+            !isSectionHeader(rawLines[i + 1]) &&
+            !isDateOnlyLine(rawLines[i + 1])
+        ) {
+            cur = `${cur.trim()} ${rawLines[i + 1].trim()}`;
+            i++;
+        }
+        out.push(cur);
+    }
+    return out;
+}
+
 /** `anyName`: a Projects block, where an entry needn't be named like a role. */
-function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExperience, "id">[] {
+function parseExperienceBlock(rawLines: string[], anyName = false): Omit<ResumeExperience, "id">[] {
+    const lines = unwrapTrailingLinkLines(rawLines);
     const entries: Omit<ResumeExperience, "id">[] = [];
     let i = 0;
 
@@ -546,12 +584,12 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
 
         if (dateMatch) {
             const dates = dateMatch[0];
-            let { role, company } = parseRoleCompanyFromLine(line, dates);
+            let { role, company, inlineDesc } = parseRoleCompanyFromLine(line, dates, anyName);
 
             if (role && !company && i + 1 < lines.length && looksLikeNextLineCompany(lines[i + 1])) {
                 company = lines[i + 1].trim();
                 const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2, anyName);
-                pushExperienceEntry(entries, company, role, dates, descLines);
+                pushExperienceEntry(entries, company, role, dates, inlineDesc ? [inlineDesc, ...descLines] : descLines);
                 i = nextIndex;
                 continue;
             }
@@ -572,16 +610,16 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
             }
 
             const { descLines, nextIndex } = collectDescriptionLines(lines, i + 1, anyName);
-            pushExperienceEntry(entries, company, role, dates, descLines);
+            pushExperienceEntry(entries, company, role, dates, inlineDesc ? [inlineDesc, ...descLines] : descLines);
             i = nextIndex;
             continue;
         }
 
         const singleDate = singleDateEntryDate(line, anyName);
         if (singleDate) {
-            const { role, company } = parseRoleCompanyFromLine(line, singleDate);
+            const { role, company, inlineDesc } = parseRoleCompanyFromLine(line, singleDate, anyName);
             const { descLines, nextIndex } = collectDescriptionLines(lines, i + 1, anyName);
-            pushExperienceEntry(entries, company, role, singleDate, descLines);
+            pushExperienceEntry(entries, company, role, singleDate, inlineDesc ? [inlineDesc, ...descLines] : descLines);
             i = nextIndex;
             continue;
         }
@@ -591,7 +629,7 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
             const nextDateMatch = nextLine.match(DATE_OR_DURATION_RE);
             if (nextDateMatch && !BULLET_RE.test(nextLine)) {
                 const dates = nextDateMatch[0];
-                let { role, company } = parseRoleCompanyFromLine(nextLine, dates);
+                let { role, company, inlineDesc } = parseRoleCompanyFromLine(nextLine, dates, anyName);
                 // "Primary School Teacher" over "Oakwood Primary School, Manchester · 09/2018 – Present":
                 // the line above names the role, the dated line the company and its place.
                 const datedText = trimEdgePunctuation(nextLine.replace(dates, "").replace(/\(\s*\)/g, ""));
@@ -601,15 +639,15 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
                 }
                 if (!role && !company) {
                     // "Software Engineer | Beta Systems" names both.
-                    const own = parseRoleCompanyFromLine(line, "");
-                    if (own.role && own.company) ({ role, company } = own);
+                    const own = parseRoleCompanyFromLine(line, "", anyName);
+                    if (own.role && own.company) ({ role, company, inlineDesc } = own);
                 }
                 if (!role && looksLikeTitle(line)) role = line;
                 if (!company && !looksLikeTitle(line) && !DATE_OR_DURATION_RE.test(line)) company = line;
                 if (!role && !company) role = line;
 
                 const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2, anyName);
-                pushExperienceEntry(entries, company, role, dates, descLines);
+                pushExperienceEntry(entries, company, role, dates, inlineDesc ? [inlineDesc, ...descLines] : descLines);
                 i = nextIndex;
                 continue;
             }
@@ -1011,6 +1049,171 @@ function parseEducationLine(line: string): Omit<ResumeEducation, "id"> {
 }
 
 /**
+ * Splits a single line that lists two or more degrees side by side
+ * ("MBA | University of Illinois Urbana-Champaign · MS, Computer Science | University at Buffalo")
+ * into one education entry per degree.
+ */
+function parseEducationLines(line: string): Omit<ResumeEducation, "id">[] {
+    const rest = educationLineText(line);
+    if (!rest) return [{ degree: "", institution: "", year: "" }];
+
+    // 1. Mid-dot / bullet / semicolon separating complete degree+institution clauses on one line.
+    if (/[·•;]/.test(rest)) {
+        const clauses = rest.split(/\s*[·•;]\s*/).map((c) => c.trim()).filter(Boolean);
+        if (
+            clauses.length >= 2 &&
+            clauses.every((c) => DEGREE_LIKE_RE.test(c) && (INSTITUTION_RE.test(c) || /[|—–-]/.test(c)))
+        ) {
+            return clauses.map((c) => parseEducationLine(c));
+        }
+    }
+
+    // 2. Four or more strong-separator segments containing >= 2 degrees and >= 2 institutions
+    // ("MBA | University of Illinois Urbana-Champaign | MS, Computer Science | University at Buffalo").
+    const strong = rest.split(/\s*[|·•]\s*|\s+[—–-]\s+/).map((p) => p.trim()).filter(Boolean);
+    if (strong.length >= 2 && strong.every((s) => DEGREE_LIKE_RE.test(s) && INSTITUTION_RE.test(s))) {
+        return strong.map((s) => parseEducationLine(s));
+    }
+    const instCount = strong.filter((p) => INSTITUTION_RE.test(p) && !DEGREE_LIKE_RE.test(p)).length;
+    const degCount = strong.filter((p) => DEGREE_LIKE_RE.test(p)).length;
+    if (strong.length >= 4 && instCount >= 2 && degCount >= 2) {
+        const grouped: Omit<ResumeEducation, "id">[] = [];
+        let bucket: string[] = [];
+        let hasDeg = false;
+        let hasInst = false;
+        for (let i = 0; i < strong.length; i++) {
+            const seg = strong[i];
+            const isInst = INSTITUTION_RE.test(seg) && !DEGREE_LIKE_RE.test(seg);
+            const isDeg = DEGREE_LIKE_RE.test(seg);
+            bucket.push(seg);
+            if (isInst) hasInst = true;
+            if (isDeg) hasDeg = true;
+            const tail = strong.slice(i + 1);
+            const tailHasInst = tail.some((t) => INSTITUTION_RE.test(t) && !DEGREE_LIKE_RE.test(t));
+            const tailHasDeg = tail.some((t) => DEGREE_LIKE_RE.test(t));
+            if (hasDeg && hasInst && tailHasDeg && tailHasInst) {
+                grouped.push({ ...assignDegreeInstitution(bucket), year: "" });
+                bucket = [];
+                hasDeg = false;
+                hasInst = false;
+            }
+        }
+        if (bucket.length > 0) {
+            grouped.push({ ...assignDegreeInstitution(bucket), year: "" });
+        }
+        if (grouped.length >= 2) return grouped;
+    }
+
+    return [parseEducationLine(line)];
+}
+
+/**
+ * Repairs a stored project entry whose wrapped continuation tail ("AI agents")
+ * was swapped into `role` ahead of the first line, or whose 3-segment header
+ * left the project description inside `company`.
+ */
+export function normalizeProjectEntries<T extends Omit<ResumeExperience, "id"> & { id?: string }>(entries: T[]): T[] {
+    return entries.map((e) => {
+        let role = (e.role ?? "").trim();
+        let company = (e.company ?? "").trim();
+        let description = (e.description ?? "").trim();
+
+        // Wrapped tail swapped into role while company holds the first line ending on a link word.
+        if (
+            company &&
+            role &&
+            TRAILING_LINK_WORD_RE.test(company) &&
+            (/\s*[|]\s*|\s+[—–-]\s+/.test(company) || company.length > 60) &&
+            role.split(/\s+/).length <= 5
+        ) {
+            const stitched = `${company} ${role}`;
+            const parsed = parseRoleCompanyFromLine(stitched, "", true);
+            role = parsed.role;
+            company = parsed.company;
+            if (parsed.inlineDesc) {
+                description = [ `• ${parsed.inlineDesc}`, description ].filter(Boolean).join("\n");
+            }
+        } else if (/\s*[|]\s*|\s+[—–-]\s+/.test(company) || /\s*[|]\s*|\s+[—–-]\s+/.test(role)) {
+            const combined = [role, company].filter(Boolean).join(" | ");
+            const parts = combined.split(/\s*[|]\s*|\s+[—–-]\s+/).map((p) => p.trim()).filter(Boolean);
+            const inlineDesc = extractInlineHeaderDescription(parts);
+            if (parts.length >= 3 && inlineDesc) {
+                role = parts[0];
+                company = parts[1];
+                description = [ `• ${inlineDesc}`, description ].filter(Boolean).join("\n");
+            }
+        }
+
+        if (
+            /^[a-z0-9-]+\.[a-z]{2,}$/i.test(company) &&
+            /^(?:founder|co-?founder|creator|author|maintainer|developer|owner)$/i.test(role)
+        ) {
+            [role, company] = [company, role];
+        }
+
+        return { ...e, role, company, description };
+    });
+}
+
+/**
+ * Repairs a stored education entry where two degrees and two schools were
+ * collapsed into one `{ degree: "MBA, MS, Computer Science, University at Buffalo", institution: "University of Illinois Urbana-Champaign" }`.
+ */
+export function normalizeEducationEntries<T extends Omit<ResumeEducation, "id"> & { id?: string }>(entries: T[]): T[] {
+    const out: T[] = [];
+    for (const e of entries) {
+        const degree = (e.degree ?? "").trim();
+        const institution = (e.institution ?? "").trim();
+
+        if (degree && institution && INSTITUTION_RE.test(degree)) {
+            const commaParts = degree.split(/\s*,\s*/).map((p) => p.trim()).filter(Boolean);
+            const instIdx = commaParts.findIndex((p, idx) => idx > 0 && INSTITUTION_RE.test(p) && !DEGREE_LIKE_RE.test(p));
+            if (instIdx >= 2) {
+                const beforeInst = commaParts.slice(0, instIdx);
+                const secondDegIdx = beforeInst.findIndex((p, idx) => idx > 0 && DEGREE_LIKE_RE.test(p));
+                if (secondDegIdx > 0 && DEGREE_LIKE_RE.test(beforeInst[0])) {
+                    const firstDegree = beforeInst.slice(0, secondDegIdx).join(", ");
+                    const secondDegree = beforeInst.slice(secondDegIdx).join(", ");
+                    const secondInstitution = commaParts.slice(instIdx).join(", ");
+                    out.push({
+                        ...e,
+                        ...(e.id ? { id: `${e.id}-1` } : {}),
+                        degree: firstDegree,
+                        institution,
+                    });
+                    out.push({
+                        ...e,
+                        ...(e.id ? { id: `${e.id}-2` } : {}),
+                        degree: secondDegree,
+                        institution: secondInstitution,
+                    });
+                    continue;
+                }
+            }
+        }
+
+        if (institution && /[·•|]/.test(institution) && DEGREE_LIKE_RE.test(institution) && INSTITUTION_RE.test(institution)) {
+            const reparsed = parseEducationLines([degree, institution].filter(Boolean).join(" | "));
+            if (reparsed.length >= 2) {
+                reparsed.forEach((r, idx) => {
+                    out.push({
+                        ...e,
+                        ...(e.id ? { id: `${e.id}-${idx + 1}` } : {}),
+                        degree: r.degree,
+                        institution: r.institution,
+                        year: r.year || e.year,
+                    });
+                });
+                continue;
+            }
+        }
+
+        out.push(e);
+    }
+    return out;
+}
+
+/**
  * One entry may span lines (`ETH Zürich` / `M.Sc. Computer Science, 2016`):
  * a line joins the open entry while it fills only slots that entry still
  * has empty, and starts a new entry otherwise. `Label: value` lines (GPA,
@@ -1021,9 +1224,14 @@ function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
     const cleaned = lines.map((l) => l.replace(BULLET_RE, "").trim()).filter((l) => l && !/^[^:]{2,30}:\s/.test(l));
     for (let n = 0; n < cleaned.length; n++) {
         const line = cleaned[n];
+        const multi = parseEducationLines(line);
+        if (multi.length >= 2) {
+            entries.push(...multi);
+            continue;
+        }
         const previous = cleaned[n - 1] ?? "";
         const following = cleaned[n + 1] ?? "";
-        let parsed = parseEducationLine(line);
+        let parsed = multi[0];
         const open = entries.at(-1);
         const bareName = !parsed.degree && !parsed.year && Boolean(parsed.institution) && !INSTITUTION_RE.test(line) && !DEGREE_LIKE_RE.test(line);
         // A narrow column wraps a degree: "Bachelor of Commerce," / "Accounting", "Associate of Applied
@@ -1149,7 +1357,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
 
     for (const line of lines) {
         const inlineExtra = line.match(INLINE_EXTRA_SECTION_RE);
-        if (inlineExtra) {
+        if (inlineExtra && !(currentSection === "skills" && /^languages$/i.test(inlineExtra[1].trim()))) {
             const key = `extra:${extras.length}`;
             extras.push({ key, heading: inlineExtra[1].trim(), after: sectionOrder[sectionOrder.length - 1] ?? null });
             sections[key] = [inlineExtra[2].trim()];

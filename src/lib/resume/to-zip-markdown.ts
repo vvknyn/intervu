@@ -1,6 +1,10 @@
 import { buildContactLine, sanitizeLocation } from "@/lib/resume/contact-line";
 import { descriptionToBullets } from "@/lib/resume/merge-bullet-lines";
-import { normalizeCompetencyCategories } from "@/lib/resume/structure-resume-text";
+import {
+    normalizeCompetencyCategories,
+    normalizeEducationEntries,
+    normalizeProjectEntries,
+} from "@/lib/resume/structure-resume-text";
 import { getSectionOrder, type ResumeData, type ResumeSection } from "@/types/resume";
 
 /**
@@ -56,9 +60,10 @@ export function resumeDataToZipMarkdown(data: ResumeData): string {
             }
         },
         projects: () => {
-            if ((data.projects?.length ?? 0) > 0) {
+            const projects = normalizeProjectEntries(data.projects ?? []);
+            if (projects.length > 0) {
                 lines.push("## INDEPENDENT PROJECTS", "");
-                for (const p of data.projects ?? []) {
+                for (const p of projects) {
                     const title = p.company ? `${p.role} | ${p.company}` : p.role;
                     lines.push(`### ${title}`);
                     if (p.dates?.trim()) lines.push(p.dates.trim());
@@ -71,9 +76,10 @@ export function resumeDataToZipMarkdown(data: ResumeData): string {
             }
         },
         education: () => {
-            if (data.education?.length) {
+            const education = normalizeEducationEntries(data.education ?? []);
+            if (education.length) {
                 lines.push("## EDUCATION & PROFESSIONAL DEVELOPMENT", "");
-                for (const ed of data.education) {
+                for (const ed of education) {
                     const degree = ed.degree.trim();
                     const institution = ed.institution.trim();
                     const year = ed.year?.trim() ?? "";
