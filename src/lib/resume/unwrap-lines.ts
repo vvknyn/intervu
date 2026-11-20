@@ -24,6 +24,8 @@ const MIN_WRAP_EVIDENCE = 2;
 const SENTENCE_END_RE = /[.!?]["')\]]*$/;
 const BULLET_START_RE = /^[-*•−●◦▪]\s+/;
 const HYPHEN_WRAP_RE = /\p{L}-$/u;
+const TRAILING_LINK_WORD_RE =
+    /\b(?:in|on|at|by|since|from|of|the|a|an|to|until|during|for|and|or|with|over|across|into|through|under|between)$/i;
 
 /** The line's printed width in characters: the 90th-percentile length of its long lines. */
 function fullWidth(lines: string[]): number | null {
@@ -37,10 +39,11 @@ function firstWord(line: string): string {
 }
 
 /** `line` would have fit its first word on the previous line if the printer hadn't run out of width,
- *  or `prev` is a ragged-right prose line (>=60% width, no sentence end) followed by a lowercase word. */
+ *  or `prev` is a ragged-right prose line (>=60% width, no sentence end) followed by a lowercase word
+ *  or ending in a trailing link word. */
 function isFull(prev: string, next: string, width: number): boolean {
     if (prev.length + 1 + firstWord(next).length > 0.95 * width) return true;
-    return prev.length >= 0.6 * width && !SENTENCE_END_RE.test(prev) && /^\p{Ll}/u.test(next);
+    return prev.length >= 0.6 * width && !SENTENCE_END_RE.test(prev) && (/^\p{Ll}/u.test(next) || TRAILING_LINK_WORD_RE.test(prev));
 }
 
 /** Starts mid-sentence: lowercase, a digit, or punctuation such as "<20-minute" or "(live)". */
@@ -57,7 +60,7 @@ function looksHardWrapped(lines: string[], width: number, isBoundary: (line: str
         const prev = lines[i - 1];
         const line = lines[i];
         if (isBoundary(prev) || isBoundary(line)) continue;
-        if (isFull(prev, line, width) && /^\p{Ll}/u.test(line)) evidence++;
+        if (isFull(prev, line, width) && (/^\p{Ll}/u.test(line) || TRAILING_LINK_WORD_RE.test(prev))) evidence++;
     }
     return evidence >= MIN_WRAP_EVIDENCE;
 }

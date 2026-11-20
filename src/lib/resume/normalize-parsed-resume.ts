@@ -6,6 +6,7 @@
  */
 
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
+import { normalizeEducationEntries, normalizeProjectEntries } from "@/lib/resume/structure-resume-text";
 import { cleanRoleTitle } from "@/lib/resume/title-text";
 import type {
     ParsedResumeResult,
@@ -113,13 +114,15 @@ export function normalizeParsedResume(
         experience,
         ...(Array.isArray(raw.projects) && raw.projects.length > 0
             ? {
-                  projects: raw.projects.map((p, idx) => ({
-                      id: p.id || `proj-${idx + 1}`,
-                      company: p.company || "",
-                      role: p.role || "",
-                      dates: p.dates || "",
-                      description: normalizeDescription(p.description || ""),
-                  })),
+                  projects: normalizeProjectEntries(
+                      raw.projects.map((p, idx) => ({
+                          id: p.id || `proj-${idx + 1}`,
+                          company: p.company || "",
+                          role: p.role || "",
+                          dates: p.dates || "",
+                          description: normalizeDescription(p.description || ""),
+                      })),
+                  ),
               }
             : {}),
         competencies: Array.isArray(raw.competencies)
@@ -129,12 +132,14 @@ export function normalizeParsedResume(
               }))
             : [],
         education: Array.isArray(raw.education)
-            ? raw.education.map((edu, idx) => ({
-                  id: edu.id || `edu-${idx + 1}`,
-                  degree: edu.degree || "",
-                  institution: edu.institution || "",
-                  year: edu.year || "",
-              }))
+            ? normalizeEducationEntries(
+                  raw.education.map((edu, idx) => ({
+                      id: edu.id || `edu-${idx + 1}`,
+                      degree: edu.degree || "",
+                      institution: edu.institution || "",
+                      year: edu.year || "",
+                  })),
+              )
             : [],
         generatedSummary: (raw.generatedSummary || raw.summary || raw.professionalSummary || "")
             .replace(/\\n/g, "\n")
