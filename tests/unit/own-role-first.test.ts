@@ -16,7 +16,7 @@ import { compareForYouKeys, forYouSortKey, orderForYouJobsByBand } from '../../s
 import { rankForYou } from '../../src/lib/jobs/for-you/ranked';
 import { todayLeftOut } from '../../src/lib/jobs/for-you/today';
 import { resumeSearchMark } from '../../src/lib/jobs/search-payload';
-import { buildMatchQuery, targetRoles } from '../../src/lib/jobs/resume-match';
+import { buildMatchQuery, hasHybridTechnicalCustomerProfile, recommendedTargetRoles, targetRoles } from '../../src/lib/jobs/resume-match';
 import { titlePlace } from '../../src/lib/jobs/resume-location';
 import { explainMatch } from '../../src/lib/match/explain';
 import {
@@ -119,6 +119,34 @@ describe('how close a posting is to the candidate\'s own role', () => {
         assert.equal(program.role, 'off-target');
         assert.equal(matchBand(program.total), 'stretch');
         assert.match(explainMatch(program), /It's a different kind of role from your .* work/);
+    });
+
+    it('for a hybrid TAM + Software Engineer profile, grades Founding Solutions Engineer / Forward Deployed Engineer / Solutions Architect as family and demotes standard commercial Account Manager to adjacent', () => {
+        assert.equal(hasHybridTechnicalCustomerProfile(TAM), true);
+        const rec = recommendedTargetRoles(TAM);
+        assert.ok(rec.includes('Head of Solutions'), rec.join(', '));
+        assert.ok(rec.includes('Founding Solutions Engineer'), rec.join(', '));
+        assert.ok(rec.includes('Forward Deployed Engineer'), rec.join(', '));
+
+        for (const title of [
+            'Founding Solutions Engineer',
+            'Forward Deployed Engineer',
+            'Solutions Engineer',
+            'Solutions Architect',
+            'Head of Solutions',
+        ]) {
+            assert.equal(roleAffinity(TAM, canada(title, 'senior')), 'family', title);
+        }
+
+        // Standard commercial Account Manager is demoted from family to adjacent for a 12+ year hybrid engineer+TAM
+        assert.equal(roleAffinity(TAM, canada('Account Manager', 'mid')), 'adjacent');
+        assert.equal(roleAffinity(TAM, canada('Account Manager, SMB', 'mid')), 'adjacent');
+        const plainAm = score(TAM, canada('Account Manager', 'mid', { tags: ['account management', 'saas'] }))!;
+        const fde = score(TAM, canada('Forward Deployed Engineer', 'senior', { tags: ['python', 'sql', 'api'] }))!;
+        assert.equal(plainAm.role, 'adjacent');
+        assert.ok(plainAm.total < MATCH_BAND_STRONG_MIN, `standard Account Manager capped below Strong: ${plainAm.total}`);
+        assert.equal(fde.role, 'family');
+        assert.ok(compareFit(fde, plainAm) < 0, 'Forward Deployed Engineer ranks ahead of standard Account Manager');
     });
 });
 

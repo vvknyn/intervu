@@ -8,7 +8,7 @@ import {
     ResumeSection,
     getSectionOrder,
 } from "@/types/resume";
-import { analyzeResumeDiagnostics, tightenResumeData } from "@/lib/resume/resume-diagnostics";
+import { analyzeResumeDiagnostics, consolidateOlderRoles, tightenResumeData } from "@/lib/resume/resume-diagnostics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -231,6 +231,15 @@ export function EditingPanel({
         }
     }, [data, onUpdate]);
 
+    const handleConsolidateOlderRoles = useCallback(() => {
+        const { data: consolidated, removedCount } = consolidateOlderRoles(data, 2);
+        if (removedCount > 0) {
+            onUpdate({
+                experience: consolidated.experience,
+            });
+        }
+    }, [data, onUpdate]);
+
     // Built here rather than closed over: `SectionHeader` lives at module scope
     // (see its comment) so it can't reach these directly.
     const nav: SectionNav = {
@@ -291,15 +300,26 @@ export function EditingPanel({
                                 <Sparkle size={16} className="text-muted-foreground" />
                                 <GroupLabel as="h4">Writing &amp; Impact Check</GroupLabel>
                             </div>
-                            {diagnostics.tightenableCount > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={handleTightenWording}
-                                    className="text-xs text-action"
-                                >
-                                    Tighten wording ({diagnostics.tightenableCount})
-                                </button>
-                            )}
+                            <div className="flex items-center gap-3">
+                                {diagnostics.consolidatableOlderBulletsCount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleConsolidateOlderRoles}
+                                        className="text-xs text-action"
+                                    >
+                                        Compress older roles ({diagnostics.consolidatableOlderBulletsCount})
+                                    </button>
+                                )}
+                                {diagnostics.tightenableCount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleTightenWording}
+                                        className="text-xs text-action"
+                                    >
+                                        Tighten wording ({diagnostics.tightenableCount})
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
                             Aim for the XYZ structure: <span className="text-foreground">Accomplished [X] as measured by [Y], by doing [Z]</span>.
@@ -335,6 +355,12 @@ export function EditingPanel({
                                     </div>
                                 </div>
                             )}
+                            {diagnostics.recommendations.map((rec) => (
+                                <div key={rec.id} className="rounded-ctl border border-border bg-surface-2 px-3 py-2 sm:col-span-2">
+                                    <div className="font-semibold text-foreground">{rec.title}</div>
+                                    <div className="text-muted-foreground">{rec.detail}</div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}

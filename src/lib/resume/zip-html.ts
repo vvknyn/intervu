@@ -1,4 +1,5 @@
 import { RESUME_ZIP_CSS } from "@/lib/resume/resume-zip.css";
+import { matchResumeLinks } from "@/lib/resume/links";
 import {
     parseResumeContent,
     resumeDataToParsedDocument,
@@ -15,24 +16,42 @@ function escapeHtml(text: string): string {
         .replace(/"/g, "&quot;");
 }
 
+function escapeAndLinkifyHtml(text: string): string {
+    const links = matchResumeLinks(text);
+    if (links.length === 0) return escapeHtml(text);
+    let out = "";
+    let cursor = 0;
+    for (const link of links) {
+        if (link.index < cursor) continue;
+        out += escapeHtml(text.slice(cursor, link.index));
+        const href = escapeHtml(link.url);
+        const label = escapeHtml(link.text);
+        const externalAttrs = link.url.startsWith("mailto:") ? "" : ' target="_blank" rel="noopener noreferrer"';
+        out += `<a href="${href}"${externalAttrs} style="color:inherit;text-decoration:none">${label}</a>`;
+        cursor = link.index + link.text.length;
+    }
+    out += escapeHtml(text.slice(cursor));
+    return out;
+}
+
 function renderBlock(block: ParsedResumeBlock): string {
     switch (block.kind) {
         case "paragraph":
-            return `<p class="resume-paragraph">${escapeHtml(block.text)}</p>`;
+            return `<p class="resume-paragraph">${escapeAndLinkifyHtml(block.text)}</p>`;
         case "competency":
             return `<p class="resume-competency"><strong>${escapeHtml(block.category)}:</strong> ${escapeHtml(block.items)}</p>`;
         case "bullets":
             if (block.items.length === 0) return "";
-            return `<ul class="resume-bullets">${block.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+            return `<ul class="resume-bullets">${block.items.map((item) => `<li>${escapeAndLinkifyHtml(item)}</li>`).join("")}</ul>`;
         case "entry": {
             const dateHtml = block.dateRight
                 ? `<span class="resume-entry-dates">${escapeHtml(block.dateRight)}</span>`
                 : "";
             const bullets =
                 block.bullets.length > 0
-                    ? `<ul class="resume-bullets">${block.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>`
+                    ? `<ul class="resume-bullets">${block.bullets.map((b) => `<li>${escapeAndLinkifyHtml(b)}</li>`).join("")}</ul>`
                     : "";
-            return `<div class="resume-entry"><div class="resume-entry-header"><span class="resume-entry-title">${escapeHtml(block.title)}</span>${dateHtml}</div>${bullets}</div>`;
+            return `<div class="resume-entry"><div class="resume-entry-header"><span class="resume-entry-title">${escapeAndLinkifyHtml(block.title)}</span>${dateHtml}</div>${bullets}</div>`;
         }
         default:
             return "";
@@ -54,7 +73,7 @@ export function parsedResumeToZipHtml(doc: ParsedResumeDocument): string {
         parts.push(`<h1 class="resume-name">${escapeHtml(doc.name)}</h1>`);
     }
     if (doc.contactLine) {
-        parts.push(`<p class="resume-contact">${escapeHtml(doc.contactLine)}</p>`);
+        parts.push(`<p class="resume-contact">${escapeAndLinkifyHtml(doc.contactLine)}</p>`);
     }
 
     for (const section of doc.sections) {
