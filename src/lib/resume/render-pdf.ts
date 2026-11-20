@@ -45,6 +45,7 @@
 import { jsPDF } from "jspdf";
 import type { ParsedResumeDocument, ParsedResumeBlock } from "./parse-resume-content";
 import type { ResumeLayoutProfile } from "./layout-profile";
+import { matchResumeLinks } from "./links";
 
 export interface TextMeasurer {
   /** Width in points of `text` set at `size`pt in the given weight. */
@@ -58,6 +59,14 @@ export interface DrawText {
   align: "left" | "center" | "right";
   bold: boolean;
   size: number;
+}
+export interface DrawLink {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  url: string;
+  text: string;
 }
 export interface DrawRule {
   y: number;
@@ -630,13 +639,16 @@ export function bulletsToLeaveOut(doc: ParsedResumeDocument, roleTerms: readonly
   const refs: BulletRef[] = [];
   doc.sections.forEach((section, s) => {
     const entries = section.blocks.map((block, b) => ({ block, b })).filter(({ block }) => block.kind === "entry");
+    const flagshipFirst =
+      entries.length >= 3 && entries[0]?.block.kind === "entry" && entries[0].block.bullets.length >= 5;
     entries.forEach(({ block, b }, order) => {
       if (block.kind !== "entry") return;
       const age = entries.length > 1 ? order / (entries.length - 1) : 0;
+      const recentBonus = flagshipFirst && order === 0 ? 0.35 : 0;
       block.bullets.forEach((text, i) => {
         if (i === 0) return;
         const later = block.bullets.length > 1 ? i / (block.bullets.length - 1) : 0;
-        refs.push({ section: s, block: b, bullet: i, entry: block.title, text, score: 3 * hits(text) - 1.5 * age - 0.5 * later });
+        refs.push({ section: s, block: b, bullet: i, entry: block.title, text, score: 3 * hits(text) + recentBonus - 1.5 * age - 0.5 * later });
       });
     });
   });
@@ -774,6 +786,38 @@ function mapDocumentText(doc: ParsedResumeDocument, fn: (s: string) => string): 
   };
 }
 
+/**
+ * Pure: derives clickable PDF link rectangles for any emails, URLs, LinkedIn/GitHub paths,
+ * or bare web domains (e.g. `velai.app`) inside a drawn text run.
+ */
+export function extractTextLinks(t: DrawText, measure: TextMeasurer): DrawLink[] {
+  const matches = matchResumeLinks(t.text);
+  if (matches.length === 0) return [];
+  const fullWidth = measure.widthOf(t.text, t.size, t.bold);
+  const startX =
+    t.align === "center" ? t.x - fullWidth / 2 : t.align === "right" ? t.x - fullWidth : t.x;
+  const topY = t.y - CAP_HEIGHT * t.size - 1;
+  const height = (CAP_HEIGHT + DESCENT) * t.size + 2;
+
+  return matches.map((m) => {
+    const prefix = t.text.slice(0, m.index);
+    const x = startX + (prefix ? measure.widthOf(prefix, t.size, t.bold) : 0);
+    const width = measure.widthOf(m.text, t.size, t.bold);
+    return {
+      x,
+      y: topY,
+      width,
+      height,
+      url: m.url,
+      text: m.text,
+    };
+  });
+}
+
+export function extractPageLinks(page: PageLayout, measure: TextMeasurer): DrawLink[] {
+  return page.texts.flatMap((t) => extractTextLinks(t, measure));
+}
+
 export function jsPdfMeasurer(doc: jsPDF, fontName: string = "helvetica"): TextMeasurer {
   const cache = new Map<string, number>();
   return {
@@ -857,6 +901,9 @@ export function renderResumePdf(content: ParsedResumeDocument, options: RenderRe
       doc.setFont(fontName, t.bold ? "bold" : "normal");
       doc.setFontSize(t.size);
       doc.text(t.text, t.x, t.y, { align: t.align });
+    }
+    for (const link of extractPageLinks(page, measure)) {
+      doc.link(link.x, link.y, link.width, link.height, { url: link.url });
     }
   });
 

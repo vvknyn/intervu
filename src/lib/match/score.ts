@@ -60,7 +60,16 @@ import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, PHRASE_MATCH_WEIGHT
 import { languageLabel, resumeLanguages } from "@/lib/match/posting-language";
 import { countsAsTitleMatch, isGenericTitleModifier, isTitleStopword, isTruncatedStem, resumeSharesTitleSignal, titleInResumeLanguage, titleTermTokens } from "@/lib/match/title-signal";
 import { COVERAGE_MIN_RESUME_TERMS, requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
-import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
+import {
+    buildMatchQuery,
+    hasHybridTechnicalCustomerProfile,
+    isHybridTechnicalCustomerTitle,
+    isPlainCommercialAccountManagerTitle,
+    seniorityFromYears,
+    targetRoles,
+    topSkills,
+    type Seniority,
+} from "@/lib/jobs/resume-match";
 import { familiesNamedBy, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -979,6 +988,8 @@ interface ResumeTargets {
     leading: RoleFamilyId[];
     /** A role or line on the résumé shows its owner managing people (`resumeManagedPeople`). */
     managed: boolean;
+    /** The résumé combines customer-facing ownership with hands-on software engineering (`hasHybridTechnicalCustomerProfile`). */
+    hybridTechnicalCustomer: boolean;
 }
 
 /** Per résumé object and stated roles: the role families it targets, the titles its packs search for, its own role, and whether it shows managing people. */
@@ -1002,6 +1013,7 @@ function resumeTargets(resume: ResumeData, preferred: readonly string[] = []): R
                 ...roles.ownFamilies.filter((family) => !roles.families.includes(family)),
             ],
             managed: resumeManagedPeople(resume),
+            hybridTechnicalCustomer: hasHybridTechnicalCustomerProfile(resume),
         };
         byRoles.set(key, targets);
     }
@@ -1023,11 +1035,12 @@ function resumeTargets(resume: ResumeData, preferred: readonly string[] = []): R
 export type RoleFit = "target" | "unverified" | "off-target";
 
 export function roleFit(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): RoleFit {
-    const { families, searched, own } = resumeTargets(resume, preferred);
+    const { families, searched, own, hybridTechnicalCustomer } = resumeTargets(resume, preferred);
     const title = job.title ?? "";
     // Whole words, in order (`jobTitleMatchesTarget`): a substring test read
     // "Nursery Teacher" as a "Nurse" posting.
     if (searched.some((phrase) => countsAsTitleMatch(title, phrase))) return "target";
+    if (hybridTechnicalCustomer && isHybridTechnicalCustomerTitle(title)) return "target";
     const jobFamilies = familiesNamedBy([job.title ?? ""]);
     if (jobFamilies.length === 0) return "unverified";
     if (families.length === 0) {
@@ -1126,12 +1139,25 @@ export function unprovenTitle(resume: ResumeData, job: PublicJob, role: RoleAffi
 function titleAffinity(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): RoleAffinity {
     const fit = roleFit(resume, job, preferred);
     if (fit === "off-target") return fit;
-    const { own, ownFamilies } = resumeTargets(resume, preferred);
+    const { own, ownFamilies, statedUnheld, hybridTechnicalCustomer } = resumeTargets(resume, preferred);
     const title = job.title ?? "";
     if (own.some((phrase) => countsAsTitleMatch(title, phrase))) return "own";
     // A role they asked for but have not held is next to theirs, not one more of their own (2026-10-14).
-    const { statedUnheld } = resumeTargets(resume, preferred);
     if (statedUnheld.some((phrase) => countsAsTitleMatch(title, phrase))) return "adjacent";
+    // Senior candidates combining customer leadership with hands-on software engineering are overqualified
+    // for standard commercial "Account Manager" roles (neighbour/adjacent, not primary family), while
+    // hybrid technical-customer roles ("Founding Solutions Engineer", "Forward Deployed Engineer",
+    // "Solutions Architect", "Head of Solutions") sit in their primary family.
+    if (hybridTechnicalCustomer) {
+        if (
+            (resume.profile?.yearsOfExperience ?? 0) >= 8 &&
+            isPlainCommercialAccountManagerTitle(title) &&
+            !own.some((phrase) => isPlainCommercialAccountManagerTitle(phrase))
+        ) {
+            return "adjacent";
+        }
+        if (isHybridTechnicalCustomerTitle(title)) return "family";
+    }
     if (familiesNamedBy([title]).some((family) => ownFamilies.includes(family))) return "family";
     // A résumé that names no role of its own (skills only) has nothing to be "next to".
     if (fit === "target") return own.length > 0 ? "adjacent" : "family";
@@ -1160,8 +1186,10 @@ function yourRoleFor(resume: ResumeData, job: PublicJob, preferred: readonly str
  * its own role. A résumé with one kind of role is unchanged.
  */
 function familyRank(resume: ResumeData, job: PublicJob, role: RoleAffinity, preferred: readonly string[] = []): number {
-    const { leading } = resumeTargets(resume, preferred);
-    const ranks = familiesNamedBy([job.title ?? ""])
+    const { leading, hybridTechnicalCustomer } = resumeTargets(resume, preferred);
+    const title = job.title ?? "";
+    if (hybridTechnicalCustomer && isHybridTechnicalCustomerTitle(title)) return 0;
+    const ranks = familiesNamedBy([title])
         .map((family) => leading.indexOf(family))
         .filter((rank) => rank >= 0);
     if (ranks.length > 0) return Math.min(...ranks);

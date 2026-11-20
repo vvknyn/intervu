@@ -1,11 +1,20 @@
 import type { ResumeData } from "@/types/resume";
-import { descriptionToBullets } from "./merge-bullet-lines";
+import { hasHybridTechnicalCustomerProfile, roleEndYear, STALE_ROLE_YEARS } from "@/lib/jobs/resume-match";
+import { matchResumeLinks } from "./links";
+import { BULLET_MARKER_RE, descriptionToBullets } from "./merge-bullet-lines";
 
 export interface BulletDiagnosticItem {
     entryId: string;
     roleTitle: string;
     bullet: string;
     detail?: string;
+}
+
+export interface ResumeStrategicRecommendation {
+    id: "consolidate_older_roles" | "hybrid_role_targeting" | "emphasize_founder_build" | "clickable_project_links";
+    category: "structure" | "positioning" | "formatting";
+    title: string;
+    detail: string;
 }
 
 export interface ResumeDiagnosticsReport {
@@ -16,6 +25,8 @@ export interface ResumeDiagnosticsReport {
     fillerAndBuzzwords: BulletDiagnosticItem[];
     overlongBullets: BulletDiagnosticItem[];
     tightenableCount: number;
+    consolidatableOlderBulletsCount: number;
+    recommendations: ResumeStrategicRecommendation[];
 }
 
 const WEAK_OPENER_RE =
@@ -412,6 +423,8 @@ export function analyzeResumeDiagnostics(data: ResumeData): ResumeDiagnosticsRep
         }
     }
 
+    const { recommendations, consolidatableOlderBulletsCount } = buildStrategicRecommendations(data);
+
     return {
         totalBullets,
         quantifiedBullets,
@@ -420,6 +433,168 @@ export function analyzeResumeDiagnostics(data: ResumeData): ResumeDiagnosticsRep
         fillerAndBuzzwords,
         overlongBullets,
         tightenableCount,
+        consolidatableOlderBulletsCount,
+        recommendations,
+    };
+}
+
+function isOlderExperienceRole(index: number, dates: string, nowYear: number): boolean {
+    if (index === 0) return false;
+    const ended = roleEndYear(dates ?? "", nowYear);
+    if (ended !== null) return nowYear - ended >= STALE_ROLE_YEARS;
+    return index >= 2;
+}
+
+function formatNameList(names: string[]): string {
+    if (names.length === 0) return "";
+    if (names.length === 1) return names[0]!;
+    if (names.length === 2) return `${names[0]} and ${names[1]}`;
+    return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
+/**
+ * Generates high-level career positioning, structure, and formatting recommendations
+ * from the résumé's overall career arc (10+ YoE older-role consolidation, compound
+ * technical + customer-facing role targeting, founder/live-platform emphasis, and
+ * clickable live project hyperlinks).
+ */
+export function buildStrategicRecommendations(
+    data: ResumeData,
+    nowYear: number = new Date().getFullYear(),
+): {
+    recommendations: ResumeStrategicRecommendation[];
+    consolidatableOlderBulletsCount: number;
+} {
+    const recommendations: ResumeStrategicRecommendation[] = [];
+    const years = data.profile?.yearsOfExperience ?? 0;
+    const experience = data.experience ?? [];
+    const projects = data.projects ?? [];
+
+    // 1. Consolidate older roles (10+ years of experience with multiple prior roles)
+    let consolidatableOlderBulletsCount = 0;
+    const olderRoles = experience.filter((exp, idx) => isOlderExperienceRole(idx, exp?.dates ?? "", nowYear));
+    for (const oldExp of olderRoles) {
+        const count = descriptionToBullets(oldExp.description ?? "").length;
+        if (count > 2) consolidatableOlderBulletsCount += count - 2;
+    }
+    const recentBullets = experience[0] ? descriptionToBullets(experience[0].description ?? "").length : 0;
+    if ((years >= 10 || experience.length >= 4) && olderRoles.length >= 2 && (recentBullets >= 4 || consolidatableOlderBulletsCount > 0)) {
+        const companyNames = olderRoles
+            .map((e) => (e.company || e.role || "").trim())
+            .filter(Boolean)
+            .slice(0, 3);
+        const named = companyNames.length > 0 ? ` at ${formatNameList(companyNames)}` : "";
+        recommendations.push({
+            id: "consolidate_older_roles",
+            category: "structure",
+            title: "Consolidate older roles",
+            detail: `With ${years >= 10 ? `${years}+` : "10+"} years of experience, keep older roles${named} to 1–2 'greatest hits' bullets to save space for your recent technical accomplishments.`,
+        });
+    }
+
+    // 2. Compound technical + customer-facing role targeting (avoid standard Account Manager under-leveling)
+    if (hasHybridTechnicalCustomerProfile(data) && (years >= 8 || experience.length >= 3)) {
+        recommendations.push({
+            id: "hybrid_role_targeting",
+            category: "positioning",
+            title: "Target hybrid technical-commercial roles",
+            detail:
+                "You are overqualified for a standard 'Account Manager' role. Target 'Head of Solutions', 'Founding Solutions Engineer', 'Forward Deployed Engineer', or 'Solutions Architect' roles where your ability to code and talk to customers simultaneously is the primary value prop.",
+        });
+    }
+
+    // 3. Founder / live platform emphasis (especially vs MBA / credentials for startup roles)
+    const founderProject = projects.find((p) => {
+        const blob = `${p?.role ?? ""} ${p?.company ?? ""} ${p?.description ?? ""}`;
+        return /\b(?:founder|co-founder|creator)\b/i.test(blob) || (matchResumeLinks(`${p?.role ?? ""} ${p?.company ?? ""}`).length > 0 && /\b\d+\s*[kmb]\+?\b/i.test(blob));
+    });
+    if (founderProject) {
+        const projLinks = matchResumeLinks(`${founderProject.role ?? ""} ${founderProject.company ?? ""} ${founderProject.description ?? ""}`);
+        const projLabel = projLinks[0]?.text || founderProject.role || founderProject.company || "your live platform";
+        const scaleMatch = `${founderProject.role ?? ""} ${founderProject.company ?? ""} ${founderProject.description ?? ""}`.match(/\b\d+(?:\.\d+)?\s*[KMB]\+?\s*(?:postings|users|members|requests|records)?\b/i);
+        const scaleNote = scaleMatch ? ` with ${scaleMatch[0].trim()}` : "";
+        const hasMba = (data.education ?? []).some((e) => /\bmba\b|master of business/i.test(`${e?.degree ?? ""} ${e?.institution ?? ""}`));
+        recommendations.push({
+            id: "emphasize_founder_build",
+            category: "positioning",
+            title: "Emphasize your 'Founder' experience",
+            detail: `Being the builder who shipped and operates a live platform (${projLabel}${scaleNote}) is a high-signal proof of execution${hasMba ? " — at startups, it often carries more weight than an MBA" : ""}.`,
+        });
+    }
+
+    // 4. Clickable live project / portfolio domain in PDF
+    const projectDomainLinks = projects.flatMap((p) =>
+        matchResumeLinks(`${p?.role ?? ""} ${p?.company ?? ""} ${p?.description ?? ""}`).filter((l) => !l.url.startsWith("mailto:")),
+    );
+    const contactDomainLinks = matchResumeLinks(data.profile?.website ?? "").filter((l) => !l.url.startsWith("mailto:"));
+    const primaryDomain = projectDomainLinks[0]?.text ?? contactDomainLinks[0]?.text ?? null;
+    if (primaryDomain) {
+        recommendations.push({
+            id: "clickable_project_links",
+            category: "formatting",
+            title: `Make '${primaryDomain}' a clickable hyperlink`,
+            detail: `'${primaryDomain}' is automatically embedded as a clickable PDF link annotation on export so founders and hiring managers can open it directly from the PDF.`,
+        });
+    }
+
+    return { recommendations, consolidatableOlderBulletsCount };
+}
+
+function bulletSignalScore(bullet: string, index: number, total: number): number {
+    let score = 0;
+    if (QUANTIFIED_SIGNAL_RE.test(bullet)) score += 3;
+    if (/[%$]|\b\d+\s*[x×kmb]\b/i.test(bullet)) score += 2;
+    if (!WEAK_OPENER_RE.test(bullet)) score += 1;
+    // Slight preference for earlier bullets on ties
+    score -= total > 1 ? (index / (total - 1)) * 0.5 : 0;
+    return score;
+}
+
+function detectMarker(description: string): string {
+    for (const line of description.split("\n")) {
+        const m = line.match(BULLET_MARKER_RE);
+        if (m) return `${m[0].trim()} `;
+    }
+    return "• ";
+}
+
+/**
+ * Compresses older experience roles (ended ≥5 years ago, after the current role) to at most
+ * `maxBulletsPerOlderRole` (default 2) highest-signal 'greatest hits' bullets, preserving
+ * original bullet order among the kept bullets.
+ */
+export function consolidateOlderRoles(
+    data: ResumeData,
+    maxBulletsPerOlderRole = 2,
+    nowYear: number = new Date().getFullYear(),
+): { data: ResumeData; removedCount: number } {
+    let removedCount = 0;
+    const nextExperience = (data.experience ?? []).map((exp, idx) => {
+        if (!isOlderExperienceRole(idx, exp?.dates ?? "", nowYear)) return exp;
+        const bullets = descriptionToBullets(exp.description ?? "");
+        if (bullets.length <= maxBulletsPerOlderRole) return exp;
+        const keepIndices = new Set(
+            bullets
+                .map((b, i) => ({ i, score: bulletSignalScore(b, i, bullets.length) }))
+                .sort((a, b) => b.score - a.score || a.i - b.i)
+                .slice(0, maxBulletsPerOlderRole)
+                .map((x) => x.i),
+        );
+        const kept = bullets.filter((_, i) => keepIndices.has(i));
+        removedCount += bullets.length - kept.length;
+        const marker = detectMarker(exp.description ?? "");
+        return {
+            ...exp,
+            description: kept.map((b) => `${marker}${b}`).join("\n"),
+        };
+    });
+
+    return {
+        data: {
+            ...data,
+            experience: nextExperience,
+        },
+        removedCount,
     };
 }
 

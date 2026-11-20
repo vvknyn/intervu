@@ -792,3 +792,115 @@ export function mergeFacets(
     }
     return merged;
 }
+
+/**
+ * Titles where coding / systems engineering and direct customer ownership are the combined
+ * value proposition: Solutions Engineer, Founding Solutions Engineer, Forward Deployed Engineer,
+ * Solutions Architect, Head of Solutions, Customer/Partner Engineer, Deployment Strategist.
+ */
+export const HYBRID_TECHNICAL_CUSTOMER_TITLE_RE =
+    /\b(?:(?:founding|head\s+of|director\s+of|lead|senior|sr\.?|principal|staff|enterprise|strategic|technical|customer|partner)\s+)*(?:solutions?\s+(?:engineer|engineering\s+lead|architect|consultant|lead|manager|director)|forward[- ]?deployed\s+(?:software\s+)?engineer|customer\s+engineer|partner\s+engineer|sales\s+engineer|pre[- ]?sales\s+engineer|head\s+of\s+solutions|director\s+of\s+solutions|deployment\s+strategist|implementation\s+(?:engineer|architect))\b/i;
+
+export function isHybridTechnicalCustomerTitle(title: string | null | undefined): boolean {
+    return HYBRID_TECHNICAL_CUSTOMER_TITLE_RE.test(title ?? "");
+}
+
+/**
+ * A standard commercial "Account Manager" title (without "Technical", "Solutions", "Engineering",
+ * "Platform", "Cloud", "API", "Integration", "Systems", "Software", or "Data"). A senior candidate
+ * who combines hands-on engineering with customer leadership is overqualified for a standard
+ * commercial Account Manager role and should see it as a neighbour (`adjacent`), not a primary
+ * family match (`family`).
+ */
+const TECHNICAL_AM_QUALIFIER_RE =
+    /\b(?:technical|solutions?|engineering|engineer|cloud|platform|api|integration|systems?|software|data|cyber|security|it|ai|developer|infrastructure)\b/i;
+
+export function isPlainCommercialAccountManagerTitle(title: string | null | undefined): boolean {
+    const text = (title ?? "").trim();
+    if (!/\baccount\s+managers?\b/i.test(text)) return false;
+    return !TECHNICAL_AM_QUALIFIER_RE.test(text);
+}
+
+const CUSTOMER_FACING_ROLE_RE =
+    /\b(?:technical\s+account|customer\s+success|client\s+success|product\s+manager|product\s+owner|solutions?\s+(?:engineer|architect|consultant|lead|manager)|head\s+of\s+solutions|forward[- ]?deployed|implementation\s+manager|customer\s+engineer|partner\s+engineer)\b/i;
+
+const ENGINEERING_ROLE_RE =
+    /\b(?:software\s+(?:engineer|developer)|(?:back[- ]?end|front[- ]?end|full[- ]?stack|platform|systems|data|ml|machine\s+learning|cloud|devops|site\s+reliability)\s+(?:engineer|developer)|technology\s+lead|tech\s+lead|engineering\s+(?:lead|manager)|solutions?\s+(?:engineer|architect)|forward[- ]?deployed\s+(?:software\s+)?engineer)\b/i;
+
+const CODING_SKILL_TOKEN_RE =
+    /\b(?:sql|python|postgres(?:ql)?|typescript|javascript|golang|java|c\+\+|c#|rust|react(?:\.js)?|next\.js|node\.js|rest\s*apis?|graphql|docker|kubernetes|k8s|llms?|mcp|etl|saml|sso)\b/i;
+
+const TECHNICAL_PROJECT_SIGNAL_RE =
+    /\b(?:api|mcp|postgres(?:ql)?|typescript|python|next\.js|react|node\.js|llms?|ai\s+agents?|meilisearch|pipeline|etl|sdk|microservice|distributed)\b/i;
+
+/**
+ * True when the résumé combines customer-facing ownership (TAM, Customer Success, Product Manager,
+ * Solutions) with hands-on software engineering evidence (prior Software Engineer / Tech Lead roles,
+ * a shipped technical platform/project, or ≥3 core coding/architecture skills).
+ *
+ * Pure non-technical CSMs (e.g. Gainsight/Salesforce/QBRs only, no engineering history or coding stack)
+ * return `false`.
+ */
+export function hasHybridTechnicalCustomerProfile(resume: ResumeData | null | undefined): boolean {
+    if (!resume) return false;
+    const roleTexts = [
+        resume.profile?.profession ?? "",
+        resume.generatedSummary ?? "",
+        ...(resume.experience ?? []).map((e) => e?.role ?? ""),
+    ];
+    const hasCustomerSide = roleTexts.some((t) => CUSTOMER_FACING_ROLE_RE.test(t));
+    if (!hasCustomerSide) return false;
+
+    const hasEngineeringRole = (resume.experience ?? []).some(
+        (e) =>
+            ENGINEERING_ROLE_RE.test(e?.role ?? "") ||
+            (/\bteam\s+lead\b/i.test(e?.role ?? "") &&
+                /\b(?:engineer|re-engineering|api|data|pipeline|etl|architecture|gps|backend)\b/i.test(e?.description ?? "")),
+    );
+
+    const hasTechnicalProject = (resume.projects ?? []).some((p) => {
+        const blob = `${p?.role ?? ""} ${p?.company ?? ""} ${p?.description ?? ""}`;
+        return TECHNICAL_PROJECT_SIGNAL_RE.test(blob);
+    });
+
+    const skillText = (resume.competencies ?? [])
+        .flatMap((c) => c?.skills ?? [])
+        .join(" ; ");
+    const codingSkillMatches = new Set(
+        [...skillText.matchAll(new RegExp(CODING_SKILL_TOKEN_RE.source, "gi"))].map((m) =>
+            m[0].toLowerCase().replace(/\.js$/, "").replace(/^postgresql$/, "postgres").replace(/^rest\s+apis?$/, "rest api").replace(/^llms?$/, "llm"),
+        ),
+    );
+    const hasCodingStack = codingSkillMatches.size >= 3;
+
+    return hasEngineeringRole || hasTechnicalProject || (hasCodingStack && (hasEngineeringRole || hasTechnicalProject || codingSkillMatches.size >= 4));
+}
+
+/**
+ * High-leverage target roles for a résumé, accounting for compound technical + customer-facing
+ * career arcs (e.g. a senior TAM/PM with software engineering background and a live founder build).
+ */
+export function recommendedTargetRoles(resume: ResumeData): string[] {
+    const target = targetRoles(resume);
+    const out: string[] = [...target.own];
+    const add = (title: string) => {
+        if (title && !out.some((t) => t.toLowerCase() === title.toLowerCase())) out.push(title);
+    };
+    if (hasHybridTechnicalCustomerProfile(resume)) {
+        for (const hybrid of [
+            "Head of Solutions",
+            "Founding Solutions Engineer",
+            "Forward Deployed Engineer",
+            "Solutions Architect",
+            "Technical Account Manager",
+            "Technical Product Manager",
+        ]) {
+            add(hybrid);
+        }
+    } else {
+        for (const t of suggestAdjacentRolesLocal(target.own, topSkills(resume, 6), 4)) {
+            add(t);
+        }
+    }
+    return out;
+}

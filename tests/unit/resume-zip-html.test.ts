@@ -67,4 +67,21 @@ describe("resumeDataToZipHtml", () => {
         assert.match(html, /University at Buffalo/);
         assert.doesNotMatch(html, /University \| Buffalo/);
     });
+
+    it("renders velai.app, LinkedIn, and email as clickable anchor links in HTML output", () => {
+        const data = resumeDataFromPlainText(
+            [
+                "Vivek Narayanan",
+                "Toronto, ON | +1 (437) 224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | velai.app",
+                "PROJECTS",
+                "velai.app — Founder | 2026 — Present",
+                "• Built a live job-search platform over 2M+ postings with Next.js and PostgreSQL.",
+            ].join("\n"),
+        );
+        const html = resumeDataToZipHtml(data);
+        assert.match(html, /<a href="https:\/\/velai\.app"[^>]*>velai\.app<\/a>/);
+        assert.match(html, /<a href="https:\/\/linkedin\.com\/in\/viveknar"[^>]*>linkedin\.com\/in\/viveknar<\/a>/);
+        assert.match(html, /<a href="mailto:viveknyan@gmail\.com"[^>]*>viveknyan@gmail\.com<\/a>/);
+        assert.doesNotMatch(html, /<a href="https:\/\/next\.js"/i);
+    });
 });

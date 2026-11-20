@@ -16,10 +16,13 @@ import {
   styleFromLayoutProfile,
   floorBodySizeFor,
   renderResumePdf,
+  extractTextLinks,
+  extractPageLinks,
   resumeNeedsUnicodeFont,
   deriveResumePdfFilename,
   type TextMeasurer,
 } from "@/lib/resume/render-pdf";
+import { matchResumeLinks } from "@/lib/resume/links";
 import type { ResumeLayoutProfile } from "@/lib/resume/layout-profile";
 import type { ResumeData } from "@/types/resume";
 
@@ -514,6 +517,52 @@ describe("renderResumePdf", () => {
     assert.equal(result.originalPages, 1);
     assert.equal(result.fits, true);
     assert.equal(result.bodySize, 7.75);
+  });
+
+  it("embeds clickable PDF link annotations for velai.app, LinkedIn, and email while ignoring Next.js / Node.js", () => {
+    const doc: ParsedResumeDocument = {
+      name: "Vivek Narayanan",
+      contactLine: "Toronto, ON | +1 (437) 224-8332 | viveknyan@gmail.com | linkedin.com/in/viveknar | velai.app",
+      sections: [
+        {
+          heading: "INDEPENDENT PROJECTS",
+          blocks: [
+            {
+              kind: "entry",
+              title: "velai.app | Founder",
+              dateRight: "2026 — Present",
+              bullets: [
+                "Built a live job-search platform over 2M+ postings using Next.js, Node.js, TypeScript, and PostgreSQL.",
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const matches = matchResumeLinks("Built on Next.js and Node.js at velai.app (contact viveknyan@gmail.com or linkedin.com/in/viveknar).");
+    assert.deepEqual(
+      matches.map((m) => [m.text, m.url]),
+      [
+        ["velai.app", "https://velai.app"],
+        ["viveknyan@gmail.com", "mailto:viveknyan@gmail.com"],
+        ["linkedin.com/in/viveknar", "https://linkedin.com/in/viveknar"],
+      ],
+    );
+
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    const links = extractPageLinks(layout.pages[0]!, fakeMeasurer);
+    assert.ok(links.some((l) => l.url === "https://velai.app" && l.width > 0));
+    assert.ok(links.some((l) => l.url === "https://linkedin.com/in/viveknar" && l.width > 0));
+    assert.ok(links.some((l) => l.url === "mailto:viveknyan@gmail.com" && l.width > 0));
+    assert.ok(!links.some((l) => /next\.js|node\.js/i.test(l.text)));
+
+    const result = renderResumePdf(doc);
+    const raw = Buffer.from(result.bytes).toString("latin1");
+    assert.match(raw, /\/Subtype\s*\/Link/);
+    assert.match(raw, /\/URI\s*\(https:\/\/velai\.app\)/);
+    assert.match(raw, /\/URI\s*\(https:\/\/linkedin\.com\/in\/viveknar\)/);
+    assert.match(raw, /\/URI\s*\(mailto:viveknyan@gmail\.com\)/);
   });
 });
 
