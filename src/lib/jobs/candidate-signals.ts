@@ -153,7 +153,14 @@ function resolveLocation(resume: LocationResume | null, prefs: AgentPreferences 
         if (resumePlace && resumePlace.countries.length > 0) return signal(resumePlace, "resume");
         return signal(own, "explicit");
     }
-    return fromResume ? signal(locationOf(fromResume), "resume") : unknown();
+    if (fromResume) return signal(locationOf(fromResume), "resume");
+    const workAuthClause = prefs?.answers?.workAuthorization?.match(/\b(?:based (?:in|out of)|located in)\s+([^.;()]+)/i)?.[0];
+    const fromWorkAuth = sanitizeLocation(workAuthClause);
+    if (fromWorkAuth) {
+        const own = locationOf(fromWorkAuth);
+        if (own.countries.length > 0) return signal(own, "explicit");
+    }
+    return unknown();
 }
 
 function resolveRelocation(prefs: AgentPreferences | null): Signal<CandidateRelocation> {

@@ -154,5 +154,20 @@ describe("orderForYouJobsByBand", () => {
         const offTargetStretch = forYouSortKey({ ...score(59), role: "off-target" }, NOW - 2 * 86_400_000, NOW);
         assert.ok(compareForYouKeys(ownStretch, offTargetStretch) < 0);
     });
+
+    it("orderForYouJobsByBand spaces multi-city sibling requisitions of the same company_domain and title behind unique roles in the same band", () => {
+        const tdCanada = { ...job("td-ca", "Senior Product Manager"), company: "Tripledot Studios", company_domain: "tripledotstudios.com", location: "Canada" };
+        const tdMontreal = { ...job("td-mtl", "Senior Product Manager"), company: "Tripledot Studios", company_domain: "tripledotstudios.com", location: "Montreal" };
+        const tdToronto = { ...job("td-tor", "Senior Product Manager"), company: "Tripledot Studios", company_domain: "tripledotstudios.com", location: "Toronto" };
+        const d2l = { ...job("d2l", "Technical Account Manager"), company: "D2L", company_domain: "d2l.com", location: "Kitchener, ON" };
+        const scores = new Map<string, MatchScore>([
+            ["td-ca", score(78)],
+            ["td-mtl", score(78)],
+            ["td-tor", score(78)],
+            ["d2l", score(76)],
+        ]);
+        const ordered = orderForYouJobsByBand([tdCanada, tdMontreal, tdToronto, d2l], (j) => scores.get(j.id) ?? null, NOW);
+        assert.deepEqual(ordered.map((j) => j.id), ["td-ca", "d2l", "td-mtl", "td-tor"]);
+    });
 });
 

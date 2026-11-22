@@ -55,9 +55,9 @@ const WORK_MODE_REPEAT_RE = /\b(remote|hybrid|on-?site)(?:\s+\1)+\b/gi;
 /** "Remote" followed only by generic ATS filler nouns. */
 const REMOTE_FILLER_RE = /^remote(?:[\s-]+(?:location|city|office|work|worker|position|role|job|based))+$/i;
 
-/** A segment that names a field, not a value ("All States", "Location"). */
+/** A segment that names a field, not a value ("All States", "Location"), or an ATS requisition code ("JREQ205058"). */
 const PLACEHOLDER_RE =
-  /^(?:(?:all|any|every)\s+(?:states?|cities|city|provinces?|regions?|locations?|countries)|location|city|state|province|region|country|n\/?a|tbd)$/i;
+  /^(?:(?:all|any|every)\s+(?:states?|cities|city|provinces?|regions?|locations?|countries)|location|city|state|province|region|country|n\/?a|tbd|(?:j?req|jr)[-_]?\d{4,10})$/i;
 
 /** ATS site code: "<CC> <ST> <Name>" ("US CT Shelton", "US FL Remote"). */
 const SITE_CODE_RE = /^[A-Z]{2}\s+([A-Z]{2})\s+([^,;]+)$/;

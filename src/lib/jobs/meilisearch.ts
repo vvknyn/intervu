@@ -2487,13 +2487,26 @@ function compareTierKeys(a: readonly number[], b: readonly number[]): number {
   return 0;
 }
 
-/** Posting-age buckets the rerank prefers newer within: up to 3 days, a week, two weeks, a month, older. */
-const FRESHNESS_BUCKET_DAYS = [3, 7, 14, 30] as const;
+/** Posting-age buckets the rerank prefers newer within: up to 3 days, a week, two weeks, a month, 90 days, older. */
+const FRESHNESS_BUCKET_DAYS = [3, 7, 14, 30, 90] as const;
 const DAY_MS = 86_400_000;
+
+/**
+ * A posting's true age timestamp for relevance reranking: the OLDER of `posted_ts`
+ * and `first_seen_at` (same rule `packAgeTier` and `classifyPostingFreshness` use),
+ * so an evergreen requisition first seen 200+ days ago whose ATS refreshed `posted_ts`
+ * this week does not masquerade as a brand-new posting.
+ */
+export function effectivePostedTs(job: PublicJob, nowMs: number = Date.now()): number | null {
+    const posted = typeof job.posted_ts === "number" && Number.isFinite(job.posted_ts) ? job.posted_ts : null;
+    const firstSeen = sanitizeTimestamp(job.first_seen_at, nowMs);
+    if (posted != null && firstSeen != null) return Math.min(posted, firstSeen);
+    return posted ?? firstSeen;
+}
 
 /** Lower = fresher. Unknown age sorts with the oldest. */
 export function freshnessBucket(job: PublicJob, nowMs: number = Date.now()): number {
-    const ts = job.posted_ts;
+    const ts = effectivePostedTs(job, nowMs);
     if (typeof ts !== "number" || !Number.isFinite(ts)) return FRESHNESS_BUCKET_DAYS.length;
     const days = Math.max(0, (nowMs - ts) / DAY_MS);
     const i = FRESHNESS_BUCKET_DAYS.findIndex((limit) => days <= limit);
@@ -2569,8 +2582,8 @@ export function applyRelevanceQualityReranking(
     const ghost = ghostScore(b.ghost_badge) - ghostScore(a.ghost_badge);
     if (ghost !== 0) return ghost;
 
-    // 5. Recency tie-break (posted_ts)
-    return (b.posted_ts ?? 0) - (a.posted_ts ?? 0);
+    // 5. Recency tie-break (effectivePostedTs)
+    return (effectivePostedTs(b, nowMs) ?? 0) - (effectivePostedTs(a, nowMs) ?? 0);
   });
   return keyed.map((k) => k.hit);
 }
@@ -2602,7 +2615,8 @@ function closeMatchKey(hit: HitWithRankingDetails, ctx: RelevanceRerankContext):
 }
 
 function postedTsOrOldest(job: PublicJob): number {
-  return typeof job.posted_ts === "number" && Number.isFinite(job.posted_ts) ? job.posted_ts : Number.NEGATIVE_INFINITY;
+  const ts = effectivePostedTs(job);
+  return typeof ts === "number" && Number.isFinite(ts) ? ts : Number.NEGATIVE_INFINITY;
 }
 
 function withoutRankingScoreDetails(hit: PublicJob): PublicJob {

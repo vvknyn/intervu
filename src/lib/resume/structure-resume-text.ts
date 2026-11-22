@@ -16,6 +16,7 @@ import {
     isLikelyPlaceSegment,
     looksLikeRealPlaceSegment,
     sanitizeLocation,
+    splitContactLineSegments,
 } from "@/lib/resume/contact-line";
 import { markdownResumeToPlainText } from "@/lib/resume/markdown-text";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
@@ -709,10 +710,11 @@ const CONTACT_DATA_RES = [EMAIL_RE, PHONE_RE, LINKEDIN_RE];
 
 /** A line's `·` `|` `•` segments with its email, phone and LinkedIn removed. */
 function placeSegments(line: string): string[] {
-    return CONTACT_DATA_RES.reduce((s, re) => s.replace(re, ""), line)
-        .replace(/\s+/g, " ")
-        .trim()
-        .split(/[·|•]/);
+    return splitContactLineSegments(
+        CONTACT_DATA_RES.reduce((s, re) => s.replace(re, ""), line)
+            .replace(/\s+/g, " ")
+            .trim(),
+    );
 }
 
 /** A credential printed after a name: "RN", "MD", "PhD", "P.Eng", "SHRM-CP", "Jr." */

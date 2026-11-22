@@ -347,6 +347,14 @@ export function orderForYouJobsByBand(
     return orderRoles(jobs, getScore, nowMs, (job, score) => holds(deckLeftOut(job, score, nowMs), score));
 }
 
+function requisitionSiblingKey(job: PublicJob): string | null {
+    const domain = typeof job.company_domain === "string" ? job.company_domain.trim().toLowerCase() : "";
+    const title = typeof job.title === "string" ? job.title.toLowerCase().replace(/^job:\s*/i, "").replace(/\s+/g, " ").trim() : "";
+    const loc = typeof job.location === "string" ? job.location.trim().toLowerCase() : "";
+    if (!domain || !title || !loc) return null;
+    return `${domain}::${title}`;
+}
+
 /** The scored roles `keep` holds, in `forYouSortKey`'s order (ties keep the incoming order). A recommendation holds only roles this résumé could take: not a tail of Stretch roles, not a label. */
 function orderRoles(
     jobs: readonly PublicJob[],
@@ -354,13 +362,29 @@ function orderRoles(
     nowMs: number,
     keep: (job: PublicJob, score: MatchScore) => boolean,
 ): PublicJob[] {
-    const keyed: { job: PublicJob; sort: ForYouSortKey; index: number }[] = [];
+    const keyed: { job: PublicJob; sort: ForYouSortKey; index: number; siblingRank: number }[] = [];
     jobs.forEach((job, index) => {
         const score = getScore(job);
         if (score == null || !keep(job, score)) return;
-        keyed.push({ job, sort: forYouSortKey(score, postedTsOf(job), nowMs, job.first_seen_at), index });
+        keyed.push({ job, sort: forYouSortKey(score, postedTsOf(job), nowMs, job.first_seen_at), index, siblingRank: 0 });
     });
     keyed.sort((a, b) => compareForYouKeys(a.sort, b.sort) || a.index - b.index);
+    const seenLocsByBandAndReq = new Map<string, Set<string>>();
+    for (const item of keyed) {
+        const reqKey = requisitionSiblingKey(item.job);
+        if (!reqKey) continue;
+        const bandReqKey = `${item.sort.key}::${reqKey}`;
+        const loc = (item.job.location ?? "").trim().toLowerCase();
+        let locs = seenLocsByBandAndReq.get(bandReqKey);
+        if (!locs) {
+            locs = new Set([loc]);
+            seenLocsByBandAndReq.set(bandReqKey, locs);
+        } else if (!locs.has(loc)) {
+            item.siblingRank = locs.size;
+            locs.add(loc);
+        }
+    }
+    keyed.sort((a, b) => a.sort.key - b.sort.key || a.siblingRank - b.siblingRank || compareForYouKeys(a.sort, b.sort) || a.index - b.index);
     return keyed.map((k) => k.job);
 }
 

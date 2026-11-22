@@ -87,6 +87,9 @@ export function parsePlaceSegment(segment: string | undefined | null): { parts: 
     s = s.replace(LOCATION_LABEL_RE, "").replace(WORK_MODE_PAREN_RE, "").replace(WORK_MODE_EDGE_RE, "");
     s = s.replace(EDGE_PUNCT_RE, "");
     s = s.match(/^\((.*)\)$/)?.[1].trim() ?? s;
+    if (!s.startsWith("(")) {
+        s = s.replace(/\s*\([^()]*\)?\s*$/u, "").replace(EDGE_PUNCT_RE, "");
+    }
     const parts = s.split(",").map((p) => p.trim()).filter(Boolean);
     while (parts.length > 0 && /\d/.test(parts[0])) parts.shift();
     if (parts.length > 0) parts[parts.length - 1] = parts[parts.length - 1].replace(DIGIT_TOKENS_TAIL_RE, "");
@@ -137,11 +140,34 @@ function isContactSegment(segment: string): boolean {
     return looksLikeRealPlaceSegment(s);
 }
 
+/**
+ * Splits a contact line on `·`, `|`, or `•` outside parentheses/brackets so a
+ * parenthetical qualifier carrying an internal separator
+ * ("Toronto, ON (Canadian Citizen · US TN-eligible)") stays intact.
+ */
+export function splitContactLineSegments(line: string): string[] {
+    const segments: string[] = [];
+    let depth = 0;
+    let current = "";
+    for (const ch of line) {
+        if (ch === "(" || ch === "[") depth++;
+        else if ((ch === ")" || ch === "]") && depth > 0) depth--;
+        if (depth === 0 && (ch === "·" || ch === "|" || ch === "•")) {
+            segments.push(current);
+            current = "";
+        } else {
+            current += ch;
+        }
+    }
+    segments.push(current);
+    return segments;
+}
+
 /** True when a line is a contact row (email/phone/linkedin/website/place), not summary prose. */
 export function isContactOrPlaceLine(line: string): boolean {
     const trimmed = line.trim();
     if (!trimmed) return false;
-    const segments = trimmed.split(/[·|•]/).map((s) => s.trim()).filter(Boolean);
+    const segments = splitContactLineSegments(trimmed).map((s) => s.trim()).filter(Boolean);
     if (segments.some((seg) => isContactSegment(seg))) return true;
     return isContactSegment(trimmed);
 }
@@ -153,7 +179,7 @@ export function isContactOrPlaceLine(line: string): boolean {
 export function sanitizeContactLine(line: string | undefined | null): string | null {
     const trimmed = (line ?? "").trim();
     if (!trimmed) return null;
-    const segments = trimmed.split(/[·|•]/).map((s) => s.trim()).filter(Boolean);
+    const segments = splitContactLineSegments(trimmed).map((s) => s.trim()).filter(Boolean);
     if (segments.length <= 1) {
         return isContactSegment(trimmed) ? trimmed : null;
     }

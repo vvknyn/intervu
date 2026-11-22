@@ -5,6 +5,7 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData } from "@/types/resume";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
+import { normalizeStoredResumeData } from "@/lib/resume/normalize-parsed-resume";
 import { resumeIsOnFile } from "@/lib/resume/resume-usable";
 import { hasResumeContent } from "@/lib/resume/has-content";
 import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
@@ -79,9 +80,10 @@ export async function fetchResumeData(): Promise<{
         if (resumeData?.profile) {
             resumeData.profile = migrateLegacyProfile(resumeData.profile);
         }
+        const normalizedData = resumeData ? normalizeStoredResumeData(resumeData) : undefined;
 
         return {
-            data: resumeData,
+            data: normalizedData,
             text,
             source: docData?.resume_import_source,
             confidence: docData?.resume_import_confidence,
