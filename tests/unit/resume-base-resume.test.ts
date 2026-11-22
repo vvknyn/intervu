@@ -60,4 +60,41 @@ describe("canonicalizeBaseResume", () => {
         const out = canonicalizeBaseResume(blankResume(), "Real resume content here");
         assert.equal(out.source, "resume_text");
     });
+
+    it("normalizes merged multi-degree education entries and recovers blank location from sourceHeader at read time", () => {
+        const corrupted = blankResume({
+            generatedSummary: "Technical Account Manager with 12 years of experience.",
+            education: [
+                {
+                    id: "edu-0",
+                    degree: "MBA, MS, Computer Science, University at Buffalo",
+                    institution: "University of Illinois Urbana-Champaign",
+                    year: "",
+                },
+            ],
+            sourceHeader: {
+                nameLine: "Vivek Narayanan",
+                contactLines: ["Toronto, ON (Canadian Citizen · US TN-eligible) · viveknyan@gmail.com · +1 (437) 224-8332"],
+            },
+        });
+        const out = canonicalizeBaseResume(corrupted, undefined);
+        assert.equal(out.source, "resume_data");
+        if (out.source === "resume_data") {
+            assert.equal(out.resume_data.profile.location, "Toronto, ON");
+            assert.deepEqual(out.resume_data.education, [
+                {
+                    id: "edu-0-1",
+                    degree: "MBA",
+                    institution: "University of Illinois Urbana-Champaign",
+                    year: "",
+                },
+                {
+                    id: "edu-0-2",
+                    degree: "MS, Computer Science",
+                    institution: "University at Buffalo",
+                    year: "",
+                },
+            ]);
+        }
+    });
 });

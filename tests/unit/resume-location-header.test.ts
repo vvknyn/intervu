@@ -36,6 +36,11 @@ const POSITIVE: { name: string; header: string[]; expect: string }[] = [
         header: ["Hearfon Systems Private Ltd., Bangalore, India | +91 99000 00000 | asha@example.com"],
         expect: "Bangalore, India",
     },
+    {
+        name: "citizenship and TN-eligibility parenthetical with middle dot",
+        header: ["Toronto, ON (Canadian Citizen · US TN-eligible) · viveknyan@gmail.com · +1 (437) 224-8332 · linkedin.com/in/viveknar"],
+        expect: "Toronto, ON",
+    },
 ];
 
 /**

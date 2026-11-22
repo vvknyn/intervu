@@ -974,7 +974,7 @@ export function newToManagingText(read: SeniorityRead | undefined): string {
  * reads as Strong — the ranker then places the verified-level jobs above it.
  */
 export function levelUnverified(signals: CandidateSignals, job: PublicJob): boolean {
-    return signals.seniority.value != null && isUnknownFacetValue("experience_level", job.experience_level);
+    return signals.seniority.value != null && isUnknownFacetValue("experience_level", job.experience_level) && jobLevelRead(job) == null;
 }
 
 interface ResumeTargets {

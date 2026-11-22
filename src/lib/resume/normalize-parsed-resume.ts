@@ -6,7 +6,7 @@
  */
 
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
-import { normalizeEducationEntries, normalizeProjectEntries } from "@/lib/resume/structure-resume-text";
+import { locationFromResumePlainText, normalizeEducationEntries, normalizeProjectEntries } from "@/lib/resume/structure-resume-text";
 import { cleanRoleTitle } from "@/lib/resume/title-text";
 import type {
     ParsedResumeResult,
@@ -186,4 +186,58 @@ export function normalizeParsedResume(
     }
 
     return { parsed, confidence, uncertainFields, warnings };
+}
+
+/**
+ * Repairs a stored `ResumeData` object at read time (MCP `get_resume`, web
+ * `fetchResumeData`) when an earlier parse left two degrees/schools merged in
+ * a single education entry, swapped a wrapped project continuation tail, or
+ * left `profile.location` blank when `sourceHeader.contactLines` carries a
+ * parenthetical-qualified place ("Toronto, ON (Canadian Citizen · US TN-eligible)").
+ * Returns the original reference unchanged when no repair applies.
+ */
+export function normalizeStoredResumeData(data: ResumeData): ResumeData {
+    let changed = false;
+    let profile = data.profile;
+    if (profile && !profile.location?.trim() && data.sourceHeader?.contactLines?.length) {
+        const recovered = locationFromResumePlainText(data.sourceHeader.contactLines.join("\n"));
+        if (recovered) {
+            profile = { ...profile, location: recovered };
+            changed = true;
+        }
+    }
+    let education = data.education;
+    if (Array.isArray(education) && education.length > 0) {
+        const nextEdu = normalizeEducationEntries(education);
+        if (
+            nextEdu.length !== education.length ||
+            nextEdu.some((e, i) => e.degree !== education[i]?.degree || e.institution !== education[i]?.institution)
+        ) {
+            education = nextEdu;
+            changed = true;
+        }
+    }
+    let projects = data.projects;
+    if (Array.isArray(projects) && projects.length > 0) {
+        const nextProj = normalizeProjectEntries(projects);
+        if (
+            nextProj.length !== projects.length ||
+            nextProj.some(
+                (p, i) =>
+                    p.role !== projects![i]?.role ||
+                    p.company !== projects![i]?.company ||
+                    p.description !== projects![i]?.description,
+            )
+        ) {
+            projects = nextProj;
+            changed = true;
+        }
+    }
+    if (!changed) return data;
+    return {
+        ...data,
+        profile,
+        education,
+        ...(projects ? { projects } : {}),
+    };
 }

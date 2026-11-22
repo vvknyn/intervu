@@ -18,6 +18,7 @@
  */
 import { getAdminDb } from "@/lib/firebase/admin";
 import { hasResumeContent } from "@/lib/resume/has-content";
+import { normalizeStoredResumeData } from "@/lib/resume/normalize-parsed-resume";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 import { hasPaidAccess } from "@/lib/billing/access";
 import type { ResumeData } from "@/types/resume";
@@ -42,7 +43,7 @@ export function canonicalizeBaseResume(
     resumeText: string | undefined,
 ): BaseResume {
     if (resumeData && hasResumeContent(resumeData)) {
-        return { source: "resume_data", resume_data: resumeData };
+        return { source: "resume_data", resume_data: normalizeStoredResumeData(resumeData) };
     }
     const trimmed = resumeText?.trim();
     if (trimmed) return { source: "resume_text", resume_text: trimmed };
