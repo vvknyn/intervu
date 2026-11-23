@@ -18,6 +18,7 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
+import { AdminJobControl } from "@/components/admin/AdminJobControl";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -922,6 +923,8 @@ export function JobDetail({
                                 className="ml-auto"
                             />
                         )}
+                        {/* Admin only; renders nothing for anyone else. */}
+                        <AdminJobControl jobId={job.id} jobTitle={jobTitle} />
                     </div>
                     <TrackedStageLine pursuit={pursuit} nowMs={now} className="mt-3" />
                 </div>

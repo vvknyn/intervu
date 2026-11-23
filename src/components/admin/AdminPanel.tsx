@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MetricsDashboard } from "@/components/admin/MetricsDashboard";
 import { SearchDemand } from "@/components/admin/SearchDemand";
+import { ModerationPanel } from "@/components/admin/ModerationPanel";
 import Link from "next/link";
 
 import { SubTitle } from "@/components/ui/heading";
@@ -99,6 +100,7 @@ export function AdminPanel() {
             <div className="space-y-6">
             <MetricsDashboard />
             <SearchDemand />
+            <ModerationPanel />
 
             {isLoading ? (
                 <WaitState label="Loading config" fill className="py-16 text-sm text-muted-foreground" />

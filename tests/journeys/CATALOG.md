@@ -974,6 +974,11 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-ADMIN-03 | @writes Admin toggles the donation button and its URL and saves | admin | /admin | signed-in | yes | uncovered | — |
 | J-ADMIN-04 | Admin filters the feedback list by Bug, Feedback or Other | admin | /admin | signed-in | no | uncovered | — |
 | J-ADMIN-05 | Admin opens /admin and reads Search demand for the last 30 days: Popular, Nothing found, Under 30 found, Companies with nothing open, Places with no roles and Where people search, each with its count, read from the anonymous search log (no account, IP or browser id; résumé-built searches never logged) | admin | /admin | signed-in | no | uncovered | — |
+| J-ADMIN-06 | Signed-out visitor on a job page sees no admin controls (no Remove listing) | anon | JOB_PATH at 1440x900 | signed-out | no | covered | admin.spec.ts |
+| J-ADMIN-07 | @writes Admin pastes a Velai job link under Remove a listing, sees its title, company and status, picks a reason and removes it; the removal appears under Recent actions | admin | /admin | signed-in | yes | uncovered | — |
+| J-ADMIN-08 | @writes Admin previews a domain (board status, open-listing count, five sample titles), then blocks it and sees how many listings closed and how many are still open | admin | /admin | signed-in | yes | uncovered | — |
+| J-ADMIN-09 | @writes Admin undoes a removal or a blocked domain from Recent actions | admin | /admin | signed-in | yes | uncovered | — |
+| J-ADMIN-10 | @writes Admin opens a job page, taps Remove listing, picks a reason and removes it; the control becomes "Removed ✓" | admin | JOB_PATH | signed-in | yes | uncovered | — |
 
 ## MODAL
 
